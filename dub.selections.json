@@ -1,0 +1,7 @@
+{
+	"fileVersion": 1,
+	"versions": {
+		"json": "0.3.0",
+		"raylib-d": "5.5.1"
+	}
+}

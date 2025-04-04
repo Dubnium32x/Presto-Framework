@@ -1,0 +1,25 @@
+{
+	"authors": [
+		"dylan"
+	],
+	"copyright": "Copyright © 2025, dylan",
+	"dependencies": {
+		"raylib-d": "~>5.5.1"
+	},
+	"description": "A brand new Sonic 2D framework developed in D and Raylib.",
+	"lflags-linux": [
+		"-rpath=$$ORIGIN"
+	],
+	"lflags-osx": [
+		"-rpath",
+		"@executable_path/"
+	],
+	"lflags-posix": [
+		"-L."
+	],
+	"libs": [
+		"raylib"
+	],
+	"license": "proprietary",
+	"name": "presto-framework"
+}
