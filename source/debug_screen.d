@@ -76,10 +76,12 @@ class DebugScreen : IScreen {
 
         for (int y = 0; y < layer.data.length; y++) {
             for (int x = 0; x < layer.data[y].length; x++) {
-                int tileID = layer.data[y][x];
-                if (tileID == 0) continue;
+                int tileID = layer.data[y][x] % (tilesPerRow * (tileset.height / layer.tileHeight));
+                if (tileID == 0 || tileID == -1)
+                    // draw empty tile
+                    continue;
 
-                int localID = tileID - 1;
+                int localID = tileID;
                 int sx = (localID % tilesPerRow) * layer.tileWidth;
                 int sy = (localID / tilesPerRow) * layer.tileHeight;
 
