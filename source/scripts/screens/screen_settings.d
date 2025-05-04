@@ -52,4 +52,6 @@ class ScreenSettings {
 
     int getVirtualWidth() { return virtualWidth; }
     int getVirtualHeight() { return virtualHeight; }
+    int getScreenWidth() { return screenWidth; }     // Added getter
+    int getScreenHeight() { return screenHeight; }    // Added getter
 }

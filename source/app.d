@@ -51,6 +51,7 @@ ScreenManager screenManager;
 void main() {
     // Initialize the screen settings
     screenSettings = new ScreenSettings(640, 360, 640, 360);
+    SetTargetFPS(60); // Set the target frames per second
     screenManager = new ScreenManager(screenSettings);
 
     // Window will be initialize through ScreenManager
