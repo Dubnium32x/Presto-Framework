@@ -75,8 +75,7 @@ Each CSV file represents a grid of tiles.
 *   Each row in the CSV corresponds to a row of tiles in the game world.
 *   Each comma-separated value in a row represents a tile ID.
 *   A `-1` or an empty value typically signifies an empty tile. Other integer values correspond to specific tile types defined in your tileset and game logic.
-
-*   A "0" is usually where Sonic or a character will spawn.
+    *   Alternatively, a `0` is usually where Sonic or a character will spawn.
 
 Make sure your tilesets are correctly referenced and that the tile IDs in your CSV files match the intended tiles.
 
