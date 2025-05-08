@@ -8,7 +8,7 @@ import std.algorithm;
 import std.conv;
 import std.array;
 
-import parser.csv_tile_loader; // Import the CSV tile loader
+import parser.csv_tile_loader;
 import screen_states;
 import screen_settings;
 import level_list;
@@ -54,9 +54,17 @@ class ScreenManager {
     // Initialize the screen manager
     void initialize() {
         if (!initialized) {
+            // Load options first
+            if (!optionsLoaded) {
+                createOptionsFile(); // Ensure it exists
+                loadOptions();       // Load them
+            }
+
             // Load the initial screen
             if (currentScreenState == ScreenState.DEBUG || currentScreenState == ScreenState.GAME) {
-                currentScreen = new LevelManager(); // Replace with actual gameplay screen class
+                // currentScreen should be an instance of a class that implements IScreen
+                // LevelManager now implements IScreen
+                currentScreen = new LevelManager(); 
             }
             else if (currentScreenState == ScreenState.INIT) {
                 // currentScreen = new InitScreen(); // Replace with actual init screen class

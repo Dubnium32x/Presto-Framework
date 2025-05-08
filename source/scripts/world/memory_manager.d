@@ -12,6 +12,7 @@ import std.json;
 import screen_manager;
 import screen_states;
 import level;
+import screen_settings; // Added import
 
 enum MemoryManagerState {
     INIT,
@@ -39,7 +40,36 @@ void createOptionsFile() {
         ]);
         auto json = options.toString();
         std.file.write(optionsFilePath, json);
-    } else {
+    }
+    else {
         writeln("Options file already exists: ", optionsFilePath);
+    }
+}
+
+void loadOptions() {
+    // Load options from the JSON file
+    string optionsFilePath = "options.json";
+    if (exists(optionsFilePath)) {
+        writeln("Loading options from: ", optionsFilePath);
+        auto jsonText = std.file.readText(optionsFilePath); // Renamed to avoid conflict
+        auto optionsData = parseJSON(jsonText); // Renamed to avoid conflict
+        screen_settings.ScreenSettings screenSettings = new screen_settings.ScreenSettings( // Fully qualify or ensure no naming conflict
+            optionsData["screenWidth"].get!int(),
+            optionsData["screenHeight"].get!int(),
+            optionsData["virtualWidth"].get!int(),
+            optionsData["virtualHeight"].get!int()
+        );
+        screenSettings.fullscreen = optionsData["fullscreen"].get!bool();
+        screenSettings.vsync = optionsData["vsync"].get!bool();
+        // TODO: Apply these settings to the actual game window/ScreenManager
+        // For example, by calling a method on ScreenManager.instance
+        if (ScreenManager.instance !is null) {
+            ScreenManager.instance.setScreenSettings(screenSettings);
+        }
+        optionsLoaded = true; // Set flag
+        writeln("Options loaded successfully.");
+    }
+    else {
+        writeln("Options file not found: ", optionsFilePath);
     }
 }
