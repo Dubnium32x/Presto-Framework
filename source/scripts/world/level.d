@@ -130,31 +130,32 @@ class LevelManager : IScreen { // Implement IScreen
     void draw() {
         // writeln("LevelManager drawn.");
         // Drawing logic for the current level/screen
-        // For example, drawing tiles, player, enemies, UI elements for the game screen
-        BeginDrawing();
-        ClearBackground(Colors.DARKGRAY); // Example clear
+        // NO BeginDrawing(), EndDrawing(), or ClearBackground() here.
+        // ScreenManager handles the render target.
+        // All coordinates are relative to the virtual screen (e.g., 640x360).
+
         // Add drawing calls for the level content here
         // e.g., draw tiles from currentLevel.data
         if (currentLevel.data.length > 0) {
             for (int y = 0; y < currentLevel.data.length; y++) {
                 for (int x = 0; x < currentLevel.data[y].length; x++) {
                     // This is a very basic drawing example.
-                    // You'd need to map tile IDs to actual graphics/textures.
+                    // You\'d need to map tile IDs to actual graphics/textures.
                     if (currentLevel.data[y][x] != -1) { // Assuming -1 is an empty tile
-                        // DrawRectangle(x * tileWidth, y * tileHeight, tileWidth, tileHeight, BLUE);
-                        // Replace 16 with actual tile dimensions
-                        DrawRectangle(x * 16, y * 16, 16, 16, Colors.BLUE); 
+                        // Replace 16 with actual tile dimensions from currentLevel or constants
+                        DrawRectangle(x * currentLevel.tileWidth, y * currentLevel.tileHeight, currentLevel.tileWidth, currentLevel.tileHeight, Colors.BLUE); 
                     }
                 }
             }
             // Draw player start position for debugging
             if(currentLevel.playerStartPosition.x != -1 && currentLevel.playerStartPosition.y != -1) {
+                // Ensure player start position is also drawn relative to virtual screen
                 DrawCircleV(currentLevel.playerStartPosition, 5, Colors.RED);
             }
         } else {
-            DrawText("No level data to draw.", 190, 200, 20, Colors.LIGHTGRAY);
+            DrawText("No level data to draw.", 10, 30, 20, Colors.LIGHTGRAY); // Adjusted position
         }
         DrawText("GAME SCREEN (LevelManager)", 10, 10, 20, Colors.MAROON);
-        EndDrawing();
+        // NO EndDrawing();
     }
 }

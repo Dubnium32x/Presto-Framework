@@ -33,10 +33,10 @@ void createOptionsFile() {
         auto options = JSONValue([
             "fullscreen": JSONValue(false),
             "vsync": JSONValue(true),
-            "screenWidth": JSONValue(640),
-            "screenHeight": JSONValue(360),
-            "virtualWidth": JSONValue(640),
-            "virtualHeight": JSONValue(360)
+            "screenWidth": JSONValue(1280),    // Default window width
+            "screenHeight": JSONValue(720),   // Default window height
+            "virtualWidth": JSONValue(640),   // Virtual game width
+            "virtualHeight": JSONValue(360)   // Virtual game height
         ]);
         auto json = options.toString();
         std.file.write(optionsFilePath, json);

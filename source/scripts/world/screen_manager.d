@@ -31,6 +31,7 @@ class ScreenManager {
     GameplayState currentGameplayState;
     SettingsState currentSettingsState;
     ScreenSettings screenSettings;
+    RenderTexture2D virtualScreenTexture; // Added for virtual screen rendering
 
     IScreen currentScreen;
 
@@ -39,7 +40,8 @@ class ScreenManager {
     
     static ScreenManager getInstance() {
         if (instance is null) {
-            instance = new ScreenManager(new ScreenSettings(640, 360, 640, 360));
+            // Default to a common virtual size if created without explicit settings first
+            instance = new ScreenManager(new ScreenSettings(1280, 720, 640, 360));
         }
         return instance;
     }
@@ -54,11 +56,16 @@ class ScreenManager {
     // Initialize the screen manager
     void initialize() {
         if (!initialized) {
-            // Load options first
+            // Load options first - this might update screenSettings
             if (!optionsLoaded) {
                 createOptionsFile(); // Ensure it exists
-                loadOptions();       // Load them
+                loadOptions();       // Load them, potentially calling setScreenSettings
             }
+
+            // Initialize the render texture for virtual screen rendering
+            // Ensure screenSettings reflects the desired virtual dimensions
+            virtualScreenTexture = LoadRenderTexture(screenSettings.virtualWidth, screenSettings.virtualHeight);
+            SetTextureFilter(virtualScreenTexture.texture, TextureFilter.TEXTURE_FILTER_POINT); // For pixel-art friendly scaling
 
             // Load the initial screen
             if (currentScreenState == ScreenState.DEBUG || currentScreenState == ScreenState.GAME) {
@@ -91,7 +98,45 @@ class ScreenManager {
             writeln("Error: Current screen is null.");
             return;
         }
-        currentScreen.draw();
+
+        // 1. Draw current game screen to the virtual render texture
+        BeginTextureMode(virtualScreenTexture);
+            ClearBackground(Colors.DARKGRAY); // Clear the texture with a base color (e.g., white or black)
+            currentScreen.draw();      // All game drawing happens here, to the virtual texture
+        EndTextureMode();
+
+        // 2. Draw the virtual render texture to the actual screen, scaled and centered
+        BeginDrawing();
+            ClearBackground(Colors.BLACK); // Clear the actual window (e.g., black for letterboxing)
+
+            float scale = min(cast(float)GetScreenWidth() / screenSettings.virtualWidth, 
+                              cast(float)GetScreenHeight() / screenSettings.virtualHeight);
+
+            Rectangle sourceRec = Rectangle(
+                0.0f, 
+                0.0f, 
+                cast(float)virtualScreenTexture.texture.width, 
+                -cast(float)virtualScreenTexture.texture.height // NOTE: Negative height to flip texture Y
+            );
+
+            Rectangle destRec = Rectangle(
+                (GetScreenWidth() - (screenSettings.virtualWidth * scale)) * 0.5f,
+                (GetScreenHeight() - (screenSettings.virtualHeight * scale)) * 0.5f,
+                screenSettings.virtualWidth * scale,
+                screenSettings.virtualHeight * scale
+            );
+
+            Vector2 origin = Vector2(0, 0);
+
+            DrawTexturePro(
+                virtualScreenTexture.texture,
+                sourceRec,
+                destRec,
+                origin,
+                0.0f,
+                Colors.WHITE
+            );
+        EndDrawing();
     }
 
     // Change the current screen
@@ -106,6 +151,16 @@ class ScreenManager {
     // Set the screen settings
     void setScreenSettings(ScreenSettings settings) {
         this.screenSettings = settings;
+        // If window size changes, and we have a virtual texture, it might need re-creation or adjustment
+        // For now, assume virtual size is fixed and only window size might change via options.
+        // If virtual size changes, render texture must be reloaded.
+        if (virtualScreenTexture.id != 0 && // Check if texture is loaded
+            (virtualScreenTexture.texture.width != settings.virtualWidth || 
+             virtualScreenTexture.texture.height != settings.virtualHeight)) {
+            UnloadRenderTexture(virtualScreenTexture);
+            virtualScreenTexture = LoadRenderTexture(settings.virtualWidth, settings.virtualHeight);
+            SetTextureFilter(virtualScreenTexture.texture, TextureFilter.TEXTURE_FILTER_POINT);
+        }
         SetWindowSize(settings.screenWidth, settings.screenHeight);
         SetTargetFPS(60); // Set the target frames per second
     }

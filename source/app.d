@@ -14,11 +14,21 @@ ScreenSettings screenSettings;
 ScreenManager screenManager;
 
 void main() {
-    // Initialize the screen settings
-    InitWindow(640, 360, "Presto Framework - Version 0.1");
-    screenSettings = new ScreenSettings(640, 360, 640, 360);
+    // Initialize the screen settings to the target window size and virtual resolution
+    InitWindow(1280, 720, "Presto Framework - Version 0.1");
+    screenSettings = new ScreenSettings(1280, 720, 640, 360); // Window: 1280x720, Virtual: 640x360
     SetTargetFPS(60); // Set the target frames per second
-    screenManager = new ScreenManager(screenSettings);
+    
+    // Pass the configured screenSettings to the ScreenManager
+    // ScreenManager.instance will be created here if null, or use existing if already set up
+    // Ensure ScreenManager uses these settings, especially for virtual resolution
+    if (ScreenManager.instance is null) {
+        screenManager = new ScreenManager(screenSettings);
+    } else {
+        screenManager = ScreenManager.instance;
+        screenManager.setScreenSettings(screenSettings); // Apply new settings
+    }
+    
     screenManager.initialize(); // Initialize the screen manager
 
     // Window will be initialize through ScreenManager
