@@ -1,4 +1,4 @@
-# Presto-Framework
+![Presto-Framework Logo](resources/image/logo.jpg)
  
 Presto-Framework is a 2D game framework inspired by Sonic the Hedgehog, built using [raylib-d](https://github.com/schveiguy/raylib-d), a D language binding for the raylib library.
 
