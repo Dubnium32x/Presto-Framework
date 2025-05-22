@@ -204,19 +204,84 @@ class Player {
         // DEBUG: Add more info about velocity application
         writeln("Applying velocity: X=", Var.xspeed, " Y=", Var.yspeed);
         
-        // IMPORTANT FIX: Only set speeds to 0 if truly minimal, otherwise let movement happen
-        if (abs(Var.xspeed) >= 0.005f) { // Lower threshold to ensure movement happens
-            Var.x += Var.xspeed;
-            writeln("Moving X by ", Var.xspeed);
+        // ANTI-CLIPPING: Update previous position for collision detection
+        prevX = Var.x;
+        prevY = Var.y;
+        
+        // HIGH SPEED ANTI-CLIPPING SYSTEM
+        // For high speeds, use stepped movement to prevent passing through platforms
+        const float SPEED_STEP_THRESHOLD = 7.0f;  // Speed at which we start using steps
+        
+        if (abs(Var.yspeed) >= SPEED_STEP_THRESHOLD) {
+            // Use steps for high vertical speed to prevent clipping through floors/ceilings
+            int numSteps = cast(int)(abs(Var.yspeed) / 4.0f) + 1;  // More steps for higher speeds
+            float stepY = Var.yspeed / numSteps;
+            
+            writeln("HIGH Y-SPEED DETECTED: ", Var.yspeed, " - Using ", numSteps, " steps of ", stepY);
+            
+            // Apply movement in smaller increments, checking collisions each time
+            for (int step = 0; step < numSteps; step++) {
+                // Store position before this step
+                float stepPrevY = Var.y;
+                
+                // Apply partial movement
+                Var.y += stepY;
+                
+                // Update hitbox and sensor positions for this intermediate position
+                updateHitbox();
+                updateSensorPositions();
+                
+                // Check for collisions at this intermediate position
+                bool collided = checkStepCollision();
+                
+                if (collided) {
+                    writeln("COLLISION DETECTED DURING STEP ", step, " - stopping stepped movement");
+                    break;  // Exit the loop if we hit something
+                }
+            }
         } else {
-            Var.xspeed = 0;
+            // IMPORTANT FIX: Only set speeds to 0 if truly minimal, otherwise let movement happen
+            if (abs(Var.yspeed) >= 0.005f) { // Lower threshold to ensure movement happens
+                Var.y += Var.yspeed;
+                writeln("Moving Y by ", Var.yspeed);
+            } else {
+                Var.yspeed = 0;
+            }
         }
         
-        if (abs(Var.yspeed) >= 0.005f) { // Lower threshold to ensure movement happens
-            Var.y += Var.yspeed;
-            writeln("Moving Y by ", Var.yspeed);
+        // Handle horizontal movement - similar approach for high speeds
+        if (abs(Var.xspeed) >= SPEED_STEP_THRESHOLD) {
+            int numSteps = cast(int)(abs(Var.xspeed) / 4.0f) + 1;
+            float stepX = Var.xspeed / numSteps;
+            
+            writeln("HIGH X-SPEED DETECTED: ", Var.xspeed, " - Using ", numSteps, " steps of ", stepX);
+            
+            for (int step = 0; step < numSteps; step++) {
+                float stepPrevX = Var.x;
+                Var.x += stepX;
+                
+                updateHitbox();
+                updateSensorPositions();
+                
+                bool collided = checkStepCollision();
+                if (collided) break;
+            }
         } else {
-            Var.yspeed = 0;
+            // Normal movement for lower speeds
+            if (abs(Var.xspeed) >= 0.005f) {
+                Var.x += Var.xspeed;
+                writeln("Moving X by ", Var.xspeed);
+            } else {
+                Var.xspeed = 0;
+            }
+        }
+        
+        // Final check for any platforms the player may have passed through
+        if (abs(Var.yspeed) >= SPEED_STEP_THRESHOLD) {
+            bool didClip = checkSweptCollision(prevY, Var.y);
+            if (didClip) {
+                writeln("SWEPT COLLISION DETECTED: Player passed through a platform!");
+            }
         }
         
         // Update hitbox and sensor positions
@@ -271,6 +336,34 @@ class Player {
         if (!Var.grounded && (state == PlayerState.IDLE || state == PlayerState.WALK || state == PlayerState.RUN)) {
             writeln("EMERGENCY FIX: Player was in air but had ground state! Fixing...");
             state = PlayerState.FALLING;
+        }
+        
+        // FINAL SAFEGUARD: Check if the player is below the floor level
+        // This prevents the player from going through the floor completely
+        import app : testPlatforms;
+        if (!Var.grounded && Var.yspeed > 0) {  // If falling
+            foreach(ref platform; testPlatforms) {
+                // Check if player is horizontally within platform
+                if (Var.x + Var.widthrad >= platform.x && Var.x - Var.widthrad <= platform.x + platform.width) {
+                    // Check if player has gone through the platform completely
+                    if (Var.y - Var.heightrad > platform.y && 
+                        Var.y - Var.heightrad < platform.y + platform.height) {
+                        
+                        writeln("!!! EMERGENCY FLOOR PENETRATION DETECTED - FIXING !!!");
+                        
+                        // Place on top of platform
+                        Var.y = platform.y - Var.heightrad;
+                        Var.yspeed = 0;
+                        Var.grounded = true;
+                        state = PlayerState.IDLE;
+                        
+                        // Update hitbox and sensors
+                        updateHitbox();
+                        updateSensorPositions();
+                        break;
+                    }
+                }
+            }
         }
     }
     
@@ -988,7 +1081,8 @@ class Player {
     
     // Check for collisions with the environment
     // Constants for ground detection
-    enum float GROUND_SNAP_TOLERANCE = 4.0f;  // Further reduced to prevent interfering with jumps
+    enum float GROUND_SNAP_TOLERANCE = 6.0f;  // Increased to catch faster moving objects
+    enum float HIGH_SPEED_SNAP_TOLERANCE = 10.0f; // Higher tolerance for high speeds
     enum int GROUND_DEBOUNCE_FRAMES = 2;      // Reduced to 2 frames for more responsive ungrounding
     enum float MIN_SLOPE_HEIGHT = 0.5f;       // Minimum height difference to consider a slope
     enum float COYOTE_TIME_FRAMES = 5;        // Allow jumping this many frames after leaving ground
@@ -1023,30 +1117,35 @@ class Player {
             bool aInRange = sensors[SENSOR_A].x >= platform.x && sensors[SENSOR_A].x <= platform.x + platform.width;
             bool bInRange = sensors[SENSOR_B].x >= platform.x && sensors[SENSOR_B].x <= platform.x + platform.width;
             
+            // Choose appropriate snap tolerance based on vertical speed
+            // Higher speeds need bigger tolerances to catch fast-falling objects
+            float currentSnapTolerance = abs(Var.yspeed) >= 7.0f ? HIGH_SPEED_SNAP_TOLERANCE : GROUND_SNAP_TOLERANCE;
+            
             // Check ground sensor A
             if (aInRange) {
-                // Only check platforms below or at the sensor
-                if (sensors[SENSOR_A].y <= platform.y + GROUND_SNAP_TOLERANCE) {
+                // Only check platforms below or at the sensor, with tolerance based on speed
+                if (sensors[SENSOR_A].y <= platform.y + currentSnapTolerance) {
                     float distance = platform.y - sensors[SENSOR_A].y;
                     
                     // If this is a better match than what we have so far
-                    if (distance >= -GROUND_SNAP_TOLERANCE && distance < bestDistA) {
+                    if (distance >= -currentSnapTolerance && distance < bestDistA) {
                         bestDistA = distance;
                         snapYA = platform.y;
                         sensorAHit = true;
                         platformA = &platform;
+                        writeln("Sensor A hit with speed=", Var.yspeed, ", tolerance=", currentSnapTolerance);
                     }
                 }
             }
             
             // Check ground sensor B
             if (bInRange) {
-                // Only check platforms below or at the sensor
-                if (sensors[SENSOR_B].y <= platform.y + GROUND_SNAP_TOLERANCE) {
+                // Only check platforms below or at the sensor, with tolerance based on speed
+                if (sensors[SENSOR_B].y <= platform.y + currentSnapTolerance) {
                     float distance = platform.y - sensors[SENSOR_B].y;
                     
                     // If this is a better match than what we have so far
-                    if (distance >= -GROUND_SNAP_TOLERANCE && distance < bestDistB) {
+                    if (distance >= -currentSnapTolerance && distance < bestDistB) {
                         bestDistB = distance;
                         snapYB = platform.y;
                         sensorBHit = true;
@@ -1229,6 +1328,138 @@ class Player {
                 }
             }
         }
+    }
+    
+    // Check for collisions during a single movement step
+    bool checkStepCollision() {
+        import app : testPlatforms;
+        
+        // Get dimensions based on current state
+        float width = Var.widthrad;
+        float height = state == PlayerState.ROLLING ? Var.widthrad : Var.heightrad;
+        
+        // Check floor/ceiling collision with a smaller tolerance for precise stepping
+        if (Var.yspeed > 0) {  // Moving downward, check floors
+            foreach(ref platform; testPlatforms) {
+                // Check if player is horizontally within platform bounds
+                if (Var.x + width >= platform.x && Var.x - width <= platform.x + platform.width) {
+                    // Check if player's bottom is at or just below platform top
+                    float bottomY = Var.y + height;
+                    if (bottomY >= platform.y && bottomY <= platform.y + 2.0f) {
+                        // Snap to platform top and stop downward movement
+                        Var.y = platform.y - height;
+                        Var.yspeed = 0;
+                        Var.grounded = true;
+                        writeln("STEP COLLISION: Detected floor at y=", platform.y);
+                        return true;
+                    }
+                }
+            }
+        } else if (Var.yspeed < 0) {  // Moving upward, check ceilings
+            foreach(ref platform; testPlatforms) {
+                // Check if player is horizontally within platform bounds
+                if (Var.x + width >= platform.x && Var.x - width <= platform.x + platform.width) {
+                    // Check if player's top is at or just above platform bottom
+                    float topY = Var.y - height;
+                    float platformBottom = platform.y + platform.height;
+                    if (topY <= platformBottom && topY >= platformBottom - 2.0f) {
+                        // Snap to platform bottom and stop upward movement
+                        Var.y = platformBottom + height;
+                        Var.yspeed = 0;
+                        writeln("STEP COLLISION: Detected ceiling at y=", platformBottom);
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        // Similar checks for horizontal movement
+        if (Var.xspeed > 0) {  // Moving right
+            foreach(ref platform; testPlatforms) {
+                // Check if player is vertically within platform bounds
+                if (Var.y + height >= platform.y && Var.y - height <= platform.y + platform.height) {
+                    // Check if player's right side is at or just inside platform left
+                    float rightX = Var.x + width;
+                    if (rightX >= platform.x && rightX <= platform.x + 2.0f) {
+                        // Snap to platform left and stop rightward movement
+                        Var.x = platform.x - width;
+                        Var.xspeed = 0;
+                        writeln("STEP COLLISION: Detected wall at x=", platform.x);
+                        return true;
+                    }
+                }
+            }
+        } else if (Var.xspeed < 0) {  // Moving left
+            foreach(ref platform; testPlatforms) {
+                // Check if player is vertically within platform bounds
+                if (Var.y + height >= platform.y && Var.y - height <= platform.y + platform.height) {
+                    // Check if player's left side is at or just inside platform right
+                    float leftX = Var.x - width;
+                    float platformRight = platform.x + platform.width;
+                    if (leftX <= platformRight && leftX >= platformRight - 2.0f) {
+                        // Snap to platform right and stop leftward movement
+                        Var.x = platformRight + width;
+                        Var.xspeed = 0;
+                        writeln("STEP COLLISION: Detected wall at x=", platformRight);
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        return false;  // No collision detected
+    }
+    
+    // Check for swept collisions - platforms the player might have passed through
+    bool checkSweptCollision(float startY, float endY) {
+        import app : testPlatforms;
+        
+        // Only check for vertical swept collisions when moving fast enough
+        if (abs(endY - startY) < 4.0f) {
+            return false;  // Not moving fast enough to warrant a swept check
+        }
+        
+        // Get width for horizontal check
+        float width = Var.widthrad;
+        float minY, maxY;
+        
+        // Determine the range to check
+        if (startY < endY) {
+            // Moving down
+            minY = startY;
+            maxY = endY;
+        } else {
+            // Moving up
+            minY = endY;
+            maxY = startY;
+        }
+        
+        // Check if any platforms are within the swept area
+        foreach(ref platform; testPlatforms) {
+            // First check if we're horizontally aligned with the platform
+            if (Var.x + width >= platform.x && Var.x - width <= platform.x + platform.width) {
+                // Check if platform is in the vertical swept area
+                if (platform.y >= minY && platform.y <= maxY) {
+                    // Platform is in swept area - we likely passed through it
+                    
+                    if (endY > startY) {
+                        // Moving downward, place on top of platform
+                        Var.y = platform.y - Var.heightrad;
+                        Var.yspeed = 0;
+                        Var.grounded = true;
+                        writeln("SWEPT COLLISION: Fixed clipping through floor at y=", platform.y);
+                    } else {
+                        // Moving upward, place below platform
+                        Var.y = platform.y + platform.height + Var.heightrad;
+                        Var.yspeed = 0;
+                        writeln("SWEPT COLLISION: Fixed clipping through ceiling at y=", platform.y + platform.height);
+                    }
+                    return true;
+                }
+            }
+        }
+        
+        return false;  // No swept collision detected
     }
     
     // Draw the player and debug info

@@ -12,7 +12,7 @@ class Var {
     public static float groundangle = 0;
     public static float widthrad = 9;
     public static float heightrad = 19;
-    public static float jumpforce = 8.0f;  // Reduced for more natural, gradual jumping
+    public static float jumpforce = 8.5f;  // Reduced for more natural, gradual jumping
     public static float pushradius = 10;
 
     public static bool grounded = false;
@@ -45,12 +45,12 @@ class Var {
 
 public class GamePhysics : Var {
     public static string groundmode = "floor"; // four modes: floor, rightwall, leftwall, ceiling
-    public static float acceleration = 0.05f;    // Lower acceleration but will be multiplied in code
+    public static float acceleration = 0.035f;    // Lower acceleration but will be multiplied in code
     public static float deceleration = 0.06f;    // Reduced deceleration for smoother direction changes
     public static float friction = 0.015f;       // Greatly reduced friction for much smoother natural slowdown
     public static float topspeed = 7;          // Normal maximum speed
     public static float maxspeed = 8;          // Hard cap on speed even with boosts 
-    public static float gravity = 0.18f;        // Slightly reduced for more gradual jump arcs
+    public static float gravity = 0.32f;        // Slightly reduced for more gradual jump arcs
 
     public static int[] sincoslist = [
         0, 6, 12, 18, 25, 31, 37, 43, 49, 56, 62, 68, 74, 80, 86, 92, 97, 103, 109, 115, 120, 126, 131, 136, 142, 147, 152, 157, 162, 167, 171, 176, 181, 185, 189, 193, 197, 201, 205, 209, 212, 216, 219, 222, 225, 228, 231, 234, 236, 238, 241, 243, 244, 246, 248, 249, 251, 252, 253, 254, 254, 255, 255, 255,
