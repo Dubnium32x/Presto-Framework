@@ -16,21 +16,8 @@ import std.math;
 
 // Add a toString function for PlayerState enum to support UI
 string toString(PlayerState state) {
-    final switch(state) {
-        case PlayerState.IDLE: return "IDLE";
-        case PlayerState.WALK: return "WALK";
-        case PlayerState.RUN: return "RUN";
-        case PlayerState.DASHING: return "DASHING";
-        case PlayerState.JUMPING: return "JUMPING";
-        case PlayerState.FALLING: return "FALLING";
-        case PlayerState.ROLLING: return "ROLLING";
-        case PlayerState.SPINDASHING: return "SPINDASHING";
-        case PlayerState.PEELING: return "PEELING";
-        case PlayerState.SPINNING: return "SPINNING";
-        case PlayerState.CLIMBING: return "CLIMBING";
-        case PlayerState.HURT: return "HURT";
-        case PlayerState.DEAD: return "DEAD";
-    }
+    // ... existing switch ...
+    return "UNKNOWN";
 }
 
 // initialize the screen
@@ -47,8 +34,8 @@ bool physicsTestMode = true;
 
 void main() {
     // Initialize the screen settings to the target window size and virtual resolution
-    InitWindow(1280, 720, "Presto Framework - Sonic Physics Demo");
-    screenSettings = new ScreenSettings(1280, 720, 640, 360); // Window: 1280x720, Virtual: 640x360
+    InitWindow(400, 224, "Presto Framework - Sonic Physics Demo");
+    screenSettings = new ScreenSettings(400, 224, 400, 224); // Window: 400x224, Virtual: 400x224
     SetTargetFPS(60); // Set the target frames per second
     
     // Pass the configured screenSettings to the ScreenManager
@@ -139,30 +126,7 @@ void initializePhysicsTest() {
 }
 
 // Update the physics test environment
-void updatePhysicsTest() {
-    // FAIL-SAFE JUMP MECHANISM: Direct application at the highest program level
-    // This should work even if other parts of the code are failing
-    if ((IsKeyPressed(KeyboardKey.KEY_Z) || IsKeyPressed(KeyboardKey.KEY_SPACE)) && Var.grounded) {
-        writeln("######## FAIL-SAFE JUMP ACTIVATED AT APPLICATION LEVEL ########");
-        
-        // IMPROVED SEQUENCE with more gradual jumping: First apply forces, then change state flags
-        
-        // Step 1: Apply moderate vertical impulse first for more gradual jump
-        Var.yspeed = -8.0f; // Reduced from -16.0f for a much more natural, gradual jump
-        
-        // Step 2: Maintain horizontal momentum with a very slight boost
-        Var.xspeed = Var.groundspeed * 1.02f;  // 2% speed boost (reduced from 5%)
-        
-        // Step 3: Change flags AFTER force application to avoid race conditions
-        Var.grounded = false;
-        playerInstance.state = PlayerState.JUMPING;
-        
-        // Step 4: Force player height above ground to ensure leaving the ground
-        Var.y -= 1.5f;  // Reduced from 3.0f pixels for more gradual takeoff
-        
-        writeln("FAILSAFE JUMP VALUES - yspeed: ", Var.yspeed, ", xspeed: ", Var.xspeed);
-    }
-    
+void updatePhysicsTest() {    
     // Update player
     playerInstance.update(GetFrameTime());
     
@@ -173,6 +137,13 @@ void updatePhysicsTest() {
         Var.xspeed = 0;
         Var.yspeed = 0;
         Var.groundspeed = 0;
+    }
+    
+    // Toggle debug visualization with TAB
+    static bool debugVisualizationEnabled = true;
+    if (IsKeyPressed(KeyboardKey.KEY_TAB)) {
+        debugVisualizationEnabled = !debugVisualizationEnabled;
+        writeln("Debug visualization: ", debugVisualizationEnabled ? "ENABLED" : "DISABLED");
     }
     
     // Update camera to follow player
@@ -219,57 +190,39 @@ void drawPhysicsTest() {
     
     EndMode2D();
     
-    // Draw UI
+    // Draw UI - simplified for smaller screen
     Color whiteColor = Color(255, 255, 255, 255); // White
-    DrawText(TextFormat("GROUND SPEED: %.2f", Var.groundspeed), 10, 10, 20, whiteColor);
-    DrawText(TextFormat("X/Y SPEED: %.2f, %.2f", Var.xspeed, Var.yspeed), 10, 40, 20, whiteColor); 
-    // Make grounded status very visible with color
-    DrawText(TextFormat("GROUNDED: %d", Var.grounded ? 1 : 0), 10, 70, 20, 
-        Var.grounded ? Color(0, 255, 0, 255) : Color(255, 0, 0, 255));
-    DrawText(TextFormat("POSITION: %.0f, %.0f", Var.x, Var.y), 10, 100, 20, whiteColor);
-    DrawText(TextFormat("GROUND ANGLE: %d (%.2f)", 
-        cast(int)Var.groundangle,
-        (Var.groundangle/128.0f) * 180.0f), 10, 130, 20, whiteColor);
-    
-    // Display key states prominently
     Color redColor = Color(255, 0, 0, 255);
     Color greenColor = Color(0, 255, 0, 255);
     Color jumpStateColor = Color(255, 255, 0, 255);  // Yellow for jump state
-    DrawText("KEY STATES:", 10, 160, 20, whiteColor);
     
-    // Enhanced Z key display with more visible state
+    // Main stats section - more compact for smaller screen
+    DrawText(TextFormat("SPEED: %.1f, %.1f", Var.xspeed, Var.yspeed), 5, 5, 12, whiteColor);
+    DrawText(TextFormat("GROUNDED: %d", Var.grounded ? 1 : 0), 5, 20, 12, 
+        Var.grounded ? greenColor : redColor);
+    DrawText(TextFormat("POS: %.0f, %.0f", Var.x, Var.y), 5, 35, 12, whiteColor);
+    
+    // Display key states at bottom right
     bool zKeyPressed = IsKeyDown(KeyboardKey.KEY_Z);
-    string zKeyState = zKeyPressed ? "PRESSED" : "RELEASED";
-    DrawRectangle(10, 180, 20, 20, zKeyPressed ? greenColor : redColor); // Visual indicator box
-    DrawText(TextFormat("Z (JUMP): %s", zKeyState.ptr), 
-        35, 180, 20, zKeyPressed ? greenColor : redColor);
+    bool leftPressed = IsKeyDown(KeyboardKey.KEY_LEFT);
+    bool rightPressed = IsKeyDown(KeyboardKey.KEY_RIGHT);
     
-    // Add jump state info
-    DrawText(TextFormat("PLAYER STATE: %s", toString(playerInstance.state).ptr), 
-        10, 200, 20, 
-        playerInstance.state == PlayerState.JUMPING ? jumpStateColor : whiteColor);
-        
-    // Fixed version for LEFT/RIGHT keys
-    string leftState = IsKeyDown(KeyboardKey.KEY_LEFT) ? "PRESSED" : "RELEASED";
-    string rightState = IsKeyDown(KeyboardKey.KEY_RIGHT) ? "PRESSED" : "RELEASED";
-    DrawText(TextFormat("LEFT: %s  RIGHT: %s", leftState.ptr, rightState.ptr), 
-        10, 220, 20, whiteColor);
-        
-    // Show jump-related forces
-    DrawText(TextFormat("JUMP FORCE: %.2f", Var.jumpforce), 
-        10, 240, 20, whiteColor);
+    // Draw key indicators in the bottom right corner
+    DrawRectangle(screenSettings.virtualWidth - 50, screenSettings.virtualHeight - 20, 10, 10, 
+                  leftPressed ? greenColor : redColor);
+    DrawText("L", screenSettings.virtualWidth - 48, screenSettings.virtualHeight - 20, 10, whiteColor);
     
-    // Instructions
-    // Reuse colors defined above
-    Color orangeColor = Color(255, 165, 0, 255); // Orange
+    DrawRectangle(screenSettings.virtualWidth - 35, screenSettings.virtualHeight - 20, 10, 10, 
+                  rightPressed ? greenColor : redColor);
+    DrawText("R", screenSettings.virtualWidth - 33, screenSettings.virtualHeight - 20, 10, whiteColor);
     
-    // Use hard-coded strings to avoid issues with TextFormat
-    DrawText("LEFT/RIGHT: Move | Z: Jump | X: Action | DOWN+X: Spindash", 
-        10, screenSettings.virtualHeight - 60, 16, jumpStateColor);
-    DrawText("DOWN+SPEED: Roll | R: Reset | TAB: Show Debug", 
-        10, screenSettings.virtualHeight - 40, 16, jumpStateColor);
-    DrawText("SPACE: EMERGENCY JUMP (if Z key doesn't work)", 
-        10, screenSettings.virtualHeight - 20, 16, orangeColor);
+    DrawRectangle(screenSettings.virtualWidth - 20, screenSettings.virtualHeight - 20, 10, 10, 
+                  zKeyPressed ? greenColor : redColor);
+    DrawText("Z", screenSettings.virtualWidth - 18, screenSettings.virtualHeight - 20, 10, whiteColor);
+    
+    // Instructions - simplified and moved to bottom
+    DrawText("LEFT/RIGHT: Move | Z: Jump | R: Reset", 
+        5, screenSettings.virtualHeight - 15, 10, jumpStateColor);
     
     EndDrawing();
 }

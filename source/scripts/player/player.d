@@ -1,1545 +1,934 @@
 module player.player;
 
-import std.stdio;
-import std.algorithm;
-import std.range;
-import std.array;
-import std.string;
-import std.conv;
-import std.math;
 import raylib;
+
+import std.stdio;
+import std.string;
+import std.file;
+import std.algorithm;
+import std.conv;
+import std.array;
+import std.math;
+
 
 import player.var;
 
 enum PlayerState {
     IDLE,
+    RUNNING,
+    JUMPING,
+    FALLING,
+    FALLING_ROLL,
+    SHIELD_ACTION,
     WALK,
     RUN,
     DASHING,
-    JUMPING,
-    FALLING,
-    ROLLING,
     SPINDASHING,
     PEELING,
-    SPINNING,
+    ROLLING,
+    HOVERING,
     CLIMBING,
+    GLIDING,
     HURT,
     DEAD
 }
 
 enum IdleState {
     IDLE,
-    LOOKING_UP,
-    LOOKING_DOWN,
+    LOOK_UP,
+    LOOK_DOWN,
     IMPATIENT,
     IMPATIENT_ATTRACT,
-    BALANCING_FORWARD,
-    BALANCING_BACKWARD,
-    IM_OUTTA_HERE
+    IM_OUTTA_HERE,
+    BALANCE_FORWARD,
+    BALANCE_BACKWARD
 }
 
-// Constants for sensor collision detection
-enum {
-    SENSOR_A = 0, // Bottom left
-    SENSOR_B = 1, // Bottom right
-    SENSOR_C = 2, // Middle left
-    SENSOR_D = 3, // Middle right
-    SENSOR_E = 4, // Top left
-    SENSOR_F = 5, // Top right
-    
-    TILE_SIZE = 16, // Size of a tile in pixels
-    SENSOR_HEIGHT_NORMAL = 19, // Normal height radius
-    SENSOR_HEIGHT_ROLLING = 10, // Height radius when rolling
+enum KeyDefine {
+    LEFT,
+    RIGHT,
+    UP,
+    DOWN,
+    ACTION,
+    ACTION2
+}
+
+enum Sensor {
+    BOTTOM_LEFT,
+    BOTTOM_RIGHT,
+    MIDDLE_LEFT,
+    MIDDLE_RIGHT,
+    TOP_LEFT,
+    TOP_RIGHT,
+    COUNT // Helper for array sizes
+}
+
+bool isKeyPressed(KeyDefine key) {
+    switch (key) {
+        case KeyDefine.LEFT:
+            return IsKeyPressed(KeyboardKey.KEY_LEFT);
+        case KeyDefine.RIGHT:
+            return IsKeyPressed(KeyboardKey.KEY_RIGHT);
+        case KeyDefine.UP:
+            return IsKeyPressed(KeyboardKey.KEY_UP);
+        case KeyDefine.DOWN:
+            return IsKeyPressed(KeyboardKey.KEY_DOWN);
+        case KeyDefine.ACTION:
+            return IsKeyPressed(KeyboardKey.KEY_Z);
+        case KeyDefine.ACTION2:
+            return IsKeyPressed(KeyboardKey.KEY_X);
+        default:
+            writeln("Unknown key define: ", key);
+            assert(false, "Unknown key define in isKeyPressed function");
+            return false; // Fallback case
+    }
+    return false;
+}
+
+bool isKeyDown(KeyDefine key) {
+    switch (key) {
+        case KeyDefine.LEFT:
+            return IsKeyDown(KeyboardKey.KEY_LEFT);
+        case KeyDefine.RIGHT:
+            return IsKeyDown(KeyboardKey.KEY_RIGHT);
+        case KeyDefine.UP:
+            return IsKeyDown(KeyboardKey.KEY_UP);
+        case KeyDefine.DOWN:
+            return IsKeyDown(KeyboardKey.KEY_DOWN);
+        case KeyDefine.ACTION:
+            return IsKeyDown(KeyboardKey.KEY_Z);
+        case KeyDefine.ACTION2:
+            return IsKeyDown(KeyboardKey.KEY_X);
+        default:
+            writeln("Unknown key define: ", key);
+            assert(false, "Unknown key define in isKeyDown function");
+            return false; // Fallback case
+    }
+    return false;
+}
+
+bool isKeyReleased(KeyDefine key) {
+    switch (key) {
+        case KeyDefine.LEFT:
+            return IsKeyReleased(KeyboardKey.KEY_LEFT);
+        case KeyDefine.RIGHT:
+            return IsKeyReleased(KeyboardKey.KEY_RIGHT);
+        case KeyDefine.UP:
+            return IsKeyReleased(KeyboardKey.KEY_UP);
+        case KeyDefine.DOWN:
+            return IsKeyReleased(KeyboardKey.KEY_DOWN);
+        case KeyDefine.ACTION:
+            return IsKeyReleased(KeyboardKey.KEY_Z);
+        case KeyDefine.ACTION2:
+            return IsKeyReleased(KeyboardKey.KEY_X);
+        default:
+            writeln("Unknown key define: ", key);
+            assert(false, "Unknown key define in isKeyReleased function");
+            return false; // Fallback case
+    }
+    return false;
 }
 
 class Player {
-    // Player animation and rendering
-    Texture2D spritesheet;
-    Rectangle[] animations;
-    int currentFrame = 0;
-    float frameTimer = 0;
-    float frameDuration = 1.0f / 12.0f; // 12 FPS animation by default
-    
-    // Player state
     PlayerState state = PlayerState.IDLE;
     IdleState idleState = IdleState.IDLE;
-    int direction = 1; // 1 = right, -1 = left
-    float idleTimer = 0;
-    float hurtTimer = 0;
+
+    // Input state variables
+    bool keyLeft;
+    bool keyRight;
+    bool keyUp;
+    bool keyDown;
+    bool keyActionPressed; // For jump, etc. (Z key)
+    bool keyActionHeld;    // For held jump, etc. (Z key)
+    bool keyAction2Pressed; // (X key)
     
-    // Input tracking
-    bool inputLeft = false;
-    bool inputRight = false;
-    bool inputUp = false;
-    bool inputDown = false;
-    bool inputJump = false;
-    bool inputJumpHeld = false;
-    bool inputAction = false;
-    
-    // Jump buffer for more responsive controls
-    int jumpBufferCounter = 0;
-    
-    // Collision detection
-    Rectangle hitbox;
-    
-    // Sensor collision data
-    bool[6] sensorCollisions;  // True if sensor is colliding
-    int[6] sensorAngles;      // Angle at each sensor point
-    
-    // The sensor positions
-    Vector2[6] sensors;
-    
-    // Internal timers and counters
-    int airTime = 0;           // Frames spent in the air
-    int groundTime = 0;        // Frames spent on the ground
-    float spinDashCharge = 0;  // Spin dash charge amount
-    bool wasGrounded = false;  // Track if we were grounded last frame
-    
-    // Constructor
+    // Ground stability counter to prevent oscillations
+    int groundStabilityCounter = 0;
+
+    // Sensor data
+    Vector2[Sensor.COUNT] sensorPositions;
+    // bool[Sensor.COUNT] sensorCollisions; // Will be used later for collision logic
+
+    // Player position and movement variables are located in var.d (Var.x, Var.y, Var.xspeed, Var.yspeed)
+    // Physics constants are in var.d (GamePhysics.gravity, etc.)
+
+    // Singletons for player state and physics
     this() {
-        // Set default position
-        Var.x = 100;
-        Var.y = 100;
-        
-        // Load the Sonic spritesheet
-        spritesheet = LoadTexture("resources/image/spritesheet/Sonic_spritemap.png");
-        
-        // Initialize hitbox
-        updateHitbox();
-        
-        // Initialize sensors
-        updateSensorPositions();
+        Var.x = 400.0f;
+        Var.y = 100.0f;
+
+        // Initialize other player variables
+        Var.xspeed = 0.0f;
+        Var.yspeed = 0.0f;
+        Var.grounded = false;
+
+        // Set initial state
+        state = PlayerState.IDLE;
+
+        // Initialize sensor positions array to avoid issues, though they'll be set each frame.
+        foreach (ref pos; sensorPositions) {
+            pos = Vector2(0,0);
+        }
     }
-    
-    ~this() {
-        // Clean up resources
-        UnloadTexture(spritesheet);
+
+    void processInput() {
+        keyLeft = isKeyDown(KeyDefine.LEFT);
+        keyRight = isKeyDown(KeyDefine.RIGHT);
+        keyUp = isKeyDown(KeyDefine.UP);
+        keyDown = isKeyDown(KeyDefine.DOWN);
+        
+        keyActionPressed = isKeyPressed(KeyDefine.ACTION); // Z key
+        keyActionHeld = isKeyDown(KeyDefine.ACTION);     // Z key
+        keyAction2Pressed = isKeyPressed(KeyDefine.ACTION2); // X key
     }
-    
-    // Main update function - called every frame
-    void update(float deltaTime) {
-        // Save previous grounded state and position
-        wasGrounded = Var.grounded;
+
+    void updateSensorPositions() {
+        float halfWidth = Var.widthrad;
+        float halfHeight = Var.heightrad;
+
+        // Bottom sensors (like A, B in classic Sonic)
+        sensorPositions[Sensor.BOTTOM_LEFT]  = Vector2(Var.x - halfWidth * 0.7f, Var.y + halfHeight); // Slightly inwards
+        sensorPositions[Sensor.BOTTOM_RIGHT] = Vector2(Var.x + halfWidth * 0.7f, Var.y + halfHeight); // Slightly inwards
+
+        // Middle side sensors (like C, D)
+        sensorPositions[Sensor.MIDDLE_LEFT]  = Vector2(Var.x - halfWidth, Var.y);
+        sensorPositions[Sensor.MIDDLE_RIGHT] = Vector2(Var.x + halfWidth, Var.y);
+        
+        // Top sensors (like E, F)
+        sensorPositions[Sensor.TOP_LEFT]  = Vector2(Var.x - halfWidth * 0.7f, Var.y - halfHeight); // Slightly inwards
+        sensorPositions[Sensor.TOP_RIGHT] = Vector2(Var.x + halfWidth * 0.7f, Var.y - halfHeight); // Slightly inwards
+    }
+
+    public void checkEnvironmentCollision() {
+        // get references to test platforms in app.d
+        import app : testPlatforms;
+
+        bool wwasGrounded = Var.grounded; // Store previous grounded state
+        
+        // For movement prediction, store velocity
+        float xvel = Var.xspeed;
+        
+        // Only for debug visualization
+        bool leftCollided = false;
+        bool rightCollided = false;
+        
+        // Create horizontal padding for side sensors based on xspeed
+        // This helps catch collisions when moving fast
+        float horizPadding = min(abs(Var.xspeed) * 0.5f, Var.widthrad * 0.5f);
+        
+        // Reset grounded state conditionally - don't reset if we're in a stability window
+        if (groundStabilityCounter <= 0) {
+            Var.grounded = false; // Reset grounded state for this frame
+        } else {
+            groundStabilityCounter--; // Decrease stability counter
+        }
+        
+        // Temporary flag to detect if grounded this frame (for stability counter update)
+        bool groundedThisFrame = false;
+        
+        // Always check side collisions first, regardless of grounded state
+        // This prevents clipping through walls when falling or jumping
+        foreach (platform; testPlatforms) {
+            // Check for right wall collision (left side sensor)
+            if (Var.xspeed < 0 || (abs(Var.xspeed) < 0.1f && Var.x - Var.widthrad <= platform.x + platform.width && 
+                Var.x > platform.x + platform.width * 0.5f)) {
+                
+                // Left sensor with padding based on speed
+                Vector2 leftSensor = Vector2(
+                    sensorPositions[Sensor.MIDDLE_LEFT].x - horizPadding, 
+                    sensorPositions[Sensor.MIDDLE_LEFT].y
+                );
+                
+                // Additional corner check for high-speed movement
+                Vector2 topLeftSensor = Vector2(
+                    sensorPositions[Sensor.MIDDLE_LEFT].x - horizPadding, 
+                    sensorPositions[Sensor.TOP_LEFT].y + Var.heightrad * 0.3f
+                );
+                
+                Vector2 bottomLeftSensor = Vector2(
+                    sensorPositions[Sensor.MIDDLE_LEFT].x - horizPadding, 
+                    sensorPositions[Sensor.BOTTOM_LEFT].y - Var.heightrad * 0.3f
+                );
+                
+                // Check if any of the sensors collide
+                if (CheckCollisionPointRec(leftSensor, platform) || 
+                    CheckCollisionPointRec(topLeftSensor, platform) || 
+                    CheckCollisionPointRec(bottomLeftSensor, platform)) {
+                    
+                    leftCollided = true;
+                    
+                    // Snap to the right edge of the platform with a small buffer
+                    Var.x = platform.x + platform.width + Var.widthrad + 0.1f;
+                    
+                    // Reflect some momentum for a bounce effect on high speed
+                    if (Var.xspeed < -2.0f) {
+                        Var.xspeed = abs(Var.xspeed) * 0.1f; // Small bounce
+                    } else {
+                        Var.xspeed = 0; // Just stop for low speed
+                    }
+                }
+            }
+            
+            // Check for left wall collision (right side sensor)
+            if (Var.xspeed > 0 || (abs(Var.xspeed) < 0.1f && Var.x + Var.widthrad >= platform.x && 
+                Var.x < platform.x + platform.width * 0.5f)) {
+                
+                // Right sensor with padding based on speed
+                Vector2 rightSensor = Vector2(
+                    sensorPositions[Sensor.MIDDLE_RIGHT].x + horizPadding, 
+                    sensorPositions[Sensor.MIDDLE_RIGHT].y
+                );
+                
+                // Additional corner check for high-speed movement
+                Vector2 topRightSensor = Vector2(
+                    sensorPositions[Sensor.MIDDLE_RIGHT].x + horizPadding, 
+                    sensorPositions[Sensor.TOP_RIGHT].y + Var.heightrad * 0.3f
+                );
+                
+                Vector2 bottomRightSensor = Vector2(
+                    sensorPositions[Sensor.MIDDLE_RIGHT].x + horizPadding, 
+                    sensorPositions[Sensor.BOTTOM_RIGHT].y - Var.heightrad * 0.3f
+                );
+                
+                // Check if any of the sensors collide
+                if (CheckCollisionPointRec(rightSensor, platform) || 
+                    CheckCollisionPointRec(topRightSensor, platform) || 
+                    CheckCollisionPointRec(bottomRightSensor, platform)) {
+                    
+                    rightCollided = true;
+                    
+                    // Snap to the left edge of the platform with a small buffer
+                    Var.x = platform.x - Var.widthrad - 0.1f;
+                    
+                    // Reflect some momentum for a bounce effect on high speed
+                    if (Var.xspeed > 2.0f) {
+                        Var.xspeed = -abs(Var.xspeed) * 0.1f; // Small bounce
+                    } else {
+                        Var.xspeed = 0; // Just stop for low speed
+                    }
+                }
+            }
+        }
+        
+        // Now check the bottom sensors for ground collision with improved high-speed fall detection
+        foreach (platform; testPlatforms) {
+            // Calculate vertical padding based on fall speed
+            // The faster we're falling, the more we need to check ahead
+            float fallPadding = Var.yspeed > 0 ? min(Var.yspeed * 0.6f, Var.heightrad * 0.9f) : 0;
+            
+            // Extended bottom sensors that reach farther down when falling fast
+            Vector2 bottomLeftExt = Vector2(
+                sensorPositions[Sensor.BOTTOM_LEFT].x,
+                sensorPositions[Sensor.BOTTOM_LEFT].y + fallPadding
+            );
+            
+            Vector2 bottomRightExt = Vector2(
+                sensorPositions[Sensor.BOTTOM_RIGHT].x,
+                sensorPositions[Sensor.BOTTOM_RIGHT].y + fallPadding
+            );
+            
+            Vector2 bottomCenter = Vector2(
+                Var.x,
+                sensorPositions[Sensor.BOTTOM_LEFT].y + fallPadding
+            );
+            
+            // Additional edge case detection for high speed falls
+            // These wide sensors help catch platform edges when falling fast
+            Vector2 bottomLeftWide = Vector2(
+                sensorPositions[Sensor.BOTTOM_LEFT].x - Var.widthrad * 0.3f,
+                sensorPositions[Sensor.BOTTOM_LEFT].y + fallPadding * 0.7f
+            );
+            
+            Vector2 bottomRightWide = Vector2(
+                sensorPositions[Sensor.BOTTOM_RIGHT].x + Var.widthrad * 0.3f,
+                sensorPositions[Sensor.BOTTOM_RIGHT].y + fallPadding * 0.7f
+            );
+            
+            // Create a sweep test for very high speeds
+            bool performSweepTest = Var.yspeed > 7.0f; // Only for high fall speeds
+            Rectangle sweepRect;
+            
+            if (performSweepTest) {
+                // Create a rectangle that covers the entire sweep path with extra width
+                sweepRect = Rectangle(
+                    Var.x - Var.widthrad * 0.9f,                          // Left edge (wider)
+                    sensorPositions[Sensor.BOTTOM_LEFT].y - fallPadding,  // Top edge (previous position)
+                    Var.widthrad * 1.8f,                                  // Width (using 90% of full width)
+                    fallPadding * 2                                       // Height (covers the swept area)
+                );
+            }
+            
+            // For extremely high fall speeds, use a broader detection area
+            Rectangle extremeFallRect;
+            bool useExtremeFallDetection = Var.yspeed > 12.0f;
+            
+            if (useExtremeFallDetection) {
+                // Create a very wide rectangle for extreme speeds
+                extremeFallRect = Rectangle(
+                    Var.x - Var.widthrad * 1.5f,                          // Much wider left edge
+                    sensorPositions[Sensor.BOTTOM_LEFT].y,                // Start at current position
+                    Var.widthrad * 3.0f,                                  // Very wide detection area
+                    fallPadding * 1.5f                                    // Shorter but focused height
+                );
+            }
+            
+            // Check for pre-collision with platform edges to prevent clipping at high speeds
+            bool edgePreventionCheck = false;
+            
+            // Only do edge prevention at high speeds when near platform edges
+            if (Var.yspeed > 9.0f) {
+                // Check if we're about to clip through the edge of a platform
+                // by comparing our position with the platform edges
+                bool nearLeftEdge = abs(Var.x - platform.x) < Var.widthrad * 1.2f && 
+                                  Var.x > platform.x && 
+                                  Var.y + Var.heightrad + fallPadding * 0.8f > platform.y &&
+                                  Var.y < platform.y;
+                                  
+                bool nearRightEdge = abs(Var.x - (platform.x + platform.width)) < Var.widthrad * 1.2f && 
+                                   Var.x < platform.x + platform.width &&
+                                   Var.y + Var.heightrad + fallPadding * 0.8f > platform.y &&
+                                   Var.y < platform.y;
+                
+                // If we're near an edge and would clip through it, do edge prevention
+                if (nearLeftEdge || nearRightEdge) {
+                    // Create a special collision point on the platform edge
+                    Vector2 edgePoint = Vector2(
+                        nearLeftEdge ? platform.x + 2.0f : platform.x + platform.width - 2.0f,
+                        platform.y - 1.0f
+                    );
+                    
+                    // Check if our extended sensor would hit this edge point
+                    if (CheckCollisionPointCircle(edgePoint, Vector2(Var.x, Var.y + Var.heightrad + fallPadding * 0.5f), Var.widthrad * 1.1f)) {
+                        edgePreventionCheck = true;
+                    }
+                }
+            }
+            
+            // Check if we're close enough to the ground to be considered grounded
+            // This helps with the oscillation issue by using a more forgiving ground check
+            bool isCloseToGround = false;
+            float groundProximityThreshold = 0.5f; // Distance within which we're considered "on the ground"
+            
+            // Calculate distance from bottom of player to top of platform
+            float distanceToGround = platform.y - (Var.y + Var.heightrad);
+            if (distanceToGround >= -0.1f && distanceToGround <= groundProximityThreshold) {
+                // Check if we're horizontally within the platform
+                if (Var.x + Var.widthrad * 0.7f >= platform.x && 
+                    Var.x - Var.widthrad * 0.7f <= platform.x + platform.width) {
+                    isCloseToGround = true;
+                }
+            }
+            
+            // Check all bottom sensors and sweep rect
+            if (CheckCollisionPointRec(sensorPositions[Sensor.BOTTOM_LEFT], platform) ||
+                CheckCollisionPointRec(sensorPositions[Sensor.BOTTOM_RIGHT], platform) ||
+                CheckCollisionPointRec(bottomLeftExt, platform) ||
+                CheckCollisionPointRec(bottomRightExt, platform) ||
+                CheckCollisionPointRec(bottomCenter, platform) ||
+                CheckCollisionPointRec(bottomLeftWide, platform) ||    // New wide sensor
+                CheckCollisionPointRec(bottomRightWide, platform) ||   // New wide sensor
+                (performSweepTest && CheckCollisionRecs(sweepRect, platform)) ||
+                (useExtremeFallDetection && CheckCollisionRecs(extremeFallRect, platform)) ||
+                edgePreventionCheck ||
+                isCloseToGround) {
+                
+                Var.grounded = true;
+                groundedThisFrame = true;  // Mark that we found ground this frame
+                Var.framesNotGrounded = 0;
+                
+                // Calculate a more precise landing position
+                // For high speeds, place character slightly above platform to prevent clipping through
+                float snapBuffer = Var.yspeed > 6.0f ? 0.2f : 0.1f; // Increased minimum buffer to prevent oscillation
+                if (Var.yspeed > 10.0f) snapBuffer = 0.25f;  // Even more buffer at extreme speeds
+                
+                // Only snap if we're not already very close to the platform (to prevent jitter)
+                if (!isCloseToGround || abs(distanceToGround) > 0.05f) {
+                    Var.y = platform.y - Var.heightrad - snapBuffer;
+                }
+                
+                // Apply ground friction to horizontal speed when landing at high speed
+                if (Var.yspeed > 8.0f && abs(Var.xspeed) > 3.0f) {
+                    Var.xspeed *= 0.9f; // Reduce horizontal speed slightly on hard landings
+                }
+                
+                // Special handling for edge prevention cases
+                if (edgePreventionCheck) {
+                    // If this was an edge prevention case, we need to ensure player stays on platform
+                    if (Var.x < platform.x + Var.widthrad) {
+                        // Near left edge, push slightly right
+                        Var.x = platform.x + Var.widthrad * 1.1f;
+                    } else if (Var.x > platform.x + platform.width - Var.widthrad) {
+                        // Near right edge, push slightly left
+                        Var.x = platform.x + platform.width - Var.widthrad * 1.1f;
+                    }
+                }
+                
+                Var.yspeed = 0;
+                break;
+            }
+        }
+
+        // Update stability counter if we found ground
+        if (groundedThisFrame) {
+            // Set stability counter to prevent oscillation for a few frames
+            groundStabilityCounter = 3; // Stay grounded for at least 3 frames to prevent oscillation
+        }
+
+        // Finally check for ceiling collisions - only when moving upward
+        if (Var.yspeed < 0) {
+            foreach (platform; testPlatforms) {
+                // Add vertical padding for fast upward movement
+                float vertPadding = min(abs(Var.yspeed) * 0.5f, Var.heightrad * 0.3f);
+                
+                // Adjust ceiling sensors with padding
+                Vector2 topLeftSensor = Vector2(
+                    sensorPositions[Sensor.TOP_LEFT].x,
+                    sensorPositions[Sensor.TOP_LEFT].y - vertPadding
+                );
+                
+                Vector2 topRightSensor = Vector2(
+                    sensorPositions[Sensor.TOP_RIGHT].x,
+                    sensorPositions[Sensor.TOP_RIGHT].y - vertPadding
+                );
+                
+                // Check ceiling collision
+                if (CheckCollisionPointRec(topLeftSensor, platform) || 
+                    CheckCollisionPointRec(topRightSensor, platform)) {
+                    
+                    // Snap to the bottom of the platform with a small buffer
+                    Var.y = platform.y + platform.height + Var.heightrad + 0.1f;
+                    
+                    // Bounce slightly off ceiling for better game feel
+                    Var.yspeed = abs(Var.yspeed) * 0.1f; // Small downward bounce
+                    
+                    break; // Exit loop if collided
+                }
+            }
+        }
+        
+        // Update player state based on grounded status
+        if (Var.grounded) {
+            if (state != PlayerState.IDLE && state != PlayerState.RUNNING) {
+                state = PlayerState.IDLE; // Reset to idle when grounded
+            }
+        } else {
+            if (state == PlayerState.IDLE || state == PlayerState.RUNNING) {
+                state = PlayerState.JUMPING; // Transition to jumping state when not grounded
+            }
+        }
+        
+        // If the player was previously grounded but is no longer grounded, increment framesNotGrounded
+        if (wwasGrounded && !Var.grounded) {
+            Var.framesNotGrounded++;
+        } else if (Var.grounded) {
+            Var.framesNotGrounded = 0; // Reset if grounded
+        }
+    }
+
+    public void update(float deltaTime) {
+        // Process player input
+        processInput();
+        
+        // Store previous position for collision
         float prevX = Var.x;
         float prevY = Var.y;
         
-        // CRITICAL FIX: Ensure the player is in a valid state
-        // If somehow we got in an invalid state, reset to a sensible default
-        if (state == PlayerState.IDLE && (abs(Var.groundspeed) > 0.5f || abs(Var.xspeed) > 0.5f)) {
-            state = PlayerState.WALK;
-            writeln("STATE CORRECTION: Player had speed but was IDLE, setting to WALK");
-        }
-        
-        // Debug player state at start of frame with extended input info
-        writeln("Frame start - State: ", state, ", Grounded: ", Var.grounded, 
-            ", Position: ", Var.x, ",", Var.y, 
-            ", Speeds: ", Var.xspeed, ",", Var.yspeed, ", GrndSpeed: ", Var.groundspeed,
-            ", Z key: ", IsKeyDown(KeyboardKey.KEY_Z));
-        
-        // Read input
-        processInput();
-        
-        // EMERGENCY JUMP: Direct jump code that bypasses the normal physics logic
-        // This should work regardless of other issues in the code
-        if (IsKeyPressed(KeyboardKey.KEY_SPACE) && Var.grounded) {
-            writeln("!!! EMERGENCY JUMP ACTIVATED !!!");
+        // Apply variable gravity based on jump state
+        if (!Var.grounded) {
+            // Calculate a parabolic-like jump curve with variable gravity
+            float gravityModifier = 1.0f;
             
-            // FIXED JUMP SEQUENCE with more gradual jumping:
-            // Step 1: Apply a moderate vertical boost for gradual jump
-            Var.yspeed = -8.5f; // Reduced jump velocity for more gradual ascent
-            
-            // Step 2: Give a slight horizontal boost based on direction facing
-            Var.xspeed += direction * 0.8f; // Reduced from 1.5f for more natural jump arc
-            
-            // Step 3: Physically move player up slightly to escape ground collision
-            Var.y -= 2.0f; // Reduced from 5.0f for less teleportation effect
-            
-            // Step 4: Force ungrounded state after movement established
-            Var.grounded = false;
-            framesNotGrounded = 8; // Reduced from 15 for more natural transitions
-            state = PlayerState.JUMPING;
-            
-            writeln("EMERGENCY JUMP FINAL: y=", Var.y, ", yspeed=", Var.yspeed);
-        }
-        
-        // ENFORCED SPEED CAP: Hard limit on maximum speed
-        if (abs(Var.groundspeed) > GamePhysics.maxspeed) {
-            Var.groundspeed = GamePhysics.maxspeed * (Var.groundspeed > 0 ? 1 : -1);
-            writeln("Speed capped at maximum: ", GamePhysics.maxspeed);
-        }
-        
-        // Direct jump debug check at the start of every frame
-        if (inputJump && Var.grounded) {
-            writeln("JUMP CONDITION MET: Should jump this frame!");
-        }
-        
-        // Handle physics based on current state
-        // The switch statement should handle all valid states
-        switch(state) {
-            case PlayerState.IDLE, PlayerState.WALK, PlayerState.RUN:
-                handleGroundMovement();
-                break;
+            // When moving upward, use lighter gravity for a more gradual slowdown
+            if (Var.yspeed < 0) {
+                // Use lighter gravity at the beginning of the jump (when speed is high)
+                // and gradually increase it as we approach the apex
+                gravityModifier = 0.5f + (0.5f * (1.0f - min(abs(Var.yspeed) / Var.jumpforce, 1.0f)));
                 
-            case PlayerState.JUMPING, PlayerState.FALLING:
-                handleAirMovement();
-                break;
-                
-            case PlayerState.ROLLING:
-                handleRolling();
-                break;
-                
-            case PlayerState.SPINDASHING:
-                handleSpinDash();
-                break;
-                
-            case PlayerState.HURT:
-                handleHurt();
-                break;
-                
-            default:
-                break;
-        }
-        
-        // Apply velocity with smoothing to prevent jittering
-        // DEBUG: Add more info about velocity application
-        writeln("Applying velocity: X=", Var.xspeed, " Y=", Var.yspeed);
-        
-        // ANTI-CLIPPING: Update previous position for collision detection
-        prevX = Var.x;
-        prevY = Var.y;
-        
-        // HIGH SPEED ANTI-CLIPPING SYSTEM
-        // For high speeds, use stepped movement to prevent passing through platforms
-        const float SPEED_STEP_THRESHOLD = 7.0f;  // Speed at which we start using steps
-        
-        if (abs(Var.yspeed) >= SPEED_STEP_THRESHOLD) {
-            // Use steps for high vertical speed to prevent clipping through floors/ceilings
-            int numSteps = cast(int)(abs(Var.yspeed) / 4.0f) + 1;  // More steps for higher speeds
-            float stepY = Var.yspeed / numSteps;
-            
-            writeln("HIGH Y-SPEED DETECTED: ", Var.yspeed, " - Using ", numSteps, " steps of ", stepY);
-            
-            // Apply movement in smaller increments, checking collisions each time
-            for (int step = 0; step < numSteps; step++) {
-                // Store position before this step
-                float stepPrevY = Var.y;
-                
-                // Apply partial movement
-                Var.y += stepY;
-                
-                // Update hitbox and sensor positions for this intermediate position
-                updateHitbox();
-                updateSensorPositions();
-                
-                // Check for collisions at this intermediate position
-                bool collided = checkStepCollision();
-                
-                if (collided) {
-                    writeln("COLLISION DETECTED DURING STEP ", step, " - stopping stepped movement");
-                    break;  // Exit the loop if we hit something
+                // Jump height control (variable height) - apply only during first half of jump
+                if (!keyActionHeld) {
+                    // If player releases jump button during rise, add extra gravity
+                    gravityModifier += 0.7f;  // Makes jump cut feel more responsive
                 }
             }
-        } else {
-            // IMPORTANT FIX: Only set speeds to 0 if truly minimal, otherwise let movement happen
-            if (abs(Var.yspeed) >= 0.005f) { // Lower threshold to ensure movement happens
-                Var.y += Var.yspeed;
-                writeln("Moving Y by ", Var.yspeed);
-            } else {
-                Var.yspeed = 0;
+            // When falling, use slightly lower gravity for lower descent
+            else {
+                gravityModifier = 0.8f;
             }
-        }
-        
-        // Handle horizontal movement - similar approach for high speeds
-        if (abs(Var.xspeed) >= SPEED_STEP_THRESHOLD) {
-            int numSteps = cast(int)(abs(Var.xspeed) / 4.0f) + 1;
-            float stepX = Var.xspeed / numSteps;
             
-            writeln("HIGH X-SPEED DETECTED: ", Var.xspeed, " - Using ", numSteps, " steps of ", stepX);
+            // Apply adjusted gravity
+            Var.yspeed += GamePhysics.gravity * gravityModifier;
             
-            for (int step = 0; step < numSteps; step++) {
-                float stepPrevX = Var.x;
-                Var.x += stepX;
-                
-                updateHitbox();
-                updateSensorPositions();
-                
-                bool collided = checkStepCollision();
-                if (collided) break;
-            }
-        } else {
-            // Normal movement for lower speeds
-            if (abs(Var.xspeed) >= 0.005f) {
-                Var.x += Var.xspeed;
-                writeln("Moving X by ", Var.xspeed);
-            } else {
-                Var.xspeed = 0;
+            // Clamp maximum fall speed
+            if (Var.yspeed > GamePhysics.maxFallSpeed) {
+                Var.yspeed = GamePhysics.maxFallSpeed;
             }
         }
         
-        // Final check for any platforms the player may have passed through
-        if (abs(Var.yspeed) >= SPEED_STEP_THRESHOLD) {
-            bool didClip = checkSweptCollision(prevY, Var.y);
-            if (didClip) {
-                writeln("SWEPT COLLISION DETECTED: Player passed through a platform!");
+        // Handle jumping - modify the initial jump velocity calculation
+        if (Var.grounded && keyActionPressed) {
+            // Apply the full jump force instantly for responsive feel
+            Var.yspeed = -Var.jumpforce;
+            Var.grounded = false;
+            state = PlayerState.JUMPING;
+            
+            // Add debug output
+            writeln("Jump initiated! yspeed = ", Var.yspeed);
+        }
+        
+        // Handle horizontal movement with improved turn-around physics
+        if (Var.grounded) {
+            // Ground movement
+            if (keyLeft && !keyRight) {
+                // If moving right but trying to go left, apply stronger deceleration (turn-around)
+                if (Var.xspeed > 0) {
+                    Var.xspeed -= GamePhysics.deceleration * 2.5f; // Stronger turn-around force
+                } 
+                // Normal acceleration to the left
+                else {
+                    Var.xspeed -= GamePhysics.acceleration;
+                }
+                
+                // Cap maximum speed
+                if (Var.xspeed < -GamePhysics.topspeed) {
+                    Var.xspeed = -GamePhysics.topspeed;
+                }
+                
+                // Update state
+                if (state != PlayerState.JUMPING && state != PlayerState.FALLING) {
+                    state = Var.xspeed > 0 ? PlayerState.RUNNING : PlayerState.WALK; // Running if still moving right
+                }
+            } 
+            else if (keyRight && !keyLeft) {
+                // If moving left but trying to go right, apply stronger deceleration (turn-around)
+                if (Var.xspeed < 0) {
+                    Var.xspeed += GamePhysics.deceleration * 2.5f; // Stronger turn-around force
+                } 
+                // Normal acceleration to the right
+                else {
+                    Var.xspeed += GamePhysics.acceleration;
+                }
+                
+                // Cap maximum speed
+                if (Var.xspeed > GamePhysics.topspeed) {
+                    Var.xspeed = GamePhysics.topspeed;
+                }
+                
+                // Update state
+                if (state != PlayerState.JUMPING && state != PlayerState.FALLING) {
+                state = Var.xspeed < 0 ? PlayerState.RUNNING : PlayerState.WALK; // Running if still moving left
+                }
+            } 
+            else {
+                // No input - apply friction based on ground mode
+                // For now, just apply standard friction
+                if (Var.xspeed > 0) {
+                    Var.xspeed -= GamePhysics.friction;
+                    if (Var.xspeed < 0) Var.xspeed = 0;
+                } 
+                else if (Var.xspeed < 0) {
+                    Var.xspeed += GamePhysics.friction;
+                    if (Var.xspeed > 0) Var.xspeed = 0;
+                }
+                
+                // Update state if virtually stopped
+                if (abs(Var.xspeed) < 0.1f && state != PlayerState.JUMPING && state != PlayerState.FALLING) {
+                    state = PlayerState.IDLE;
+                }
+            }
+        } 
+        else {
+            // Air movement - increased control with no friction
+            float airControlFactor = 1.2f; // Tripled from 0.4f for more responsive air control
+            
+            // In mid-air, apply turn-around effect but softer than on ground
+            if (keyLeft && !keyRight) {
+                // If moving right but trying to go left in air, apply moderate turn-around
+                if (Var.xspeed > 0) {
+                    Var.xspeed -= GamePhysics.deceleration * 0.8f; // Slightly reduced for less heavy feel
+                } 
+                // Enhanced air acceleration for responsive control
+                else {
+                    Var.xspeed -= GamePhysics.acceleration * airControlFactor;
+                }
+                
+                // Cap maximum speed
+                if (Var.xspeed < -GamePhysics.topspeed) {
+                    Var.xspeed = -GamePhysics.topspeed;
+                }
+            } 
+            else if (keyRight && !keyLeft) {
+                // If moving left but trying to go right in air, apply moderate turn-around
+                if (Var.xspeed < 0) {
+                    Var.xspeed += GamePhysics.deceleration * 0.5f; // Slightly reduced for less heavy feel
+                } 
+                // Enhanced air acceleration for responsive control
+                else {
+                    Var.xspeed += GamePhysics.acceleration * airControlFactor;
+                }
+                
+                // Cap maximum speed
+                if (Var.xspeed > GamePhysics.topspeed) {
+                    Var.xspeed = GamePhysics.topspeed;
+                }
+            }
+            else {
+                // No input in air - apply reduced friction
+                if (Var.xspeed > 0) {
+                    Var.xspeed -= GamePhysics.friction * 0.5f; // Reduced friction in air
+                    if (Var.xspeed < 0) Var.xspeed = 0;
+                } 
+                else if (Var.xspeed < 0) {
+                    Var.xspeed += GamePhysics.friction * 0.5f; // Reduced friction in air
+                    if (Var.xspeed > 0) Var.xspeed = 0;
+                }
+                
+                // Update state if virtually stopped
+                if (abs(Var.xspeed) < 0.1f && state != PlayerState.JUMPING && state != PlayerState.FALLING) {
+                    state = PlayerState.IDLE;
+                }
             }
         }
         
-        // Update hitbox and sensor positions
-        updateHitbox();
+        // Remove the old jump height control since we're now handling it with variable gravity
+        
+        // Apply movement
+        Var.x += Var.xspeed;
+        Var.y += Var.yspeed;
+        
+        // Update sensor positions after movement but before collision
         updateSensorPositions();
         
-        // Check for collision with ground
+        // Check for and resolve collisions
         checkEnvironmentCollision();
         
-        // Handle landing and falling
-        if (Var.grounded) {
-            airTime = 0;
-            groundTime++;
-            
-            // Just landed
-            if (!wasGrounded) {
-                onLand();
-                
-                // Add landing effect here if needed (particles, sound, etc.)
-                
-                // Small camera shake for hard landings
-                if (Var.yspeed > 8.0f) {
-                    // Here you could implement camera shake
-                }
-            }
-        } else {
-            groundTime = 0;
-            airTime++;
-            
-            // Just left the ground
-            if (wasGrounded) {
-                onLeaveGround();
-            }
-        }
+        // Update sensor positions again after collision resolution
+        updateSensorPositions();
         
-        // Update timers
-        updateTimers(deltaTime);
+        // Store ground speed for reference (useful for loops and slopes later)
+        Var.groundspeed = Var.xspeed;
         
-        // Update animation
-        updateAnimation(deltaTime);
-        
-        // Ultimate safety check - never allow player to be stuck in an invalid state
-        // This serves as a last-resort fix if all else fails
-        if (Var.grounded && (state == PlayerState.JUMPING || state == PlayerState.FALLING)) {
-            writeln("EMERGENCY FIX: Player was grounded but in air state! Fixing...");
-            state = PlayerState.IDLE;
-            if (inputLeft || inputRight) {
-                state = PlayerState.WALK;
-            }
-        }
-        
-        if (!Var.grounded && (state == PlayerState.IDLE || state == PlayerState.WALK || state == PlayerState.RUN)) {
-            writeln("EMERGENCY FIX: Player was in air but had ground state! Fixing...");
-            state = PlayerState.FALLING;
-        }
-        
-        // FINAL SAFEGUARD: Check if the player is below the floor level
-        // This prevents the player from going through the floor completely
-        import app : testPlatforms;
-        if (!Var.grounded && Var.yspeed > 0) {  // If falling
-            foreach(ref platform; testPlatforms) {
-                // Check if player is horizontally within platform
-                if (Var.x + Var.widthrad >= platform.x && Var.x - Var.widthrad <= platform.x + platform.width) {
-                    // Check if player has gone through the platform completely
-                    if (Var.y - Var.heightrad > platform.y && 
-                        Var.y - Var.heightrad < platform.y + platform.height) {
-                        
-                        writeln("!!! EMERGENCY FLOOR PENETRATION DETECTED - FIXING !!!");
-                        
-                        // Place on top of platform
-                        Var.y = platform.y - Var.heightrad;
-                        Var.yspeed = 0;
-                        Var.grounded = true;
-                        state = PlayerState.IDLE;
-                        
-                        // Update hitbox and sensors
-                        updateHitbox();
-                        updateSensorPositions();
-                        break;
-                    }
-                }
-            }
-        }
+        // Debug output - commented out for less console spam
+        // writeln("Player pos: ", Var.x, ", ", Var.y, " | Speed: ", Var.xspeed, ", ", Var.yspeed, 
+        //         " | Ground: ", Var.grounded, " | State: ", state);
     }
-    
-    // Process keyboard input
-    void processInput() {
-        // Save previous input state for edge detection
-        bool wasJumpPressed = inputJump;
-        
-        // Movement
-        inputLeft = IsKeyDown(KeyboardKey.KEY_LEFT);
-        inputRight = IsKeyDown(KeyboardKey.KEY_RIGHT);
-        inputUp = IsKeyDown(KeyboardKey.KEY_UP);
-        inputDown = IsKeyDown(KeyboardKey.KEY_DOWN);
-        
-        // Debug input state
-        if (inputLeft || inputRight) {
-            writeln("INPUT STATE: Left=", inputLeft, ", Right=", inputRight, 
-                ", State=", state, ", Grounded=", Var.grounded,
-                ", Speed=", Var.groundspeed);
-        }
-        
-        // Jump input handling (Z key) - ENHANCED for maximum reliability
-        bool jumpKeyDown = IsKeyDown(KeyboardKey.KEY_Z);
-        bool isZKeyPressed = IsKeyPressed(KeyboardKey.KEY_Z);
-        
-        // Debug jump presses with more detailed info
-        if (isZKeyPressed) {
-            writeln("Z key pressed, grounded state: ", Var.grounded, ", state: ", state, 
-                ", framesNotGrounded: ", framesNotGrounded, ", jumpBufferCounter: ", jumpBufferCounter);
-        }
-        
-        // Make jump controls MUCH more responsive with an increased jump buffer
-        if (isZKeyPressed) {
-            // Set jump buffer when key is pressed - significantly increased for maximum reliability
-            jumpBufferCounter = 12; // Allow jumping for up to 12 frames after pressing Z (was 8)
-            // Debugging - track jump presses more clearly
-            writeln("JUMP PRESSED! Setting jump buffer to 12");
-        } else if (jumpBufferCounter > 0) {
-            jumpBufferCounter--;
-            
-            // Additional debugging to track jump buffer
-            if (jumpBufferCounter % 4 == 0) {
-                writeln("Jump buffer active: ", jumpBufferCounter, " frames remaining");
-            }
-        }
-        
-        // Set input flags - CRITICAL FIX: Force a more direct jump check for immediate response
-        // This bypasses any potential issues with the jump buffer
-        inputJump = jumpKeyDown; // Use direct KEY_DOWN instead of KEY_PRESSED
-        inputJumpHeld = jumpKeyDown;
-        
-        // Extra debugging for jump input
-        if (jumpKeyDown) {
-            writeln("DIRECT JUMP DEBUG: Z key is held down, grounded=", Var.grounded);
-        }
-        
-        // Action (X key) - Roll, spindash, etc.
-        inputAction = IsKeyPressed(KeyboardKey.KEY_X);
-    }
-    
-    // Handle ground movement physics
-    void handleGroundMovement() {
-        float acc = GamePhysics.acceleration;
-        float dec = GamePhysics.deceleration;
-        float frc = GamePhysics.friction;
-        float topSpeed = GamePhysics.topspeed;
-        
-        // Apply slope factor to ground movement
-        float slopeFactorX = cos(Var.groundangle * (std.math.PI / 128.0f));
-        float slopeFactorY = sin(Var.groundangle * (std.math.PI / 128.0f));
-        
-        // Add a slope resistance factor to prevent jittering on slopes
-        float slopeResistance = 0.0f;
-        
-        // Add resistance when going uphill, assistance when going downhill
-        if (abs(Var.groundangle) > 10 && abs(Var.groundangle) < 90) {
-            slopeResistance = sin(Var.groundangle * (std.math.PI / 128.0f)) * 0.05f;
-        }
-        
-        // Handle left/right movement on ground
-        if (inputLeft && !inputRight) {
-            // Moving left
-            if (Var.groundspeed > 0) 
-                Var.groundspeed -= dec * 1.5f; // Increased deceleration when turning to feel more responsive
-            else
-                Var.groundspeed -= acc * 2.5f; // Increased acceleration for more responsive feel
-                
-            // Set direction for animation
-            direction = -1;
-            
-            // CRITICAL FIX: FORCE player state to match movement (fixes stuck in IDLE state)
-            state = PlayerState.WALK; // Always force WALK state first to ensure movement
-            if (abs(Var.groundspeed) >= 6.0f) {
-                state = PlayerState.RUN;
-            }
-            
-            // Force a minimum speed to prevent getting stuck
-            if (abs(Var.groundspeed) < 0.2f) {
-                Var.groundspeed = -0.2f;
-            }
-            
-            // Debug movement
-            writeln("LEFT: Applying speed ", Var.groundspeed, " acc=", acc, " dec=", dec);
-                
-        } else if (inputRight && !inputLeft) {
-            // Moving right
-            if (Var.groundspeed < 0) 
-                Var.groundspeed += dec * 1.5f; // Increased deceleration when turning to feel more responsive
-            else
-                Var.groundspeed += acc * 2.5f; // Increased acceleration for more responsive feel
-                
-            // Set direction for animation
-            direction = 1;
-            
-            // CRITICAL FIX: FORCE player state to match movement (fixes stuck in IDLE state)
-            state = PlayerState.WALK; // Always force WALK state first to ensure movement
-            if (abs(Var.groundspeed) >= 6.0f) {
-                state = PlayerState.RUN;
-            }
-            
-            // Force a minimum speed to prevent getting stuck
-            if (abs(Var.groundspeed) < 0.2f) {
-                Var.groundspeed = 0.2f;
-            }
-            
-            // Debug movement
-            writeln("RIGHT: Applying speed ", Var.groundspeed, " acc=", acc, " dec=", dec);
-                
-        } else {
-            // No horizontal input - use MUCH more gradual stopping logic
-            
-            // Use different friction strategies based on speed
-            if (abs(Var.groundspeed) > 6.0f) {
-                // At very high speeds, use extremely gentle percentage-based deceleration
-                Var.groundspeed *= 0.97f; // Only 3% speed reduction per frame
-            }
-            else if (abs(Var.groundspeed) > 4.0f) {
-                // At high speeds, use very gentle percentage-based deceleration
-                Var.groundspeed *= 0.96f; // Only 4% speed reduction per frame
-            }
-            else if (abs(Var.groundspeed) > 2.0f) {
-                // At medium speeds, use gentle percentage-based deceleration
-                Var.groundspeed *= 0.95f; // Only 5% speed reduction per frame
-            }
-            else if (abs(Var.groundspeed) > 0.3f) {
-                // At low speeds, use mild deceleration
-                Var.groundspeed *= 0.92f; // Only 8% speed reduction per frame
-            }
-            else {
-                // At very low speeds, stop completely to prevent micro-sliding
-                Var.groundspeed = 0;
-                if (state != PlayerState.IDLE && Var.grounded)
-                    state = PlayerState.IDLE;
-            }
-            
-            // Hard stop threshold significantly lowered to allow much more natural sliding to a stop
-            if (abs(Var.groundspeed) < 0.1f) {
-                writeln("Stopping completely from low speed: ", Var.groundspeed);
-                Var.groundspeed = 0;
-                Var.xspeed = 0; // Also zero out xspeed to ensure complete stopping
-            }
-        }
-        
-        // COMPLETELY REBUILT jump handling - multiple detection methods with gradual jumping
-        bool jumpTriggered = false;
-        
-        // Method 1: Direct key state check (most direct method)
-        if ((IsKeyPressed(KeyboardKey.KEY_Z) || IsKeyDown(KeyboardKey.KEY_Z)) && Var.grounded) {
-            jumpTriggered = true;
-            writeln("JUMP METHOD 1: Direct key press detection");
-        }
-        
-        // Method 2: Jump buffer system (useful for timing grace period)
-        if (jumpBufferCounter > 0 && Var.grounded) {
-            jumpTriggered = true;
-            writeln("JUMP METHOD 2: Jump buffer activation");
-        }
-        
-        // Method 3: Backup poll on the key raw state
-        if (IsKeyPressed(KeyboardKey.KEY_Z) && Var.grounded) {
-            jumpTriggered = true;
-            writeln("JUMP METHOD 3: KeyPressed backup poll");
-        }
-        
-        // EXECUTE JUMP when any method triggers
-        if (jumpTriggered) {
-            // Force a clear debug message to track jump execution
-            writeln("!!! JUMP EXECUTION CONFIRMED !!! Ground angle: ", Var.groundangle, 
-                  ", Speed: ", Var.groundspeed);
-            
-            // Calculate jump force with more natural impulse for gradual jumping
-            float jumpImpulse = -Var.jumpforce * 1.05f; // Only 5% boost for more natural jumps
-            
-            // Small speed boost for fast-moving jumps
-            if (abs(Var.groundspeed) > 5.0f) {
-                jumpImpulse *= 1.08f; // Only 8% boost at high speeds for more control
-                writeln("HIGH SPEED JUMP BOOST: ", jumpImpulse);
-            }
-            
-            // CRUCIAL FIX: Apply jump speed BEFORE setting grounded=false
-            // This prevents any race condition in the physics system
-            Var.xspeed = Var.groundspeed * cos(Var.groundangle * (std.math.PI / 128.0f));
-            Var.yspeed = jumpImpulse; 
-            
-            // Gentler slope adjustment
-            if (abs(Var.groundangle) > 5) {
-                Var.xspeed += sin(Var.groundangle * (std.math.PI / 128.0f)) * 1.5f; // Reduced from 2.5f
-            }
-            
-            // Smaller directional boost
-            Var.xspeed += direction * 0.6f; // Reduced from 1.0f for more controlled horizontal movement
-            
-            // CRITICAL ORDER: Only AFTER speeds are applied, change state and flags
-            state = PlayerState.JUMPING;
-            
-            // Less aggressive ungrounding to allow natural transitions
-            Var.grounded = false;
-            framesNotGrounded = GROUND_DEBOUNCE_FRAMES + 3; // Reduced from 5 frames
-            
-            // Reset jump buffer after successful jump
-            jumpBufferCounter = 0;
-            
-            // Debug the final jump values
-            writeln("FINAL JUMP VALUES - yspeed: ", Var.yspeed, ", xspeed: ", Var.xspeed);
-        }
-        
-        // Handle spindash input
-        if (inputDown && Var.grounded && abs(Var.groundspeed) < 1.0f) {
-            if (inputAction) {
-                // Initiate spindash
-                state = PlayerState.SPINDASHING;
-                spinDashCharge = 0;
-                Var.groundspeed = 0;
-            }
-        }
-        // Handle rolling input
-        else if (inputDown && Var.grounded && abs(Var.groundspeed) >= 1.0f) {
-            // Initiate roll
-            state = PlayerState.ROLLING;
-        }
-        
-        // Apply an extremely low minimum speed threshold to allow very natural slow movement
-        if (abs(Var.groundspeed) < 0.02f) {
-            Var.groundspeed = 0;
-        }
-        
-        // Apply additional slope resistance/assistance based on direction
-        if (Var.groundspeed != 0) {
-            // If going uphill (positive groundspeed + positive angle or negative groundspeed + negative angle)
-            if ((Var.groundspeed > 0 && sin(Var.groundangle * (std.math.PI / 128.0f)) > 0) || 
-                (Var.groundspeed < 0 && sin(Var.groundangle * (std.math.PI / 128.0f)) < 0)) {
-                // More resistance when going uphill (less slippery)
-                Var.groundspeed -= slopeResistance * 1.5 * (Var.groundspeed > 0 ? 1 : -1);
-            } else {
-                // Speed up when going downhill
-                Var.groundspeed += slopeResistance * (Var.groundspeed > 0 ? 1 : -1);
-                
-                // Add a slight curve to downhill acceleration so it doesn't get out of control
-                if (abs(Var.groundspeed) > GamePhysics.topspeed) {
-                    // Apply a stronger resistance at higher speeds
-                    Var.groundspeed -= 0.02 * (Var.groundspeed > 0 ? 1 : -1);
-                }
-            }
-        }
-        
-        // Apply mild ground traction when trying to move against current direction
-        // This makes the character feel responsive but not too snappy
-        if ((inputLeft && Var.groundspeed > 0) || (inputRight && Var.groundspeed < 0)) {
-            // Gentle traction when trying to turn around
-            Var.groundspeed *= 0.95f;
-        }
-        
-        // Convert ground speed to x/y components based on ground angle
-        Var.xspeed = Var.groundspeed * cos(Var.groundangle * (std.math.PI / 128.0f));
-        Var.yspeed = Var.groundspeed * sin(Var.groundangle * (std.math.PI / 128.0f));
-        
-        // Add gravity component on slopes (natural acceleration downhill)
-        float slopeGravity = GamePhysics.gravity * sin(Var.groundangle * (std.math.PI / 128.0f));
-        
-        // Apply slope gravity with a small deadzone to prevent jitter on nearly-flat surfaces
-        if (abs(slopeGravity) > 0.01f) {
-            Var.groundspeed += slopeGravity;
-        }
-    }
-    
-    // Handle air movement physics
-    void handleAirMovement() {
-        // Debug air movement
-        writeln("Air movement - yspeed: ", Var.yspeed, ", state: ", state);
-        
-        float airAcc = GamePhysics.acceleration * 0.8f;  // Increased from 0.7f for even better air control
-        
-        // Air control - improved but still more limited than ground control
-        if (inputLeft && !inputRight) {
-            // More responsive air control, especially when changing directions
-            if (Var.xspeed > 0) {
-                Var.xspeed -= airAcc * 1.8f; // Increased responsiveness when changing direction
-            } else if (Var.xspeed > -GamePhysics.topspeed) {
-                Var.xspeed -= airAcc;
-            }
-            direction = -1;
-        }
-        else if (inputRight && !inputLeft) {
-            // More responsive air control, especially when changing directions
-            if (Var.xspeed < 0) {
-                Var.xspeed += airAcc * 1.8f; // Increased responsiveness when changing direction
-            } else if (Var.xspeed < GamePhysics.topspeed) {
-                Var.xspeed += airAcc;
-            }
-            direction = 1;
-        }
-        else {
-            // IMPROVED: Only apply minimal air drag to perfectly preserve momentum
-            Var.xspeed *= 0.995f; // Very minimal drag (0.5% reduction) for natural feel
-        }
-        
-        // STRICT AIR SPEED CAP: Hard limit on maximum air speed
-        if (abs(Var.xspeed) > GamePhysics.maxspeed) {
-            Var.xspeed = GamePhysics.maxspeed * (Var.xspeed > 0 ? 1 : -1);
-            writeln("Air speed capped at maximum: ", GamePhysics.maxspeed);
-        }
-        
-        // Apply gravity with a speed cap to prevent excessive falling speeds
-        if (Var.yspeed < 10.0f) { // Lower falling speed cap for more control
-            // More gradual and natural jump arc
-            if (state == PlayerState.JUMPING && Var.yspeed < 0) {
-                if (airTime < 2) {
-                    // Very short initial boost phase - gentle initial rise
-                    Var.yspeed += GamePhysics.gravity * 0.5f; // More gravity influence
-                    writeln("Initial jump phase - moderate gravity");
-                }
-                else if (airTime < 5) {
-                    // Shorter boost phase for more gradual height gain
-                    Var.yspeed += GamePhysics.gravity * 0.75f; // More gravity for less extreme height
-                    writeln("Mid jump phase - increased gravity");
-                }
-                else {
-                    // Faster transition to peak
-                    Var.yspeed += GamePhysics.gravity * 0.95f;
-                }
-            } else {
-                // Normal falling gravity for consistent descents
-                Var.yspeed += GamePhysics.gravity * 1.0f; // Neutral gravity multiplier
-            }
-        }
-        
-        // Variable jump height with more predictable, less extreme control
-        if (Var.yspeed < 0 && !inputJumpHeld) {
-            // More consistent jump height control for better predictability
-            float jumpCutFactor;
-            
-            if (airTime < 2) {
-                jumpCutFactor = 0.85f; // Gentler early cut for more reliable short jumps
-            }
-            else if (airTime < 4) {
-                jumpCutFactor = 0.92f; // Gentler mid-jump cut for medium height jumps
-            }
-            else {
-                jumpCutFactor = 0.97f; // Very minimal late cut for reliable jump heights
-            }
-            
-            Var.yspeed *= jumpCutFactor;
-            writeln("Jump cut applied: factor=", jumpCutFactor, ", airTime=", airTime);
-        }
-        
-        // Enhanced state transitions for better jump visuals and control
-        if (Var.yspeed > 0) {
-            // Only transition to falling state if we're not already falling
-            // This prevents state flickering and ensures animations play correctly
-            if (state != PlayerState.FALLING) {
-                writeln("Reached jump apex! Transitioning to FALLING state");
-                state = PlayerState.FALLING;
-            }
-        } else if (state == PlayerState.FALLING && Var.yspeed < -1.0f) {
-            // Fix for when we're boosted upward while falling (e.g., springs, launchers)
-            state = PlayerState.JUMPING;
-            writeln("Vertical boost detected! Switching back to JUMPING state");
-        }
-        
-        // Add a more substantial directional boost when pressing in a direction
-        // Makes air control feel dramatically more responsive and satisfying
-        if ((inputLeft && Var.xspeed > -GamePhysics.topspeed) || (inputRight && Var.xspeed < GamePhysics.topspeed)) {
-            // Calculate boost amount based on current speed - stronger boost at low speeds
-            float baseBoost = 0.2f; // Doubled from 0.1f
-            
-            // Boost is stronger in the first few frames of the jump for better initial control
-            if (airTime < 5 && state == PlayerState.JUMPING) {
-                baseBoost *= 1.5f; // 50% stronger air control at the start of jumps
-            }
-            
-            // Apply the direction-based boost
-            float boost = baseBoost * (inputLeft ? -1 : 1);
-            Var.xspeed += boost;
-            
-            if (abs(boost) > 0.1f) {
-                writeln("Air control boost applied: ", boost);
-            }
-        }
-    }
-    
-    // Handle rolling physics
-    void handleRolling() {
-        float rollFriction = GamePhysics.friction * 0.5f; // Less friction while rolling
-        
-        // Apply friction
-        if (abs(Var.groundspeed) > rollFriction)
-            Var.groundspeed -= rollFriction * (Var.groundspeed > 0 ? 1 : -1);
-        else {
-            Var.groundspeed = 0;
-            // Stop rolling if too slow
-            if (abs(Var.groundspeed) < 0.5f) {
-                state = PlayerState.IDLE;
-            }
-        }
-        
-        // Jump while rolling
-        if (inputJump) {
-            // Jump with current speed and direction
-            Var.xspeed = Var.groundspeed * cos(Var.groundangle * (std.math.PI / 128.0f));
-            Var.yspeed = Var.groundspeed * -sin(Var.groundangle * (std.math.PI / 128.0f)) - Var.jumpforce;
-            
-            Var.grounded = false;
-            state = PlayerState.JUMPING;
-        }
-        
-        // Apply gravity component on slopes
-        Var.groundspeed += GamePhysics.gravity * sin(Var.groundangle * (std.math.PI / 128.0f)) * 1.2f; // Stronger gravity effect while rolling
-        
-        // Convert ground speed to x/y components based on ground angle
-        Var.xspeed = Var.groundspeed * cos(Var.groundangle * (std.math.PI / 128.0f));
-        Var.yspeed = Var.groundspeed * sin(Var.groundangle * (std.math.PI / 128.0f));
-    }
-    
-    // Handle spindash physics
-    void handleSpinDash() {
-        const float SPINDASH_MAX_CHARGE = 8.0f;
-        const float SPINDASH_BASE_SPEED = 8.0f;
-        
-        // Charging up
-        if (inputDown) {
-            // Rev up with action button presses
-            if (inputAction) {
-                spinDashCharge = min(SPINDASH_MAX_CHARGE, spinDashCharge + 2.0f);
-            }
-            
-            // Natural charge decay
-            spinDashCharge *= 0.94f;
-            
-            // Release with jump button
-            if (inputJump) {
-                // Calculate launch speed based on charge
-                Var.groundspeed = SPINDASH_BASE_SPEED + spinDashCharge;
-                if (direction < 0) Var.groundspeed *= -1;
-                
-                // Convert to components
-                Var.xspeed = Var.groundspeed * cos(Var.groundangle * (std.math.PI / 128.0f));
-                Var.yspeed = Var.groundspeed * sin(Var.groundangle * (std.math.PI / 128.0f));
-                
-                // Transition to rolling state
-                state = PlayerState.ROLLING;
-            }
-        } else {
-            // Exited spindash without launching
-            state = PlayerState.IDLE;
-        }
-    }
-    
-    // Handle hurt state
-    void handleHurt() {
-        // Simple bouncing back when hurt
-        Var.yspeed += GamePhysics.gravity;
-        
-        // Recover from hurt state after a short time
-        if (hurtTimer <= 0) {
-            if (Var.grounded) {
-                state = PlayerState.IDLE;
-            } else {
-                state = Var.yspeed < 0 ? PlayerState.JUMPING : PlayerState.FALLING;
-            }
-        }
-    }
-    
-    // Called when player lands on the ground
-    void onLand() {
-        // Always update the state when landing, regardless of previous state
-        // This fixes the "locking up" issue when landing
-        
-        writeln("LANDING ON GROUND! Previous state: ", state, 
-                ", xspeed: ", Var.xspeed, 
-                ", yspeed: ", Var.yspeed, 
-                ", position: ", Var.x, ",", Var.y);
-        
-        // CRITICAL FIX: Reset jump inputs to ensure we don't get stuck in a state
-        inputJump = false;
-        jumpBufferCounter = 0;
-        
-        // Reset air time counters
-        airTime = 0;
-        
-        // Convert air momentum to ground momentum with improved precision
-        float angleRad = Var.groundangle * (std.math.PI / 128.0f);
-        
-        // Calculate ground speed from X speed with improved angle handling
-        if (abs(cos(angleRad)) > 0.01f) { // Avoid division by very small numbers
-            Var.groundspeed = Var.xspeed / cos(angleRad);
-        } else {
-            // Better handling for near-vertical surfaces
-            Var.groundspeed = Var.xspeed > 0 ? 0.5f : -0.5f; // Small default momentum
-        }
-        
-        // ENHANCED: Add a more powerful momentum boost when landing for better game feel
-        // Scale the boost based on the current speed for a more natural feel
-        if (abs(Var.groundspeed) > 6.0f) {
-            Var.groundspeed *= 1.15f; // 15% boost at high speeds (was 12%)
-            writeln("HIGH SPEED LANDING BOOST: ", Var.groundspeed);
-        } else if (abs(Var.groundspeed) > 4.0f) {
-            Var.groundspeed *= 1.12f; // 12% boost at medium speeds (was 10%)
-            writeln("MEDIUM SPEED LANDING BOOST: ", Var.groundspeed);
-        } else if (abs(Var.groundspeed) > 2.0f) {
-            Var.groundspeed *= 1.08f; // 8% boost at low speeds (was 5%)
-        }
-        
-        // Add sound effects and visual feedback for landing (commented as placeholders)
-        // playSound("land_sound.wav", abs(Var.yspeed) / 12.0f); // Volume based on falling speed
-        // spawnParticles(5); // Dust particles on landing
-        
-        // ULTIMATE FIX: Force proper state transition based on immediate input and speed
-        // This is absolutely critical to prevent the character from locking up on landing
-        if (inputLeft || inputRight) {
-            // If directional input is being held, immediately respond to it
-            if (abs(Var.groundspeed) >= 6.0f) {
-                state = PlayerState.RUN;
-                writeln("LANDING WITH INPUT: Setting RUN state");
-            } else {
-                state = PlayerState.WALK;
-                writeln("LANDING WITH INPUT: Setting WALK state");
-            }
-        } else {
-            // No input - set state based purely on momentum
-            if (abs(Var.groundspeed) >= 6.0f) {
-                state = PlayerState.RUN;
-                writeln("LANDING NO INPUT: Setting RUN state (momentum)");
-            }
-            else if (abs(Var.groundspeed) > 0.3f) {  // Lowered this threshold to prevent immediate stopping
-                state = PlayerState.WALK;
-                writeln("LANDING NO INPUT: Setting WALK state (momentum)");
-            }
-            else {
-                state = PlayerState.IDLE;
-                writeln("LANDING NO INPUT: Setting IDLE state");
-            }
-        }
-        
-        // Only stop if truly minimal speed to avoid abrupt stops
-        if (abs(Var.groundspeed) < 0.05f) {  // Lowered from 0.05f to allow more natural sliding
-            Var.groundspeed = 0;
-        }
-        
-        // Ensure we can immediately jump again after landing
-        jumpBufferCounter = 0;
-    }
-    
-    // Called when player leaves the ground
-    void onLeaveGround() {
-        // If we weren't already jumping, then we're falling
-        if (state != PlayerState.JUMPING) {
-            state = PlayerState.FALLING;
-        }
-        
-        // Convert ground momentum to air momentum
-        Var.xspeed = Var.groundspeed * cos(Var.groundangle * (std.math.PI / 128.0f));
-        Var.yspeed = Var.groundspeed * sin(Var.groundangle * (std.math.PI / 128.0f));
-    }
-    
-    // Update timer-based mechanics
-    void updateTimers(float deltaTime) {
-        // Decrease hurt timer if active
-        if (hurtTimer > 0)
-            hurtTimer -= deltaTime;
-            
-        // Idle timer for idle animations
-        if (state == PlayerState.IDLE) {
-            idleTimer += deltaTime;
-            
-            // Progress through idle states
-            if (idleTimer > 3.0f && idleState == IdleState.IDLE)
-                idleState = IdleState.IMPATIENT;
-            else if (idleTimer > 10.0f && idleState == IdleState.IMPATIENT)
-                idleState = IdleState.IMPATIENT_ATTRACT;
-        } else {
-            // Reset idle timer and state when not idle
-            idleTimer = 0;
-            idleState = IdleState.IDLE;
-        }
-    }
-    
-    // Update animation frame
-    void updateAnimation(float deltaTime) {
-        // Increment frame timer
-        frameTimer += deltaTime;
-        
-        // Change animation speed based on player speed
-        if (state == PlayerState.RUN) {
-            // Faster animation for running
-            frameDuration = 1.0f / 15.0f;
-        } else {
-            // Default animation speed
-            frameDuration = 1.0f / 12.0f;
-        }
-        
-        // Update frame when timer exceeds duration
-        if (frameTimer >= frameDuration) {
-            frameTimer = 0;
-            currentFrame++;
-            
-            // Loop animation (assuming animations array is populated correctly)
-            if (animations.length > 0) {
-                currentFrame %= animations.length;
-            } else {
-                // Default to first frame if animations not set up
-                currentFrame = 0;
-            }
-        }
-    }
-    
-    // Update the player's hitbox
-    void updateHitbox() {
-        float width = Var.widthrad;
-        float height = state == PlayerState.ROLLING ? Var.widthrad : Var.heightrad;
-        
-        // Update hitbox to follow the player's position
-        hitbox = Rectangle(
-            Var.x - width,
-            Var.y - height,
-            width * 2,
-            height * 2
-        );
-    }
-    
-    // Update sensor positions for collision detection
-    void updateSensorPositions() {
-        // Get appropriate width and height based on state
-        float width = Var.widthrad;
-        float height = state == PlayerState.ROLLING ? Var.widthrad : Var.heightrad;
-        
-        // Position sensors based on Sonic Physics Guide documentation
-        // A and B - Bottom sensors (for ground detection)
-        sensors[SENSOR_A] = Vector2(Var.x - width, Var.y + height);  // A - Bottom Left
-        sensors[SENSOR_B] = Vector2(Var.x + width, Var.y + height);  // B - Bottom Right
-        
-        // C and D - Side sensors (for wall detection)
-        sensors[SENSOR_C] = Vector2(Var.x - width, Var.y);           // C - Middle Left
-        sensors[SENSOR_D] = Vector2(Var.x + width, Var.y);           // D - Middle Right
-        
-        // E and F - Top sensors (for ceiling detection)
-        sensors[SENSOR_E] = Vector2(Var.x - width, Var.y - height);  // E - Top Left
-        sensors[SENSOR_F] = Vector2(Var.x + width, Var.y - height);  // F - Top Right
-    }
-    
-    // Check if a point is inside a platform
-    bool pointInPlatform(Vector2 point, Rectangle platform) {
-        return (point.x >= platform.x && 
-                point.x <= platform.x + platform.width &&
-                point.y >= platform.y && 
-                point.y <= platform.y + platform.height);
-    }
-    
-    // Get the nearest platform for ground detection
-    Rectangle* getNearestPlatformBelow() {
-        import app : testPlatforms;
-        Rectangle* nearest = null;
-        float nearestDist = float.infinity;
-        
-        foreach(ref platform; testPlatforms) {
-            // Check if player is horizontally within this platform
-            if (Var.x + Var.widthrad >= platform.x && Var.x - Var.widthrad <= platform.x + platform.width) {
-                // Check that platform is below the player
-                if (platform.y > Var.y) {
-                    float dist = platform.y - Var.y;
-                    if (dist < nearestDist) {
-                        nearestDist = dist;
-                        nearest = &platform;
-                    }
-                }
-            }
-        }
-        
-        return nearest;
-    }
-    
-    // Calculate slope angle between two sensors on a platform
-    int calculateSlopeAngle(Vector2 sensorA, Vector2 sensorB) {
-        // If sensors are at same height, flat ground
-        if (abs(sensorA.y - sensorB.y) < 0.5f) {
-            return 0; // Flat
-        }
-        
-        // Calculate angle based on height difference
-        float dx = sensorB.x - sensorA.x;
-        float dy = sensorB.y - sensorA.y;
-        
-        // Avoid division by zero
-        if (abs(dx) < 0.01f) {
-            return dy > 0 ? 64 : 192; // Vertical slope (90 or 270 degrees in hex)
-        }
-        
-        // Get slope angle in radians
-        float angleRad = atan2(dy, dx);
-        
-        // Convert to hex angle format (0-255)
-        int hexAngle = cast(int)(angleRad * (128.0f / std.math.PI)) & 0xFF;
-        
-        return hexAngle;
-    }
-    
-    // Check for collisions with the environment
-    // Constants for ground detection
-    enum float GROUND_SNAP_TOLERANCE = 6.0f;  // Increased to catch faster moving objects
-    enum float HIGH_SPEED_SNAP_TOLERANCE = 10.0f; // Higher tolerance for high speeds
-    enum int GROUND_DEBOUNCE_FRAMES = 2;      // Reduced to 2 frames for more responsive ungrounding
-    enum float MIN_SLOPE_HEIGHT = 0.5f;       // Minimum height difference to consider a slope
-    enum float COYOTE_TIME_FRAMES = 5;        // Allow jumping this many frames after leaving ground
-    
-    // Track frames since we lost ground contact
-    int framesNotGrounded = 0;
-    
-    void checkEnvironmentCollision() {
-        // Reset collision flags
-        for (int i = 0; i < 6; i++) {
-            sensorCollisions[i] = false;
-            sensorAngles[i] = 0;
-        }
-        
-        // Ground detection with sensors A and B
-        bool wasGroundedThisFrame = false;
-        bool sensorAHit = false;
-        bool sensorBHit = false;
-        float snapYA = 0;
-        float snapYB = 0;
-        float bestDistA = GROUND_SNAP_TOLERANCE;
-        float bestDistB = GROUND_SNAP_TOLERANCE;
-        Rectangle* platformA = null;
-        Rectangle* platformB = null;
-        
-        // Test against all platforms in app.d
-        import app : testPlatforms;
-        
-        // First check if we're close to any platform
-        foreach(ref platform; testPlatforms) {
-            // Check if player's sensors are horizontally within this platform
-            bool aInRange = sensors[SENSOR_A].x >= platform.x && sensors[SENSOR_A].x <= platform.x + platform.width;
-            bool bInRange = sensors[SENSOR_B].x >= platform.x && sensors[SENSOR_B].x <= platform.x + platform.width;
-            
-            // Choose appropriate snap tolerance based on vertical speed
-            // Higher speeds need bigger tolerances to catch fast-falling objects
-            float currentSnapTolerance = abs(Var.yspeed) >= 7.0f ? HIGH_SPEED_SNAP_TOLERANCE : GROUND_SNAP_TOLERANCE;
-            
-            // Check ground sensor A
-            if (aInRange) {
-                // Only check platforms below or at the sensor, with tolerance based on speed
-                if (sensors[SENSOR_A].y <= platform.y + currentSnapTolerance) {
-                    float distance = platform.y - sensors[SENSOR_A].y;
-                    
-                    // If this is a better match than what we have so far
-                    if (distance >= -currentSnapTolerance && distance < bestDistA) {
-                        bestDistA = distance;
-                        snapYA = platform.y;
-                        sensorAHit = true;
-                        platformA = &platform;
-                        writeln("Sensor A hit with speed=", Var.yspeed, ", tolerance=", currentSnapTolerance);
-                    }
-                }
-            }
-            
-            // Check ground sensor B
-            if (bInRange) {
-                // Only check platforms below or at the sensor, with tolerance based on speed
-                if (sensors[SENSOR_B].y <= platform.y + currentSnapTolerance) {
-                    float distance = platform.y - sensors[SENSOR_B].y;
-                    
-                    // If this is a better match than what we have so far
-                    if (distance >= -currentSnapTolerance && distance < bestDistB) {
-                        bestDistB = distance;
-                        snapYB = platform.y;
-                        sensorBHit = true;
-                        platformB = &platform;
-                    }
-                }
-            }
-        }
-        
-        // If we detected ground contact, snap to it and set grounded state
-        if (sensorAHit || sensorBHit) {
-            // Update sensor collision status
-            sensorCollisions[SENSOR_A] = sensorAHit;
-            sensorCollisions[SENSOR_B] = sensorBHit;
-            
-            // Calculate ground angle based on the difference in height between sensors
-            if (sensorAHit && sensorBHit) {
-                // Both sensors hit - calculate slope angle
-                if (snapYA != snapYB && abs(snapYA - snapYB) >= MIN_SLOPE_HEIGHT) {
-                    // We have an angled platform
-                    if (snapYA < snapYB) {
-                        // Going downhill to the right
-                        Var.groundangle = 240; // -22.5 degrees
-                    } else {
-                        // Going uphill to the right
-                        Var.groundangle = 16; // +22.5 degrees
-                    }
-                } else {
-                    // Effectively flat
-                    Var.groundangle = 0;
-                }
-                
-                // For proper platform detection, in a more complete implementation,
-                // we would get the real angle between platform points
-                
-                // Position player on top of ground (average position)
-                float avgSnapY = (snapYA + snapYB) / 2;
-                
-                // CRITICAL FIX: Don't snap if player is intentionally jumping with significant upward velocity
-                // This check prevents the ground from "catching" the player at the start of a jump
-                if (Var.yspeed < -2.0f && state == PlayerState.JUMPING) {
-                    writeln("JUMP PROTECTION: Preventing ground snap during active jump");
-                } 
-                // Only snap if falling or already grounded (prevents snapping through platforms)
-                else if (Var.yspeed >= 0 || Var.grounded || bestDistA <= 0.1f || bestDistB <= 0.1f) {
-                    Var.y = avgSnapY - Var.heightrad;
-                    
-                    // Set grounded and clear y velocity with a potential slight bounce
-                    if (!Var.grounded && Var.yspeed > 4.0) {
-                        // Small bounce for high-speed landing
-                        Var.yspeed = -Var.yspeed * 0.15f; // 15% bounce
-                    } else {
-                        Var.yspeed = 0;
-                    }
-                    
-                    Var.grounded = true;
-                    framesNotGrounded = 0;
-                    wasGroundedThisFrame = true;
-                    writeln("SENSOR COLLISION: Player is now grounded!");
-                }
-            }
-            // If only one sensor hit - sloped ground
-            else if (sensorAHit) {
-                Var.groundangle = 16; // Slight upward slope 
-                
-                // Position player on platform
-                if (Var.yspeed >= 0 || Var.grounded || bestDistA <= 0.1f) {
-                    Var.y = snapYA - Var.heightrad + (sensorAHit ? 0 : 2);
-                    
-                    Var.grounded = true;
-                    Var.yspeed = 0;
-                    framesNotGrounded = 0;
-                    wasGroundedThisFrame = true;
-                }
-            }
-            // If only sensor B hit - sloped ground
-            else if (sensorBHit) {
-                Var.groundangle = 240; // Slight downward slope
-                
-                // Position player on platform
-                if (Var.yspeed >= 0 || Var.grounded || bestDistB <= 0.1f) {
-                    Var.y = snapYB - Var.heightrad + (sensorBHit ? 0 : 2);
-                    
-                    Var.grounded = true;
-                    Var.yspeed = 0;
-                    framesNotGrounded = 0;
-                    wasGroundedThisFrame = true;
-                }
-            }
-        }
-        
-        // Handle losing ground contact with debounce
-        if (!wasGroundedThisFrame && Var.grounded) {
-            framesNotGrounded++;
-            
-            // Only unground after a few frames to prevent jitter
-            if (framesNotGrounded > GROUND_DEBOUNCE_FRAMES) {
-                Var.grounded = false;
-            }
-        }
-        
-        // Wall collision with sensors C and D
-        // First check against global bounds
-        if (sensors[SENSOR_C].x < 0) {
-            sensorCollisions[SENSOR_C] = true;
-            Var.x = Var.widthrad;
-            Var.xspeed = 0;
-        }
-        
-        // Right global wall
-        if (sensors[SENSOR_D].x > 1500) { // Extending the boundary for more test area
-            sensorCollisions[SENSOR_D] = true;
-            Var.x = 1500 - Var.widthrad;
-            Var.xspeed = 0;
-        }
-        
-        // Now check platforms for side collisions
-        import app : testPlatforms;
-        
-        foreach(platform; testPlatforms) {
-            // Check if player is vertically within this platform
-            if (Var.y + Var.heightrad > platform.y && 
-                Var.y - Var.heightrad < platform.y + platform.height) {
-                
-                // Left side collision
-                if (sensors[SENSOR_C].x <= platform.x + platform.width && 
-                    sensors[SENSOR_C].x >= platform.x + platform.width - 5 && 
-                    Var.xspeed < 0) {
-                    
-                    sensorCollisions[SENSOR_C] = true;
-                    Var.x = platform.x + platform.width + Var.widthrad;
-                    Var.xspeed = 0;
-                }
-                
-                // Right side collision
-                if (sensors[SENSOR_D].x >= platform.x && 
-                    sensors[SENSOR_D].x <= platform.x + 5 && 
-                    Var.xspeed > 0) {
-                    
-                    sensorCollisions[SENSOR_D] = true;
-                    Var.x = platform.x - Var.widthrad;
-                    Var.xspeed = 0;
-                }
-            }
-        }
-        
-        // Ceiling collision with sensors E and F
-        bool ceilingHit = false;
-        
-        // Check global ceiling
-        if ((sensors[SENSOR_E].y < 0 || sensors[SENSOR_F].y < 0) && Var.yspeed < 0) {
-            sensorCollisions[SENSOR_E] = sensors[SENSOR_E].y < 0;
-            sensorCollisions[SENSOR_F] = sensors[SENSOR_F].y < 0;
-            
-            Var.y = Var.heightrad;
-            Var.yspeed = 0;
-            ceilingHit = true;
-        }
-        
-        // Check platform ceilings
-        if (!ceilingHit && Var.yspeed < 0) {
-            foreach(platform; testPlatforms) {
-                // Check if player is horizontally within this platform
-                if (Var.x + Var.widthrad >= platform.x && 
-                    Var.x - Var.widthrad <= platform.x + platform.width) {
-                    
-                    // Check if touching the bottom of the platform
-                    if ((sensors[SENSOR_E].y <= platform.y + platform.height && 
-                        sensors[SENSOR_E].y >= platform.y + platform.height - 5) ||
-                        (sensors[SENSOR_F].y <= platform.y + platform.height && 
-                        sensors[SENSOR_F].y >= platform.y + platform.height - 5)) {
-                        
-                        sensorCollisions[SENSOR_E] = sensors[SENSOR_E].y <= platform.y + platform.height;
-                        sensorCollisions[SENSOR_F] = sensors[SENSOR_F].y <= platform.y + platform.height;
-                        
-                        Var.y = platform.y + platform.height + Var.heightrad;
-                        Var.yspeed = 0;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-    
-    // Check for collisions during a single movement step
-    bool checkStepCollision() {
-        import app : testPlatforms;
-        
-        // Get dimensions based on current state
-        float width = Var.widthrad;
-        float height = state == PlayerState.ROLLING ? Var.widthrad : Var.heightrad;
-        
-        // Check floor/ceiling collision with a smaller tolerance for precise stepping
-        if (Var.yspeed > 0) {  // Moving downward, check floors
-            foreach(ref platform; testPlatforms) {
-                // Check if player is horizontally within platform bounds
-                if (Var.x + width >= platform.x && Var.x - width <= platform.x + platform.width) {
-                    // Check if player's bottom is at or just below platform top
-                    float bottomY = Var.y + height;
-                    if (bottomY >= platform.y && bottomY <= platform.y + 2.0f) {
-                        // Snap to platform top and stop downward movement
-                        Var.y = platform.y - height;
-                        Var.yspeed = 0;
-                        Var.grounded = true;
-                        writeln("STEP COLLISION: Detected floor at y=", platform.y);
-                        return true;
-                    }
-                }
-            }
-        } else if (Var.yspeed < 0) {  // Moving upward, check ceilings
-            foreach(ref platform; testPlatforms) {
-                // Check if player is horizontally within platform bounds
-                if (Var.x + width >= platform.x && Var.x - width <= platform.x + platform.width) {
-                    // Check if player's top is at or just above platform bottom
-                    float topY = Var.y - height;
-                    float platformBottom = platform.y + platform.height;
-                    if (topY <= platformBottom && topY >= platformBottom - 2.0f) {
-                        // Snap to platform bottom and stop upward movement
-                        Var.y = platformBottom + height;
-                        Var.yspeed = 0;
-                        writeln("STEP COLLISION: Detected ceiling at y=", platformBottom);
-                        return true;
-                    }
-                }
-            }
-        }
-        
-        // Similar checks for horizontal movement
-        if (Var.xspeed > 0) {  // Moving right
-            foreach(ref platform; testPlatforms) {
-                // Check if player is vertically within platform bounds
-                if (Var.y + height >= platform.y && Var.y - height <= platform.y + platform.height) {
-                    // Check if player's right side is at or just inside platform left
-                    float rightX = Var.x + width;
-                    if (rightX >= platform.x && rightX <= platform.x + 2.0f) {
-                        // Snap to platform left and stop rightward movement
-                        Var.x = platform.x - width;
-                        Var.xspeed = 0;
-                        writeln("STEP COLLISION: Detected wall at x=", platform.x);
-                        return true;
-                    }
-                }
-            }
-        } else if (Var.xspeed < 0) {  // Moving left
-            foreach(ref platform; testPlatforms) {
-                // Check if player is vertically within platform bounds
-                if (Var.y + height >= platform.y && Var.y - height <= platform.y + platform.height) {
-                    // Check if player's left side is at or just inside platform right
-                    float leftX = Var.x - width;
-                    float platformRight = platform.x + platform.width;
-                    if (leftX <= platformRight && leftX >= platformRight - 2.0f) {
-                        // Snap to platform right and stop leftward movement
-                        Var.x = platformRight + width;
-                        Var.xspeed = 0;
-                        writeln("STEP COLLISION: Detected wall at x=", platformRight);
-                        return true;
-                    }
-                }
-            }
-        }
-        
-        return false;  // No collision detected
-    }
-    
-    // Check for swept collisions - platforms the player might have passed through
-    bool checkSweptCollision(float startY, float endY) {
-        import app : testPlatforms;
-        
-        // Only check for vertical swept collisions when moving fast enough
-        if (abs(endY - startY) < 4.0f) {
-            return false;  // Not moving fast enough to warrant a swept check
-        }
-        
-        // Get width for horizontal check
-        float width = Var.widthrad;
-        float minY, maxY;
-        
-        // Determine the range to check
-        if (startY < endY) {
-            // Moving down
-            minY = startY;
-            maxY = endY;
-        } else {
-            // Moving up
-            minY = endY;
-            maxY = startY;
-        }
-        
-        // Check if any platforms are within the swept area
-        foreach(ref platform; testPlatforms) {
-            // First check if we're horizontally aligned with the platform
-            if (Var.x + width >= platform.x && Var.x - width <= platform.x + platform.width) {
-                // Check if platform is in the vertical swept area
-                if (platform.y >= minY && platform.y <= maxY) {
-                    // Platform is in swept area - we likely passed through it
-                    
-                    if (endY > startY) {
-                        // Moving downward, place on top of platform
-                        Var.y = platform.y - Var.heightrad;
-                        Var.yspeed = 0;
-                        Var.grounded = true;
-                        writeln("SWEPT COLLISION: Fixed clipping through floor at y=", platform.y);
-                    } else {
-                        // Moving upward, place below platform
-                        Var.y = platform.y + platform.height + Var.heightrad;
-                        Var.yspeed = 0;
-                        writeln("SWEPT COLLISION: Fixed clipping through ceiling at y=", platform.y + platform.height);
-                    }
-                    return true;
-                }
-            }
-        }
-        
-        return false;  // No swept collision detected
-    }
-    
-    // Draw the player and debug info
+
     void draw() {
-        // Draw the player hitbox (placeholder)
-        DrawRectangleRec(hitbox, Color(255, 255, 255, 128)); // Semi-transparent white rectangle
+        // Sensor debug visualization
+        import app : testPlatforms;
         
-        // In a full implementation, we would draw the appropriate sprite from the spritesheet
-        // For now, draw a colored rectangle based on state
-        Color playerColor;
-        
-        switch (state) {
-            case PlayerState.IDLE:
-                playerColor = Color(0, 255, 255, 255); // Cyan
-                break;
-            case PlayerState.WALK:
-                playerColor = Color(0, 255, 0, 255); // Green
-                break;
-            case PlayerState.RUN:
-                playerColor = Color(0, 0, 255, 255); // Blue
-                break;
-            case PlayerState.JUMPING:
-                playerColor = Color(255, 255, 0, 255); // Yellow
-                break;
-            case PlayerState.FALLING:
-                playerColor = Color(255, 165, 0, 255); // Orange
-                break;
-            case PlayerState.ROLLING:
-                playerColor = Color(255, 0, 255, 255); // Purple
-                break;
-            case PlayerState.SPINDASHING:
-                playerColor = Color(255, 0, 0, 255); // Red
-                break;
-            default:
-                playerColor = Color(255, 255, 255, 255); // White
-                break;
-        }
-        
-        // Draw the player as a simple rectangle with the color indicating state
-        DrawRectangle(
-            cast(int)(Var.x - Var.widthrad),
-            cast(int)(Var.y - (state == PlayerState.ROLLING ? Var.widthrad : Var.heightrad)),
-            cast(int)(Var.widthrad * 2),
-            cast(int)((state == PlayerState.ROLLING ? Var.widthrad : Var.heightrad) * 2),
-            playerColor
+        // Draw a simple representation of the player (hitbox)
+        DrawRectangleLines(
+            cast(int)(Var.x - Var.widthrad), 
+            cast(int)(Var.y - Var.heightrad), 
+            cast(int)(Var.widthrad * 2), 
+            cast(int)(Var.heightrad * 2), 
+            Colors.GREEN
         );
-        
-        // Draw sensor points for debugging
-        for (int i = 0; i < 6; i++) {
-            Color sensorColor = sensorCollisions[i] ? 
-                Color(255, 0, 0, 255) :     // Red if colliding
-                Color(255, 255, 0, 255);    // Yellow otherwise
-                
-            DrawCircle(
-                cast(int)sensors[i].x, 
-                cast(int)sensors[i].y, 
-                3, 
+
+        /* Comment out detailed sensor visualization for cleaner display
+        // Draw regular sensors
+        foreach (int i; 0 .. cast(int)Sensor.COUNT) {
+            // Check collision state for sensor color
+            bool isSensorColliding = false;
+            foreach (platform; testPlatforms) {
+                if (CheckCollisionPointRec(sensorPositions[cast(Sensor)i], platform)) {
+                    isSensorColliding = true;
+                    break;
+                }
+            }
+            
+            // Choose color based on collision
+            Color sensorColor = isSensorColliding ? Colors.RED : Colors.YELLOW;
+            
+            // Draw sensor dot
+            DrawCircleV(sensorPositions[i], 3.0f, sensorColor);
+            
+            // Label sensors
+            char label = cast(char)('A' + i);
+            DrawText(&label, 
+                cast(int)sensorPositions[i].x + 5, 
+                cast(int)sensorPositions[i].y - 5, 
+                12, 
                 sensorColor
             );
         }
         
-        // Draw velocity vector for debugging
-        DrawLine(
-            cast(int)Var.x, 
-            cast(int)Var.y,
-            cast(int)(Var.x + Var.xspeed * 5), 
-            cast(int)(Var.y + Var.yspeed * 5),
-            Color(0, 255, 0, 255)
+        // Draw additional collision sensors used in wall detection
+        float horizPadding = min(abs(Var.xspeed) * 0.5f, Var.widthrad * 0.5f);
+        
+        // Left side extended sensors
+        Vector2 extendedLeftSensor = Vector2(
+            sensorPositions[Sensor.MIDDLE_LEFT].x - horizPadding,
+            sensorPositions[Sensor.MIDDLE_LEFT].y
         );
         
-        // Draw ground angle for debugging
-        if (Var.grounded) {
-            float angle = Var.groundangle * (std.math.PI / 128.0f);
-            Vector2 start = Vector2(Var.x, Var.y + Var.heightrad);
-            Vector2 end = Vector2(
-                Var.x + cos(angle) * 30,
-                Var.y + Var.heightrad + sin(angle) * 30
+        Vector2 topLeftSensor = Vector2(
+            sensorPositions[Sensor.MIDDLE_LEFT].x - horizPadding, 
+            sensorPositions[Sensor.TOP_LEFT].y + Var.heightrad * 0.3f
+        );
+        
+        Vector2 bottomLeftSensor = Vector2(
+            sensorPositions[Sensor.MIDDLE_LEFT].x - horizPadding, 
+            sensorPositions[Sensor.BOTTOM_LEFT].y - Var.heightrad * 0.3f
+        );
+        
+        // Right side extended sensors
+        Vector2 extendedRightSensor = Vector2(
+            sensorPositions[Sensor.MIDDLE_RIGHT].x + horizPadding,
+            sensorPositions[Sensor.MIDDLE_RIGHT].y
+        );
+        
+        Vector2 topRightSensor = Vector2(
+            sensorPositions[Sensor.MIDDLE_RIGHT].x + horizPadding, 
+            sensorPositions[Sensor.TOP_RIGHT].y + Var.heightrad * 0.3f
+        );
+        
+        Vector2 bottomRightSensor = Vector2(
+            sensorPositions[Sensor.MIDDLE_RIGHT].x + horizPadding, 
+            sensorPositions[Sensor.BOTTOM_RIGHT].y - Var.heightrad * 0.3f
+        );
+        
+        // Draw extended sensor points with dimmer color
+        Color extendedSensorColor = Color(150, 150, 0, 200);
+        
+        DrawCircleV(extendedLeftSensor, 2.0f, extendedSensorColor);
+        DrawCircleV(topLeftSensor, 2.0f, extendedSensorColor);
+        DrawCircleV(bottomLeftSensor, 2.0f, extendedSensorColor);
+        
+        DrawCircleV(extendedRightSensor, 2.0f, extendedSensorColor);
+        DrawCircleV(topRightSensor, 2.0f, extendedSensorColor);
+        DrawCircleV(bottomRightSensor, 2.0f, extendedSensorColor);
+        
+        // Draw extended floor sensors when falling
+        if (Var.yspeed > 0) {
+            float fallPadding = min(Var.yspeed * 0.6f, Var.heightrad * 0.9f);
+            
+            Vector2 bottomLeftExt = Vector2(
+                sensorPositions[Sensor.BOTTOM_LEFT].x,
+                sensorPositions[Sensor.BOTTOM_LEFT].y + fallPadding
             );
             
-            DrawLineV(start, end, Color(0, 255, 255, 255));
+            Vector2 bottomRightExt = Vector2(
+                sensorPositions[Sensor.BOTTOM_RIGHT].x,
+                sensorPositions[Sensor.BOTTOM_RIGHT].y + fallPadding
+            );
+            
+            Vector2 bottomCenter = Vector2(
+                Var.x,
+                sensorPositions[Sensor.BOTTOM_LEFT].y + fallPadding
+            );
+            
+            // Additional edge case detection
+            Vector2 bottomLeftWide = Vector2(
+                sensorPositions[Sensor.BOTTOM_LEFT].x - Var.widthrad * 0.3f,
+                sensorPositions[Sensor.BOTTOM_LEFT].y + fallPadding * 0.7f
+            );
+            
+            Vector2 bottomRightWide = Vector2(
+                sensorPositions[Sensor.BOTTOM_RIGHT].x + Var.widthrad * 0.3f,
+                sensorPositions[Sensor.BOTTOM_RIGHT].y + fallPadding * 0.7f
+            );
+            
+            // Draw extended floor sensors
+            Color fallSensorColor = Color(0, 200, 200, 200);
+            DrawCircleV(bottomLeftExt, 2.0f, fallSensorColor);
+            DrawCircleV(bottomRightExt, 2.0f, fallSensorColor);
+            DrawCircleV(bottomCenter, 2.0f, fallSensorColor);
+            
+            // Draw wide sensors
+            Color wideSensorColor = Color(200, 100, 200, 200);
+            DrawCircleV(bottomLeftWide, 2.0f, wideSensorColor);
+            DrawCircleV(bottomRightWide, 2.0f, wideSensorColor);
+            
+            // Draw sweep rectangle for high speeds
+            if (Var.yspeed > 7.0f) {
+                Rectangle sweepRect = Rectangle(
+                    Var.x - Var.widthrad * 0.9f,                          
+                    sensorPositions[Sensor.BOTTOM_LEFT].y - fallPadding,  
+                    Var.widthrad * 1.8f,                                  
+                    fallPadding * 2
+                );
+                
+                DrawRectangleLinesEx(sweepRect, 1.0f, Color(255, 0, 255, 150));
+            }
+            
+            // Draw extreme fall rectangle
+            if (Var.yspeed > 12.0f) {
+                Rectangle extremeFallRect = Rectangle(
+                    Var.x - Var.widthrad * 1.5f,
+                    sensorPositions[Sensor.BOTTOM_LEFT].y,
+                    Var.widthrad * 3.0f,
+                    fallPadding * 1.5f
+                );
+                
+                DrawRectangleLinesEx(extremeFallRect, 1.0f, Color(255, 50, 50, 150));
+            }
+            
+            // Ground proximity check visualization
+            float groundProximityThreshold = 0.5f;
+            
+            // For each platform, draw the ground proximity threshold
+            foreach (platform; testPlatforms) {
+                // Calculate if we're within the proximity threshold
+                float distanceToGround = platform.y - (Var.y + Var.heightrad);
+                if (distanceToGround >= -0.1f && distanceToGround <= groundProximityThreshold) {
+                    if (Var.x + Var.widthrad * 0.7f >= platform.x && 
+                        Var.x - Var.widthrad * 0.7f <= platform.x + platform.width) {
+                        
+                        // Draw the proximity threshold zone
+                        Rectangle proximityRect = Rectangle(
+                            platform.x,
+                            platform.y - groundProximityThreshold,
+                            platform.width,
+                            groundProximityThreshold
+                        );
+                        DrawRectangleRec(proximityRect, Color(0, 255, 0, 30));
+                        DrawRectangleLinesEx(proximityRect, 1.0f, Color(0, 255, 0, 100));
+                    }
+                }
+            }
+            
+            // Edge prevention visualization
+            if (Var.yspeed > 9.0f) {
+                DrawCircleV(
+                    Vector2(Var.x, Var.y + Var.heightrad + fallPadding * 0.5f),
+                    Var.widthrad * 1.1f,
+                    Color(255, 165, 0, 50)
+                );
+            }
         }
+        */
+        
+        // Draw a direction indicator for movement
+        if (abs(Var.xspeed) > 0.1f || abs(Var.yspeed) > 0.1f) {
+            Vector2 start = Vector2(Var.x, Var.y);
+            Vector2 end = Vector2(
+                Var.x + Var.xspeed * 3.0f,
+                Var.y + Var.yspeed * 3.0f
+            );
+            DrawLineV(start, end, Colors.SKYBLUE);
+        }
+        
+        // Draw fall speed indicator - keep this as it's useful even without detailed debug
+        if (Var.yspeed > 0) {
+            DrawText(
+                TextFormat("Fall: %.1f", Var.yspeed),
+                cast(int)(Var.x - 20),
+                cast(int)(Var.y - Var.heightrad - 15),
+                14,
+                Var.yspeed > 7.0f ? Colors.RED : Colors.WHITE
+            );
+        }
+        
+        /* Comment out stability indicator
+        // Draw ground stability indicator
+        DrawText(
+            TextFormat("Stability: %d", groundStabilityCounter),
+            cast(int)(Var.x - 35),
+            cast(int)(Var.y - Var.heightrad - 35),
+            14,
+            Var.grounded ? Colors.GREEN : Colors.RED
+        );
+        */
     }
 }

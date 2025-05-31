@@ -12,7 +12,7 @@ class Var {
     public static float groundangle = 0;
     public static float widthrad = 9;
     public static float heightrad = 19;
-    public static float jumpforce = 8.5f;  // Reduced for more natural, gradual jumping
+    public static float jumpforce = 5.5f;  // Adjusted for better jump height with reduced gravity
     public static float pushradius = 10;
 
     public static bool grounded = false;
@@ -30,7 +30,12 @@ class Var {
     public static bool invincibility = false;
     public static bool speedshoes = false;
     public static bool dead = false;
-    
+
+    public static float framesNotGrounded = 0;
+    public static int GROUND_DEBOUNCE_FRAMES = 3;
+    public static float GROUND_SNAP_TOLERANCE = 4.0f;
+    public static float HIGH_SPEED_SNAP_TOLERANCE = 12.0f;
+    public static float MIN_SLOPE_HEIGHT = 1.0f;
 
     public enum ShieldState {
         SHIELD_NONE,
@@ -45,12 +50,13 @@ class Var {
 
 public class GamePhysics : Var {
     public static string groundmode = "floor"; // four modes: floor, rightwall, leftwall, ceiling
-    public static float acceleration = 0.035f;    // Lower acceleration but will be multiplied in code
-    public static float deceleration = 0.06f;    // Reduced deceleration for smoother direction changes
-    public static float friction = 0.015f;       // Greatly reduced friction for much smoother natural slowdown
-    public static float topspeed = 7;          // Normal maximum speed
-    public static float maxspeed = 8;          // Hard cap on speed even with boosts 
-    public static float gravity = 0.32f;        // Slightly reduced for more gradual jump arcs
+    public static float acceleration = 0.06f;    // Slightly increased for more responsive feel
+    public static float deceleration = 0.08f;    // Reduced deceleration for smoother direction changes
+    public static float friction = 0.046875f;    // Greatly reduced friction for much smoother natural slowdown
+    public static float topspeed = 6.0f;         // Normal maximum speed
+    public static float maxspeed = 8.5f;         // Increased to allow for better air momentum
+    public static float gravity = 0.26f;         // Reduced gravity (from 0.32f) for lighter feel
+    public static float maxFallSpeed = 14.0f;    // Reduced from 16.0f for less heavy falls
 
     public static int[] sincoslist = [
         0, 6, 12, 18, 25, 31, 37, 43, 49, 56, 62, 68, 74, 80, 86, 92, 97, 103, 109, 115, 120, 126, 131, 136, 142, 147, 152, 157, 162, 167, 171, 176, 181, 185, 189, 193, 197, 201, 205, 209, 212, 216, 219, 222, 225, 228, 231, 234, 236, 238, 241, 243, 244, 246, 248, 249, 251, 252, 253, 254, 254, 255, 255, 255,
