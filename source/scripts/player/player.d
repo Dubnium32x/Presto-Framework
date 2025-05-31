@@ -138,12 +138,18 @@ class Player {
     bool keyRight;
     bool keyUp;
     bool keyDown;
+    bool prevKeyDown;     // Track previous down key state for press detection
     bool keyActionPressed; // For jump, etc. (Z key)
     bool keyActionHeld;    // For held jump, etc. (Z key)
     bool keyAction2Pressed; // (X key)
     
     // Ground stability counter to prevent oscillations
     int groundStabilityCounter = 0;
+    
+    // Rolling state variables
+    bool isRolling = false;
+    float rollTimer = 0.0f;     // For timing-based effects
+    bool canExitRoll = false;   // Flag to control when we can exit a roll
 
     // Sensor data
     Vector2[Sensor.COUNT] sensorPositions;
@@ -161,9 +167,19 @@ class Player {
         Var.xspeed = 0.0f;
         Var.yspeed = 0.0f;
         Var.grounded = false;
+        
+        // Initialize hitbox dimensions if not already set
+        if (GamePhysics.normalWidthrad <= 0) {
+            GamePhysics.normalWidthrad = Var.widthrad;
+        }
+        if (GamePhysics.normalHeightrad <= 0) {
+            GamePhysics.normalHeightrad = Var.heightrad;
+        }
 
         // Set initial state
         state = PlayerState.IDLE;
+        isRolling = false;
+        prevKeyDown = false;
 
         // Initialize sensor positions array to avoid issues, though they'll be set each frame.
         foreach (ref pos; sensorPositions) {
@@ -216,6 +232,11 @@ class Player {
         // This helps catch collisions when moving fast
         float horizPadding = min(abs(Var.xspeed) * 0.5f, Var.widthrad * 0.5f);
         
+        // If rolling, increase the horizontal padding slightly to represent the rolling shape
+        if (isRolling && abs(Var.xspeed) > 3.0f) {
+            horizPadding *= 1.2f; // 20% more padding when rolling fast
+        }
+        
         // Reset grounded state conditionally - don't reset if we're in a stability window
         if (groundStabilityCounter <= 0) {
             Var.grounded = false; // Reset grounded state for this frame
@@ -260,8 +281,12 @@ class Player {
                     // Snap to the right edge of the platform with a small buffer
                     Var.x = platform.x + platform.width + Var.widthrad + 0.1f;
                     
-                    // Reflect some momentum for a bounce effect on high speed
-                    if (Var.xspeed < -2.0f) {
+                    // If rolling, bounce with more force for better gameplay feel
+                    if (isRolling && Var.xspeed < -4.0f) {
+                        Var.xspeed = abs(Var.xspeed) * 0.5f; // Stronger bounce when rolling
+                    }
+                    // Regular collision response
+                    else if (Var.xspeed < -2.0f) {
                         Var.xspeed = abs(Var.xspeed) * 0.1f; // Small bounce
                     } else {
                         Var.xspeed = 0; // Just stop for low speed
@@ -300,8 +325,12 @@ class Player {
                     // Snap to the left edge of the platform with a small buffer
                     Var.x = platform.x - Var.widthrad - 0.1f;
                     
-                    // Reflect some momentum for a bounce effect on high speed
-                    if (Var.xspeed > 2.0f) {
+                    // If rolling, bounce with more force for better gameplay feel
+                    if (isRolling && Var.xspeed > 4.0f) {
+                        Var.xspeed = -abs(Var.xspeed) * 0.5f; // Stronger bounce when rolling
+                    }
+                    // Regular collision response
+                    else if (Var.xspeed > 2.0f) {
                         Var.xspeed = -abs(Var.xspeed) * 0.1f; // Small bounce
                     } else {
                         Var.xspeed = 0; // Just stop for low speed
@@ -315,6 +344,11 @@ class Player {
             // Calculate vertical padding based on fall speed
             // The faster we're falling, the more we need to check ahead
             float fallPadding = Var.yspeed > 0 ? min(Var.yspeed * 0.6f, Var.heightrad * 0.9f) : 0;
+            
+            // When rolling, increase fall detection area
+            if (isRolling && Var.yspeed > 0) {
+                fallPadding *= 1.15f; // 15% larger detection area when rolling
+            }
             
             // Extended bottom sensors that reach farther down when falling fast
             Vector2 bottomLeftExt = Vector2(
@@ -447,8 +481,13 @@ class Player {
                 }
                 
                 // Apply ground friction to horizontal speed when landing at high speed
+                // Rolling should maintain more momentum when landing
                 if (Var.yspeed > 8.0f && abs(Var.xspeed) > 3.0f) {
-                    Var.xspeed *= 0.9f; // Reduce horizontal speed slightly on hard landings
+                    if (isRolling) {
+                        Var.xspeed *= 0.95f; // Reduce horizontal speed slightly when rolling (maintain momentum)
+                    } else {
+                        Var.xspeed *= 0.9f; // Reduce horizontal speed more when not rolling
+                    }
                 }
                 
                 // Special handling for edge prevention cases
@@ -506,14 +545,21 @@ class Player {
             }
         }
         
-        // Update player state based on grounded status
+        // Update player state based on grounded status and rolling state
         if (Var.grounded) {
-            if (state != PlayerState.IDLE && state != PlayerState.RUNNING) {
-                state = PlayerState.IDLE; // Reset to idle when grounded
+            if (!isRolling) {
+                if (state != PlayerState.IDLE && state != PlayerState.RUNNING && state != PlayerState.WALK) {
+                    state = abs(Var.xspeed) > 0.5f ? PlayerState.RUNNING : PlayerState.IDLE;
+                }
+            } else {
+                // Maintain rolling state
+                state = PlayerState.ROLLING;
             }
         } else {
-            if (state == PlayerState.IDLE || state == PlayerState.RUNNING) {
-                state = PlayerState.JUMPING; // Transition to jumping state when not grounded
+            if (isRolling) {
+                state = PlayerState.FALLING_ROLL; // Rolling in air
+            } else if (state == PlayerState.IDLE || state == PlayerState.RUNNING || state == PlayerState.WALK) {
+                state = Var.yspeed < 0 ? PlayerState.JUMPING : PlayerState.FALLING; // Set proper air state
             }
         }
         
@@ -569,127 +615,174 @@ class Player {
             // Apply the full jump force instantly for responsive feel
             Var.yspeed = -Var.jumpforce;
             Var.grounded = false;
-            state = PlayerState.JUMPING;
+            
+            // Set state based on whether we're rolling or not
+            if (isRolling) {
+                // Jump while rolling maintains roll in the air
+                state = PlayerState.FALLING_ROLL;
+            } else {
+                state = PlayerState.JUMPING;
+            }
             
             // Add debug output
             writeln("Jump initiated! yspeed = ", Var.yspeed);
         }
         
-        // Handle horizontal movement with improved turn-around physics
+        // Check for roll state transitions
         if (Var.grounded) {
-            // Ground movement
-            if (keyLeft && !keyRight) {
-                // If moving right but trying to go left, apply stronger deceleration (turn-around)
-                if (Var.xspeed > 0) {
-                    Var.xspeed -= GamePhysics.deceleration * 2.5f; // Stronger turn-around force
-                } 
-                // Normal acceleration to the left
-                else {
-                    Var.xspeed -= GamePhysics.acceleration;
-                }
-                
-                // Cap maximum speed
-                if (Var.xspeed < -GamePhysics.topspeed) {
-                    Var.xspeed = -GamePhysics.topspeed;
-                }
-                
-                // Update state
-                if (state != PlayerState.JUMPING && state != PlayerState.FALLING) {
-                    state = Var.xspeed > 0 ? PlayerState.RUNNING : PlayerState.WALK; // Running if still moving right
-                }
-            } 
-            else if (keyRight && !keyLeft) {
-                // If moving left but trying to go right, apply stronger deceleration (turn-around)
-                if (Var.xspeed < 0) {
-                    Var.xspeed += GamePhysics.deceleration * 2.5f; // Stronger turn-around force
-                } 
-                // Normal acceleration to the right
-                else {
-                    Var.xspeed += GamePhysics.acceleration;
-                }
-                
-                // Cap maximum speed
-                if (Var.xspeed > GamePhysics.topspeed) {
-                    Var.xspeed = GamePhysics.topspeed;
-                }
-                
-                // Update state
-                if (state != PlayerState.JUMPING && state != PlayerState.FALLING) {
-                state = Var.xspeed < 0 ? PlayerState.RUNNING : PlayerState.WALK; // Running if still moving left
-                }
-            } 
-            else {
-                // No input - apply friction based on ground mode
-                // For now, just apply standard friction
-                if (Var.xspeed > 0) {
-                    Var.xspeed -= GamePhysics.friction;
-                    if (Var.xspeed < 0) Var.xspeed = 0;
-                } 
-                else if (Var.xspeed < 0) {
-                    Var.xspeed += GamePhysics.friction;
-                    if (Var.xspeed > 0) Var.xspeed = 0;
-                }
-                
-                // Update state if virtually stopped
-                if (abs(Var.xspeed) < 0.1f && state != PlayerState.JUMPING && state != PlayerState.FALLING) {
-                    state = PlayerState.IDLE;
-                }
-            }
-        } 
-        else {
-            // Air movement - increased control with no friction
-            float airControlFactor = 1.2f; // Tripled from 0.4f for more responsive air control
+            // Detect when down key is pressed (not just held)
+            bool downPressed = keyDown && !prevKeyDown;
+            prevKeyDown = keyDown;
             
-            // In mid-air, apply turn-around effect but softer than on ground
-            if (keyLeft && !keyRight) {
-                // If moving right but trying to go left in air, apply moderate turn-around
-                if (Var.xspeed > 0) {
-                    Var.xspeed -= GamePhysics.deceleration * 0.8f; // Slightly reduced for less heavy feel
+            // Press down to enter rolling or to exit if already rolling
+            float minRollSpeed = GamePhysics.minSpeedToStartRoll > 0 ? GamePhysics.minSpeedToStartRoll : 2.0f;
+            
+            if (downPressed) {
+                if (!isRolling && abs(Var.xspeed) >= minRollSpeed) {
+                    // Enter roll when we have enough speed
+                    enterRolling();
+                    
+                    // Check environment after entering roll to ensure proper collision detection
+                    updateSensorPositions();
+                    checkEnvironmentCollision();
                 } 
-                // Enhanced air acceleration for responsive control
-                else {
-                    Var.xspeed -= GamePhysics.acceleration * airControlFactor;
-                }
-                
-                // Cap maximum speed
-                if (Var.xspeed < -GamePhysics.topspeed) {
-                    Var.xspeed = -GamePhysics.topspeed;
-                }
-            } 
-            else if (keyRight && !keyLeft) {
-                // If moving left but trying to go right in air, apply moderate turn-around
-                if (Var.xspeed < 0) {
-                    Var.xspeed += GamePhysics.deceleration * 0.5f; // Slightly reduced for less heavy feel
-                } 
-                // Enhanced air acceleration for responsive control
-                else {
-                    Var.xspeed += GamePhysics.acceleration * airControlFactor;
-                }
-                
-                // Cap maximum speed
-                if (Var.xspeed > GamePhysics.topspeed) {
-                    Var.xspeed = GamePhysics.topspeed;
-                }
-            }
-            else {
-                // No input in air - apply reduced friction
-                if (Var.xspeed > 0) {
-                    Var.xspeed -= GamePhysics.friction * 0.5f; // Reduced friction in air
-                    if (Var.xspeed < 0) Var.xspeed = 0;
-                } 
-                else if (Var.xspeed < 0) {
-                    Var.xspeed += GamePhysics.friction * 0.5f; // Reduced friction in air
-                    if (Var.xspeed > 0) Var.xspeed = 0;
-                }
-                
-                // Update state if virtually stopped
-                if (abs(Var.xspeed) < 0.1f && state != PlayerState.JUMPING && state != PlayerState.FALLING) {
-                    state = PlayerState.IDLE;
+                else if (isRolling && canExitRoll) {
+                    // Save previous state for re-checking
+                    bool wasRolling = isRolling;
+                    
+                    // Exit roll when already rolling and down is pressed again
+                    exitRolling();
+                    
+                    // If we were rolling but now aren't, recheck collisions to ensure proper positioning
+                    if (wasRolling && !isRolling) {
+                        // Update sensor positions after exiting roll
+                        updateSensorPositions();
+                        checkEnvironmentCollision();
+                    }
                 }
             }
         }
         
-        // Remove the old jump height control since we're now handling it with variable gravity
+        // Handle physics based on rolling state
+        if (isRolling) {
+            // Use rolling-specific physics
+            updateRollingPhysics(deltaTime);
+        }
+        else {
+            // Standard movement physics when not rolling
+            if (Var.grounded) {
+                // Ground movement
+                if (keyLeft && !keyRight) {
+                    // If moving right but trying to go left, apply stronger deceleration (turn-around)
+                    if (Var.xspeed > 0) {
+                        Var.xspeed -= GamePhysics.deceleration * 2.5f; // Stronger turn-around force
+                    } 
+                    // Normal acceleration to the left
+                    else {
+                        Var.xspeed -= GamePhysics.acceleration;
+                    }
+                    
+                    // Cap maximum speed
+                    if (Var.xspeed < -GamePhysics.topspeed) {
+                        Var.xspeed = -GamePhysics.topspeed;
+                    }
+                    
+                    // Update state
+                    if (state != PlayerState.JUMPING && state != PlayerState.FALLING) {
+                        state = Var.xspeed > 0 ? PlayerState.RUNNING : PlayerState.WALK; // Running if still moving right
+                    }
+                } 
+                else if (keyRight && !keyLeft) {
+                    // If moving left but trying to go right, apply stronger deceleration (turn-around)
+                    if (Var.xspeed < 0) {
+                        Var.xspeed += GamePhysics.deceleration * 2.5f; // Stronger turn-around force
+                    } 
+                    // Normal acceleration to the right
+                    else {
+                        Var.xspeed += GamePhysics.acceleration;
+                    }
+                    
+                    // Cap maximum speed
+                    if (Var.xspeed > GamePhysics.topspeed) {
+                        Var.xspeed = GamePhysics.topspeed;
+                    }
+                    
+                    // Update state
+                    if (state != PlayerState.JUMPING && state != PlayerState.FALLING) {
+                        state = Var.xspeed < 0 ? PlayerState.RUNNING : PlayerState.WALK; // Running if still moving left
+                    }
+                } 
+                else {
+                    // No input - apply friction based on ground mode
+                    // For now, just apply standard friction
+                    if (Var.xspeed > 0) {
+                        Var.xspeed -= GamePhysics.friction;
+                        if (Var.xspeed < 0) Var.xspeed = 0;
+                    } 
+                    else if (Var.xspeed < 0) {
+                        Var.xspeed += GamePhysics.friction;
+                        if (Var.xspeed > 0) Var.xspeed = 0;
+                    }
+                    
+                    // Update state if virtually stopped
+                    if (abs(Var.xspeed) < 0.1f && state != PlayerState.JUMPING && state != PlayerState.FALLING) {
+                        state = PlayerState.IDLE;
+                    }
+                }
+            } 
+            else {
+                // Air movement - increased control with no friction
+                float airControlFactor = 1.2f; // Tripled from 0.4f for more responsive air control
+                
+                // In mid-air, apply turn-around effect but softer than on ground
+                if (keyLeft && !keyRight) {
+                    // If moving right but trying to go left in air, apply moderate turn-around
+                    if (Var.xspeed > 0) {
+                        Var.xspeed -= GamePhysics.deceleration * 0.8f; // Slightly reduced for less heavy feel
+                    } 
+                    // Enhanced air acceleration for responsive control
+                    else {
+                        Var.xspeed -= GamePhysics.acceleration * airControlFactor;
+                    }
+                    
+                    // Cap maximum speed
+                    if (Var.xspeed < -GamePhysics.topspeed) {
+                        Var.xspeed = -GamePhysics.topspeed;
+                    }
+                } 
+                else if (keyRight && !keyLeft) {
+                    // If moving left but trying to go right in air, apply moderate turn-around
+                    if (Var.xspeed < 0) {
+                        Var.xspeed += GamePhysics.deceleration * 0.5f; // Slightly reduced for less heavy feel
+                    } 
+                    // Enhanced air acceleration for responsive control
+                    else {
+                        Var.xspeed += GamePhysics.acceleration * airControlFactor;
+                    }
+                    
+                    // Cap maximum speed
+                    if (Var.xspeed > GamePhysics.topspeed) {
+                        Var.xspeed = GamePhysics.topspeed;
+                    }
+                }
+                else {
+                    // No input in air - apply reduced friction
+                    if (Var.xspeed > 0) {
+                        Var.xspeed -= GamePhysics.friction * 0.5f; // Reduced friction in air
+                        if (Var.xspeed < 0) Var.xspeed = 0;
+                    } 
+                    else if (Var.xspeed < 0) {
+                        Var.xspeed += GamePhysics.friction * 0.5f; // Reduced friction in air
+                        if (Var.xspeed > 0) Var.xspeed = 0;
+                    }
+                    
+                    // Update state if virtually stopped
+                    if (abs(Var.xspeed) < 0.1f && state != PlayerState.JUMPING && state != PlayerState.FALLING) {
+                        state = PlayerState.IDLE;
+                    }
+                }
+            }
+        }
         
         // Apply movement
         Var.x += Var.xspeed;
@@ -704,12 +797,35 @@ class Player {
         // Update sensor positions again after collision resolution
         updateSensorPositions();
         
+        // Handle landing from an airborne roll
+        if (Var.grounded && state == PlayerState.FALLING_ROLL) {
+            // Landing from a rolling jump - maintain roll state
+            isRolling = true;
+            state = PlayerState.ROLLING;
+            
+            // Set hitbox size to rolling dimensions (with safety check)
+            if (GamePhysics.rollingWidthrad > 0 && GamePhysics.rollingHeightrad > 0) {
+                // Store current height before changing
+                float currentHeight = Var.heightrad;
+                
+                // Change hitbox size
+                Var.widthrad = GamePhysics.rollingWidthrad;
+                Var.heightrad = GamePhysics.rollingHeightrad;
+                
+                // Update sensors after changing hitbox
+                updateSensorPositions();
+                
+                // Recheck collisions to properly position at rolling height
+                checkEnvironmentCollision();
+            } else {
+                // Fallback if physics constants aren't set correctly
+                Var.widthrad = 9.0f; // Keep width the same
+                Var.heightrad = 14.0f;
+            }
+        }
+        
         // Store ground speed for reference (useful for loops and slopes later)
         Var.groundspeed = Var.xspeed;
-        
-        // Debug output - commented out for less console spam
-        // writeln("Player pos: ", Var.x, ", ", Var.y, " | Speed: ", Var.xspeed, ", ", Var.yspeed, 
-        //         " | Ground: ", Var.grounded, " | State: ", state);
     }
 
     void draw() {
@@ -717,187 +833,36 @@ class Player {
         import app : testPlatforms;
         
         // Draw a simple representation of the player (hitbox)
-        DrawRectangleLines(
-            cast(int)(Var.x - Var.widthrad), 
-            cast(int)(Var.y - Var.heightrad), 
-            cast(int)(Var.widthrad * 2), 
-            cast(int)(Var.heightrad * 2), 
-            Colors.GREEN
-        );
-
-        /* Comment out detailed sensor visualization for cleaner display
-        // Draw regular sensors
-        foreach (int i; 0 .. cast(int)Sensor.COUNT) {
-            // Check collision state for sensor color
-            bool isSensorColliding = false;
-            foreach (platform; testPlatforms) {
-                if (CheckCollisionPointRec(sensorPositions[cast(Sensor)i], platform)) {
-                    isSensorColliding = true;
-                    break;
-                }
-            }
+        Color hitboxColor = isRolling ? Colors.ORANGE : Colors.GREEN;
+        
+        // Draw based on current state
+        if (isRolling) {
+            // Draw a shorter but still rectangular hitbox when rolling
+            DrawRectangleLines(
+                cast(int)(Var.x - Var.widthrad), 
+                cast(int)(Var.y - Var.heightrad), 
+                cast(int)(Var.widthrad * 2), 
+                cast(int)(Var.heightrad * 2), 
+                hitboxColor
+            );
             
-            // Choose color based on collision
-            Color sensorColor = isSensorColliding ? Colors.RED : Colors.YELLOW;
-            
-            // Draw sensor dot
-            DrawCircleV(sensorPositions[i], 3.0f, sensorColor);
-            
-            // Label sensors
-            char label = cast(char)('A' + i);
-            DrawText(&label, 
-                cast(int)sensorPositions[i].x + 5, 
-                cast(int)sensorPositions[i].y - 5, 
-                12, 
-                sensorColor
+            // Add a small indicator for rolling state
+            DrawRectangle(
+                cast(int)(Var.x - 3),
+                cast(int)(Var.y - 3),
+                6, 6,
+                Colors.ORANGE
+            );
+        } else {
+            // Draw rectangular hitbox when not rolling
+            DrawRectangleLines(
+                cast(int)(Var.x - Var.widthrad), 
+                cast(int)(Var.y - Var.heightrad), 
+                cast(int)(Var.widthrad * 2), 
+                cast(int)(Var.heightrad * 2), 
+                hitboxColor
             );
         }
-        
-        // Draw additional collision sensors used in wall detection
-        float horizPadding = min(abs(Var.xspeed) * 0.5f, Var.widthrad * 0.5f);
-        
-        // Left side extended sensors
-        Vector2 extendedLeftSensor = Vector2(
-            sensorPositions[Sensor.MIDDLE_LEFT].x - horizPadding,
-            sensorPositions[Sensor.MIDDLE_LEFT].y
-        );
-        
-        Vector2 topLeftSensor = Vector2(
-            sensorPositions[Sensor.MIDDLE_LEFT].x - horizPadding, 
-            sensorPositions[Sensor.TOP_LEFT].y + Var.heightrad * 0.3f
-        );
-        
-        Vector2 bottomLeftSensor = Vector2(
-            sensorPositions[Sensor.MIDDLE_LEFT].x - horizPadding, 
-            sensorPositions[Sensor.BOTTOM_LEFT].y - Var.heightrad * 0.3f
-        );
-        
-        // Right side extended sensors
-        Vector2 extendedRightSensor = Vector2(
-            sensorPositions[Sensor.MIDDLE_RIGHT].x + horizPadding,
-            sensorPositions[Sensor.MIDDLE_RIGHT].y
-        );
-        
-        Vector2 topRightSensor = Vector2(
-            sensorPositions[Sensor.MIDDLE_RIGHT].x + horizPadding, 
-            sensorPositions[Sensor.TOP_RIGHT].y + Var.heightrad * 0.3f
-        );
-        
-        Vector2 bottomRightSensor = Vector2(
-            sensorPositions[Sensor.MIDDLE_RIGHT].x + horizPadding, 
-            sensorPositions[Sensor.BOTTOM_RIGHT].y - Var.heightrad * 0.3f
-        );
-        
-        // Draw extended sensor points with dimmer color
-        Color extendedSensorColor = Color(150, 150, 0, 200);
-        
-        DrawCircleV(extendedLeftSensor, 2.0f, extendedSensorColor);
-        DrawCircleV(topLeftSensor, 2.0f, extendedSensorColor);
-        DrawCircleV(bottomLeftSensor, 2.0f, extendedSensorColor);
-        
-        DrawCircleV(extendedRightSensor, 2.0f, extendedSensorColor);
-        DrawCircleV(topRightSensor, 2.0f, extendedSensorColor);
-        DrawCircleV(bottomRightSensor, 2.0f, extendedSensorColor);
-        
-        // Draw extended floor sensors when falling
-        if (Var.yspeed > 0) {
-            float fallPadding = min(Var.yspeed * 0.6f, Var.heightrad * 0.9f);
-            
-            Vector2 bottomLeftExt = Vector2(
-                sensorPositions[Sensor.BOTTOM_LEFT].x,
-                sensorPositions[Sensor.BOTTOM_LEFT].y + fallPadding
-            );
-            
-            Vector2 bottomRightExt = Vector2(
-                sensorPositions[Sensor.BOTTOM_RIGHT].x,
-                sensorPositions[Sensor.BOTTOM_RIGHT].y + fallPadding
-            );
-            
-            Vector2 bottomCenter = Vector2(
-                Var.x,
-                sensorPositions[Sensor.BOTTOM_LEFT].y + fallPadding
-            );
-            
-            // Additional edge case detection
-            Vector2 bottomLeftWide = Vector2(
-                sensorPositions[Sensor.BOTTOM_LEFT].x - Var.widthrad * 0.3f,
-                sensorPositions[Sensor.BOTTOM_LEFT].y + fallPadding * 0.7f
-            );
-            
-            Vector2 bottomRightWide = Vector2(
-                sensorPositions[Sensor.BOTTOM_RIGHT].x + Var.widthrad * 0.3f,
-                sensorPositions[Sensor.BOTTOM_RIGHT].y + fallPadding * 0.7f
-            );
-            
-            // Draw extended floor sensors
-            Color fallSensorColor = Color(0, 200, 200, 200);
-            DrawCircleV(bottomLeftExt, 2.0f, fallSensorColor);
-            DrawCircleV(bottomRightExt, 2.0f, fallSensorColor);
-            DrawCircleV(bottomCenter, 2.0f, fallSensorColor);
-            
-            // Draw wide sensors
-            Color wideSensorColor = Color(200, 100, 200, 200);
-            DrawCircleV(bottomLeftWide, 2.0f, wideSensorColor);
-            DrawCircleV(bottomRightWide, 2.0f, wideSensorColor);
-            
-            // Draw sweep rectangle for high speeds
-            if (Var.yspeed > 7.0f) {
-                Rectangle sweepRect = Rectangle(
-                    Var.x - Var.widthrad * 0.9f,                          
-                    sensorPositions[Sensor.BOTTOM_LEFT].y - fallPadding,  
-                    Var.widthrad * 1.8f,                                  
-                    fallPadding * 2
-                );
-                
-                DrawRectangleLinesEx(sweepRect, 1.0f, Color(255, 0, 255, 150));
-            }
-            
-            // Draw extreme fall rectangle
-            if (Var.yspeed > 12.0f) {
-                Rectangle extremeFallRect = Rectangle(
-                    Var.x - Var.widthrad * 1.5f,
-                    sensorPositions[Sensor.BOTTOM_LEFT].y,
-                    Var.widthrad * 3.0f,
-                    fallPadding * 1.5f
-                );
-                
-                DrawRectangleLinesEx(extremeFallRect, 1.0f, Color(255, 50, 50, 150));
-            }
-            
-            // Ground proximity check visualization
-            float groundProximityThreshold = 0.5f;
-            
-            // For each platform, draw the ground proximity threshold
-            foreach (platform; testPlatforms) {
-                // Calculate if we're within the proximity threshold
-                float distanceToGround = platform.y - (Var.y + Var.heightrad);
-                if (distanceToGround >= -0.1f && distanceToGround <= groundProximityThreshold) {
-                    if (Var.x + Var.widthrad * 0.7f >= platform.x && 
-                        Var.x - Var.widthrad * 0.7f <= platform.x + platform.width) {
-                        
-                        // Draw the proximity threshold zone
-                        Rectangle proximityRect = Rectangle(
-                            platform.x,
-                            platform.y - groundProximityThreshold,
-                            platform.width,
-                            groundProximityThreshold
-                        );
-                        DrawRectangleRec(proximityRect, Color(0, 255, 0, 30));
-                        DrawRectangleLinesEx(proximityRect, 1.0f, Color(0, 255, 0, 100));
-                    }
-                }
-            }
-            
-            // Edge prevention visualization
-            if (Var.yspeed > 9.0f) {
-                DrawCircleV(
-                    Vector2(Var.x, Var.y + Var.heightrad + fallPadding * 0.5f),
-                    Var.widthrad * 1.1f,
-                    Color(255, 165, 0, 50)
-                );
-            }
-        }
-        */
         
         // Draw a direction indicator for movement
         if (abs(Var.xspeed) > 0.1f || abs(Var.yspeed) > 0.1f) {
@@ -909,6 +874,32 @@ class Player {
             DrawLineV(start, end, Colors.SKYBLUE);
         }
         
+        // Draw state text (safer implementation)
+        const(char)* stateText;
+        if (isRolling) {
+            stateText = "ROLLING";
+        } else {
+            // Convert enum to int for safer formatting
+            stateText = TextFormat("State: %d", cast(int)state);
+        }
+        
+        DrawText(
+            stateText,
+            cast(int)(Var.x - 25),
+            cast(int)(Var.y - Var.heightrad - 30),
+            14,
+            isRolling ? Colors.ORANGE : Colors.WHITE
+        );
+        
+        // Draw speed indicator
+        DrawText(
+            TextFormat("Speed: %.1f", abs(Var.xspeed)),
+            cast(int)(Var.x - 25),
+            cast(int)(Var.y + Var.heightrad + 5),
+            14,
+            abs(Var.xspeed) > 4.0f ? Colors.YELLOW : Colors.WHITE
+        );
+        
         // Draw fall speed indicator - keep this as it's useful even without detailed debug
         if (Var.yspeed > 0) {
             DrawText(
@@ -919,16 +910,250 @@ class Player {
                 Var.yspeed > 7.0f ? Colors.RED : Colors.WHITE
             );
         }
+    }
+
+    // Helper method to enter rolling state
+    void enterRolling() {
+        if (!isRolling && Var.grounded) {
+            // Store current position for reference
+            float prevX = Var.x;
+            float prevY = Var.y;
+            float prevHeightrad = Var.heightrad;
+            
+            // Get ground platform information before changing hitbox
+            import app : testPlatforms;
+            Rectangle* groundPlatform = null;
+            float groundY = float.max;
+            
+            // Find the platform Sonic is standing on
+            foreach (ref platform; testPlatforms) {
+                if (Var.grounded && 
+                    prevX + Var.widthrad * 0.7f >= platform.x && 
+                    prevX - Var.widthrad * 0.7f <= platform.x + platform.width &&
+                    prevY + prevHeightrad >= platform.y - 1.0f && 
+                    prevY + prevHeightrad <= platform.y + 1.0f) {
+                    
+                    groundPlatform = &platform;
+                    groundY = platform.y;
+                    break; // Found the ground platform
+                }
+            }
+            
+            // Mark that we're now rolling
+            isRolling = true;
+            state = PlayerState.ROLLING;
+            
+            // Change hitbox size (with safety checks)
+            if (GamePhysics.rollingWidthrad > 0 && GamePhysics.rollingHeightrad > 0) {
+                Var.widthrad = GamePhysics.rollingWidthrad;
+                Var.heightrad = GamePhysics.rollingHeightrad;
+            } else {
+                // Fallback if physics constants aren't set correctly
+                Var.widthrad = 9.0f; // Keep width the same to prevent clipping
+                Var.heightrad = 14.0f;
+            }
+            
+            // Precisely position player relative to ground
+            if (groundPlatform !is null) {
+                // Position Sonic exactly on the ground platform with the new hitbox
+                Var.y = groundY - Var.heightrad - 0.1f; // Small buffer to ensure contact
+            } else {
+                // If we couldn't find a specific ground platform, use the old adjustment method
+                float heightDifference = prevHeightrad - Var.heightrad;
+                if (heightDifference > 0) {
+                    Var.y -= heightDifference * 0.5f;
+                }
+            }
+            
+            // Update sensor positions with new hitbox dimensions
+            updateSensorPositions();
+            
+            // Immediately check for collisions to ensure proper ground contact
+            checkEnvironmentCollision();
+            
+            // Debug output
+            writeln("Entering roll state. Speed: ", abs(Var.xspeed), 
+                   " Position: ", Var.x, ",", Var.y);
+            
+            // Always allow exit of roll for new implementation
+            canExitRoll = true;
+            rollTimer = 0.0f;
+        }
+        else if (isRolling && Var.grounded && canExitRoll) {
+            // If already rolling and we press down again, exit the roll
+            exitRolling();
+        }
+    }
+    
+    // Helper method to exit rolling state
+    void exitRolling() {
+        if (isRolling && canExitRoll) {
+            // Store current position and sensor data before changing hitbox
+            float currentX = Var.x;
+            float currentY = Var.y;
+            
+            // Get current sensor distances from platforms to preserve positioning
+            import app : testPlatforms;
+            float minLeftDist = float.max;
+            float minRightDist = float.max;
+            float groundDist = float.max;
+            
+            // Save reference to nearest platforms for post-adjustment
+            Rectangle* nearestLeftWall = null;
+            Rectangle* nearestRightWall = null;
+            Rectangle* groundPlatform = null;
+            
+            // Measure distances to nearby platforms to preserve relative positioning
+            foreach (ref platform; testPlatforms) {
+                // Check horizontal distance to left wall
+                if (currentX > platform.x + platform.width) {
+                    float dist = currentX - Var.widthrad - (platform.x + platform.width);
+                    if (dist < minLeftDist) {
+                        minLeftDist = dist;
+                        nearestLeftWall = &platform;
+                    }
+                }
+                
+                // Check horizontal distance to right wall
+                if (currentX < platform.x) {
+                    float dist = platform.x - (currentX + Var.widthrad);
+                    if (dist < minRightDist) {
+                        minRightDist = dist;
+                        nearestRightWall = &platform;
+                    }
+                }
+                
+                // Check vertical distance to ground
+                if (Var.grounded && platform.y >= currentY + Var.heightrad - 1 && 
+                    currentX + Var.widthrad * 0.7f >= platform.x && 
+                    currentX - Var.widthrad * 0.7f <= platform.x + platform.width) {
+                    float dist = platform.y - (currentY + Var.heightrad);
+                    if (dist < groundDist) {
+                        groundDist = dist;
+                        groundPlatform = &platform;
+                    }
+                }
+            }
+            
+            // Mark that we're no longer rolling
+            isRolling = false;
+            
+            // Restore original hitbox size (with safety checks)
+            if (GamePhysics.normalWidthrad > 0 && GamePhysics.normalHeightrad > 0) {
+                Var.widthrad = GamePhysics.normalWidthrad;
+                Var.heightrad = GamePhysics.normalHeightrad;
+            } else {
+                // Fallback if physics constants aren't set correctly
+                Var.widthrad = 9.0f;
+                Var.heightrad = 19.0f;
+            }
+            
+            // Adjust player position for taller hitbox
+            // Move player up to compensate for the height difference while maintaining ground contact
+            float heightDifference = GamePhysics.normalHeightrad - GamePhysics.rollingHeightrad;
+            if (heightDifference > 0 && Var.grounded) {
+                // Move up by half the height difference to center the player at the same point
+                Var.y -= heightDifference * 0.5f;
+            }
+            
+            // Preserve relative distances to platforms after hitbox change
+            if (nearestLeftWall !is null && minLeftDist < float.max && minLeftDist >= 0) {
+                // Adjust position if too close to left wall with new hitbox
+                float newLeftDist = Var.x - Var.widthrad - (nearestLeftWall.x + nearestLeftWall.width);
+                if (newLeftDist < minLeftDist) {
+                    Var.x += (minLeftDist - newLeftDist);
+                }
+            }
+            
+            if (nearestRightWall !is null && minRightDist < float.max && minRightDist >= 0) {
+                // Adjust position if too close to right wall with new hitbox
+                float newRightDist = nearestRightWall.x - (Var.x + Var.widthrad);
+                if (newRightDist < minRightDist) {
+                    Var.x -= (minRightDist - newRightDist);
+                }
+            }
+            
+            // Ensure we're still properly snapped to the ground
+            if (groundPlatform !is null && groundDist < float.max && groundDist >= -0.1f && groundDist <= 0.5f) {
+                Var.y = groundPlatform.y - Var.heightrad - 0.1f; // Small buffer to ensure we stay grounded
+            }
+            
+            // Set state based on speed
+            if (abs(Var.xspeed) < 0.1f) {
+                state = PlayerState.IDLE;
+            } else {
+                state = PlayerState.RUNNING;
+            }
+            
+            // Update sensors after position adjustment
+            updateSensorPositions();
+            
+            // Immediately check for collisions to ensure proper ground contact
+            checkEnvironmentCollision();
+            
+            // Debug output
+            writeln("Exiting roll state. Speed: ", abs(Var.xspeed), 
+                   " Position: ", Var.x, ",", Var.y);
+        }
+    }
+    
+    // Helper to update rolling physics
+    void updateRollingPhysics(float deltaTime) {
+        // Increment roll timer (used to control when player can exit roll)
+        rollTimer += deltaTime;
         
-        /* Comment out stability indicator
-        // Draw ground stability indicator
-        DrawText(
-            TextFormat("Stability: %d", groundStabilityCounter),
-            cast(int)(Var.x - 35),
-            cast(int)(Var.y - Var.heightrad - 35),
-            14,
-            Var.grounded ? Colors.GREEN : Colors.RED
-        );
-        */
+        // Allow exiting roll after a certain time threshold
+        if (rollTimer >= 0.25f && !canExitRoll) {
+            canExitRoll = true;
+        }
+        
+        // Get rolling friction with safety check
+        float rollFriction = GamePhysics.rollingFriction > 0 ? GamePhysics.rollingFriction : GamePhysics.friction * 0.5f;
+        float rollDecel = GamePhysics.rollingDeceleration > 0 ? GamePhysics.rollingDeceleration : GamePhysics.deceleration * 0.5f;
+        
+        // Apply rolling-specific friction
+        if (Var.xspeed > 0) {
+            Var.xspeed -= rollFriction;
+            if (Var.xspeed < 0) Var.xspeed = 0;
+        } 
+        else if (Var.xspeed < 0) {
+            Var.xspeed += rollFriction;
+            if (Var.xspeed > 0) Var.xspeed = 0;
+        }
+        
+        // Stop rolling if speed is very low
+        if (abs(Var.xspeed) < 0.1f && canExitRoll) {
+            exitRolling();
+        }
+        
+        // Allow directional control while rolling, but with reduced effect
+        float rollControlFactor = 0.2f; // 20% of normal control
+        
+        if (keyLeft && !keyRight) {
+            if (Var.xspeed > 0) {
+                // Turning around while rolling
+                Var.xspeed -= rollDecel;
+            } else {
+                // Accelerating while rolling in same direction
+                Var.xspeed -= GamePhysics.acceleration * rollControlFactor;
+            }
+        }
+        else if (keyRight && !keyLeft) {
+            if (Var.xspeed < 0) {
+                // Turning around while rolling
+                Var.xspeed += rollDecel;
+            } else {
+                // Accelerating while rolling in same direction
+                Var.xspeed += GamePhysics.acceleration * rollControlFactor;
+            }
+        }
+        
+        // Cap maximum speed
+        if (Var.xspeed > GamePhysics.maxspeed) {
+            Var.xspeed = GamePhysics.maxspeed;
+        }
+        else if (Var.xspeed < -GamePhysics.maxspeed) {
+            Var.xspeed = -GamePhysics.maxspeed;
+        }
     }
 }

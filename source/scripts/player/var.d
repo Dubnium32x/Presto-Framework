@@ -58,6 +58,17 @@ public class GamePhysics : Var {
     public static float gravity = 0.26f;         // Reduced gravity (from 0.32f) for lighter feel
     public static float maxFallSpeed = 14.0f;    // Reduced from 16.0f for less heavy falls
 
+    // Rolling physics constants
+    public static float rollingFriction = 0.023f;       // Half the normal friction for better momentum conservation
+    public static float rollingDeceleration = 0.04f;    // Half the normal deceleration for smoother direction changes
+    public static float minSpeedToStartRoll = 2.0f;     // Minimum speed required to start rolling
+    
+    // Hitbox dimensions
+    public static float normalWidthrad = 9.0f;          // Default width radius
+    public static float normalHeightrad = 19.0f;        // Default height radius
+    public static float rollingWidthrad = 9.0f;         // Same width as normal when rolling (to prevent clipping)
+    public static float rollingHeightrad = 14.0f;       // Shorter height when rolling
+
     public static int[] sincoslist = [
         0, 6, 12, 18, 25, 31, 37, 43, 49, 56, 62, 68, 74, 80, 86, 92, 97, 103, 109, 115, 120, 126, 131, 136, 142, 147, 152, 157, 162, 167, 171, 176, 181, 185, 189, 193, 197, 201, 205, 209, 212, 216, 219, 222, 225, 228, 231, 234, 236, 238, 241, 243, 244, 246, 248, 249, 251, 252, 253, 254, 254, 255, 255, 255,
         256, 255, 255, 255, 254, 254, 253, 252, 251, 249, 248, 246, 244, 243, 241, 238, 236, 234, 231, 228, 225, 222, 219, 216, 212, 209, 205, 201, 197, 193, 189, 185, 181, 176, 171, 167, 162, 157, 152, 147, 142, 136, 131, 126, 120, 115, 109, 103, 97, 92, 86, 80, 74, 68, 62, 56, 49, 43, 37, 31, 25, 18, 12, 6,

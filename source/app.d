@@ -16,8 +16,26 @@ import std.math;
 
 // Add a toString function for PlayerState enum to support UI
 string toString(PlayerState state) {
-    // ... existing switch ...
-    return "UNKNOWN";
+    switch(state) {
+        case PlayerState.IDLE: return "IDLE";
+        case PlayerState.RUNNING: return "RUNNING";
+        case PlayerState.JUMPING: return "JUMPING";
+        case PlayerState.FALLING: return "FALLING";
+        case PlayerState.FALLING_ROLL: return "FALLING_ROLL";
+        case PlayerState.SHIELD_ACTION: return "SHIELD_ACTION";
+        case PlayerState.WALK: return "WALK";
+        case PlayerState.RUN: return "RUN";
+        case PlayerState.DASHING: return "DASHING";
+        case PlayerState.SPINDASHING: return "SPINDASHING";
+        case PlayerState.PEELING: return "PEELING";
+        case PlayerState.ROLLING: return "ROLLING";
+        case PlayerState.HOVERING: return "HOVERING";
+        case PlayerState.CLIMBING: return "CLIMBING";
+        case PlayerState.GLIDING: return "GLIDING";
+        case PlayerState.HURT: return "HURT";
+        case PlayerState.DEAD: return "DEAD";
+        default: return "UNKNOWN";
+    }
 }
 
 // initialize the screen
@@ -221,7 +239,7 @@ void drawPhysicsTest() {
     DrawText("Z", screenSettings.virtualWidth - 18, screenSettings.virtualHeight - 20, 10, whiteColor);
     
     // Instructions - simplified and moved to bottom
-    DrawText("LEFT/RIGHT: Move | Z: Jump | R: Reset", 
+    DrawText("LEFT/RIGHT: Move | DOWN: Roll (press again to exit) | Z: Jump | R: Reset", 
         5, screenSettings.virtualHeight - 15, 10, jumpStateColor);
     
     EndDrawing();
