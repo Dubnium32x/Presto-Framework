@@ -11,8 +11,9 @@ import std.array;
 import parser.csv_tile_loader;
 import screen_states;
 import screen_settings;
-import level_list;
-import level;
+import world.level_list;
+import world.level; 
+import world.tileset_manager; // Added import
 import memory_manager;
 
 bool initialized = false; // Flag to check if the screen manager is initialized
@@ -32,6 +33,7 @@ class ScreenManager {
     SettingsState currentSettingsState;
     ScreenSettings screenSettings;
     RenderTexture2D virtualScreenTexture; // Added for virtual screen rendering
+    TilesetManager tilesetManager; // Added field to hold TilesetManager
 
     IScreen currentScreen;
 
@@ -41,16 +43,38 @@ class ScreenManager {
     static ScreenManager getInstance() {
         if (instance is null) {
             // Default to a common virtual size if created without explicit settings first
-            instance = new ScreenManager(new ScreenSettings(1280, 720, 640, 360));
+            // Now calls constructor with null TilesetManager by default
+            instance = new ScreenManager(new ScreenSettings(1280, 720, 640, 360), null);
         }
         return instance;
     }
 
     // Constructor
-    this(ScreenSettings settings) {
+    this(ScreenSettings settings, TilesetManager tm = null) { // tm is now optional, defaults to null
         this.screenSettings = settings;
+        this.tilesetManager = tm; // Store TilesetManager
         this.currentScreenState = ScreenState.DEBUG;
         this.currentScreen = null; // Initialize to null
+        if (tm is null) {
+            writeln("ScreenManager Warning: Initialized without a TilesetManager. It should be set later if needed.");
+        }
+    }
+
+    // Add a method to explicitly set the TilesetManager if it was null initially
+    void setTilesetManager(TilesetManager tm) {
+        if (this.tilesetManager is null && tm !is null) {
+            this.tilesetManager = tm;
+            writeln("ScreenManager: TilesetManager has been set.");
+            // If a screen was waiting for a tilesetmanager, it might need re-initialization
+            // For example, if currentScreen is LevelManager and it failed to init due to no TM.
+            if (currentScreenState == ScreenState.GAME && currentScreen !is null) {
+                // Potentially re-initialize or update the current screen if it depends on TM
+                // This depends on how LevelManager handles a null TM initially.
+            }
+        } else if (tm !is null && this.tilesetManager !is tm) {
+            this.tilesetManager = tm; // Allow replacement, though this might be less common
+            writeln("ScreenManager: TilesetManager has been replaced.");
+        }
     }
 
     // Initialize the screen manager
@@ -62,24 +86,39 @@ class ScreenManager {
                 loadOptions();       // Load them, potentially calling setScreenSettings
             }
 
+            // Initialize based on the current screen state
+            switch (currentScreenState) {
+                case ScreenState.DEBUG:
+                    // No specific screen for DEBUG, or handle as needed
+                    writeln("ScreenManager: Initializing in DEBUG state. No specific screen loaded by default.");
+                    break;
+                case ScreenState.TITLE:
+                    // currentScreen = new TitleScreen(); // Example
+                    break;
+                case ScreenState.GAME:
+                    // Ensure tilesetManager is available
+                    if (this.tilesetManager is null) {
+                        stderr.writeln("ScreenManager Error: TilesetManager is null. Cannot create LevelManager for LEVEL state.");
+                        // Fallback or error state
+                    } else {
+                        // This is the line (or similar) that was causing the error (e.g. line 74)
+                        currentScreen = new LevelManager(this.tilesetManager);
+                        currentScreen.initialize(); // Initialize the new screen
+                    }
+                    break;
+                // ... other cases
+                default:
+                    break;
+            }
+
             // Initialize the render texture for virtual screen rendering
             // Ensure screenSettings reflects the desired virtual dimensions
             virtualScreenTexture = LoadRenderTexture(screenSettings.virtualWidth, screenSettings.virtualHeight);
             SetTextureFilter(virtualScreenTexture.texture, TextureFilter.TEXTURE_FILTER_POINT); // For pixel-art friendly scaling
 
-            // Load the initial screen
-            if (currentScreenState == ScreenState.DEBUG || currentScreenState == ScreenState.GAME) {
-                // currentScreen should be an instance of a class that implements IScreen
-                // LevelManager now implements IScreen
-                currentScreen = new LevelManager(); 
-            }
-            else if (currentScreenState == ScreenState.INIT) {
-                // currentScreen = new InitScreen(); // Replace with actual init screen class
-                // i will come back to this later
-            }
-
             currentScreen.initialize();
             initialized = true;
+            writeln("ScreenManager initialized.");
         }
     }
 

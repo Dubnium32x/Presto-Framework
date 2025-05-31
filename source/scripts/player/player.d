@@ -10,7 +10,9 @@ import std.conv;
 import std.array;
 import std.math;
 
-
+// Make sure we import level for CSV loading
+import world.level; // Provides LevelManager and Level struct
+import world.level_list; // Ensure LevelList and ActNumber are available if needed here
 import player.var;
 
 enum PlayerState {
@@ -143,6 +145,9 @@ class Player {
     bool keyActionHeld;    // For held jump, etc. (Z key)
     bool keyAction2Pressed; // (X key)
     
+    // Reference to the LevelManager
+    private LevelManager levelManagerInstance;
+
     // Ground stability counter to prevent oscillations
     int groundStabilityCounter = 0;
     
@@ -187,6 +192,11 @@ class Player {
         }
     }
 
+    // Method to set the LevelManager instance
+    void setLevelManager(LevelManager lm) {
+        this.levelManagerInstance = lm;
+    }
+
     void processInput() {
         keyLeft = isKeyDown(KeyDefine.LEFT);
         keyRight = isKeyDown(KeyDefine.RIGHT);
@@ -216,8 +226,11 @@ class Player {
     }
 
     public void checkEnvironmentCollision() {
-        // get references to test platforms in app.d
-        import app : testPlatforms;
+        // get references to test platforms and CSV level platforms from app.d
+        import app : testPlatforms, csvPlatforms, useCsvLevel;
+
+        // Select which platform array to use based on mode
+        Rectangle[] platformsToUse = useCsvLevel ? csvPlatforms : testPlatforms;
 
         bool wwasGrounded = Var.grounded; // Store previous grounded state
         
@@ -249,7 +262,7 @@ class Player {
         
         // Always check side collisions first, regardless of grounded state
         // This prevents clipping through walls when falling or jumping
-        foreach (platform; testPlatforms) {
+        foreach (platform; platformsToUse) {
             // Check for right wall collision (left side sensor)
             if (Var.xspeed < 0 || (abs(Var.xspeed) < 0.1f && Var.x - Var.widthrad <= platform.x + platform.width && 
                 Var.x > platform.x + platform.width * 0.5f)) {
@@ -271,26 +284,19 @@ class Player {
                     sensorPositions[Sensor.BOTTOM_LEFT].y - Var.heightrad * 0.3f
                 );
                 
-                // Check if any of the sensors collide
+                // Check if any of the sensors are inside the platform
                 if (CheckCollisionPointRec(leftSensor, platform) || 
                     CheckCollisionPointRec(topLeftSensor, platform) || 
                     CheckCollisionPointRec(bottomLeftSensor, platform)) {
                     
+                    // Collision detected, stop horizontal movement and push player out
+                    Var.xspeed = 0;
+                    Var.x = platform.x + platform.width + Var.widthrad + 0.1f; // Small buffer
+                    
+                    // Flag for debug visualization
                     leftCollided = true;
                     
-                    // Snap to the right edge of the platform with a small buffer
-                    Var.x = platform.x + platform.width + Var.widthrad + 0.1f;
-                    
-                    // If rolling, bounce with more force for better gameplay feel
-                    if (isRolling && Var.xspeed < -4.0f) {
-                        Var.xspeed = abs(Var.xspeed) * 0.5f; // Stronger bounce when rolling
-                    }
-                    // Regular collision response
-                    else if (Var.xspeed < -2.0f) {
-                        Var.xspeed = abs(Var.xspeed) * 0.1f; // Small bounce
-                    } else {
-                        Var.xspeed = 0; // Just stop for low speed
-                    }
+                    break; // Exit the loop once collision is resolved
                 }
             }
             
@@ -298,13 +304,13 @@ class Player {
             if (Var.xspeed > 0 || (abs(Var.xspeed) < 0.1f && Var.x + Var.widthrad >= platform.x && 
                 Var.x < platform.x + platform.width * 0.5f)) {
                 
-                // Right sensor with padding based on speed
+                // Right sensor with padding
                 Vector2 rightSensor = Vector2(
                     sensorPositions[Sensor.MIDDLE_RIGHT].x + horizPadding, 
                     sensorPositions[Sensor.MIDDLE_RIGHT].y
                 );
                 
-                // Additional corner check for high-speed movement
+                // Additional corner checks for high-speed movement
                 Vector2 topRightSensor = Vector2(
                     sensorPositions[Sensor.MIDDLE_RIGHT].x + horizPadding, 
                     sensorPositions[Sensor.TOP_RIGHT].y + Var.heightrad * 0.3f
@@ -315,251 +321,122 @@ class Player {
                     sensorPositions[Sensor.BOTTOM_RIGHT].y - Var.heightrad * 0.3f
                 );
                 
-                // Check if any of the sensors collide
+                // Check if any of the sensors are inside the platform
                 if (CheckCollisionPointRec(rightSensor, platform) || 
                     CheckCollisionPointRec(topRightSensor, platform) || 
                     CheckCollisionPointRec(bottomRightSensor, platform)) {
                     
+                    // Collision detected, stop horizontal movement and push player out
+                    Var.xspeed = 0;
+                    Var.x = platform.x - Var.widthrad - 0.1f; // Small buffer
+                    
+                    // Flag for debug visualization
                     rightCollided = true;
                     
-                    // Snap to the left edge of the platform with a small buffer
-                    Var.x = platform.x - Var.widthrad - 0.1f;
-                    
-                    // If rolling, bounce with more force for better gameplay feel
-                    if (isRolling && Var.xspeed > 4.0f) {
-                        Var.xspeed = -abs(Var.xspeed) * 0.5f; // Stronger bounce when rolling
-                    }
-                    // Regular collision response
-                    else if (Var.xspeed > 2.0f) {
-                        Var.xspeed = -abs(Var.xspeed) * 0.1f; // Small bounce
-                    } else {
-                        Var.xspeed = 0; // Just stop for low speed
-                    }
+                    break; // Exit the loop once collision is resolved
                 }
             }
         }
         
         // Now check the bottom sensors for ground collision with improved high-speed fall detection
-        foreach (platform; testPlatforms) {
-            // Calculate vertical padding based on fall speed
-            // The faster we're falling, the more we need to check ahead
-            float fallPadding = Var.yspeed > 0 ? min(Var.yspeed * 0.6f, Var.heightrad * 0.9f) : 0;
+        foreach (platform; platformsToUse) {
+            // Calculate vertical tolerance based on falling speed
+            float fallSnapTolerance = Var.yspeed > 1.0f ? 
+                                    Var.HIGH_SPEED_SNAP_TOLERANCE : Var.GROUND_SNAP_TOLERANCE;
             
-            // When rolling, increase fall detection area
-            if (isRolling && Var.yspeed > 0) {
-                fallPadding *= 1.15f; // 15% larger detection area when rolling
-            }
-            
-            // Extended bottom sensors that reach farther down when falling fast
-            Vector2 bottomLeftExt = Vector2(
-                sensorPositions[Sensor.BOTTOM_LEFT].x,
-                sensorPositions[Sensor.BOTTOM_LEFT].y + fallPadding
-            );
-            
-            Vector2 bottomRightExt = Vector2(
-                sensorPositions[Sensor.BOTTOM_RIGHT].x,
-                sensorPositions[Sensor.BOTTOM_RIGHT].y + fallPadding
-            );
-            
-            Vector2 bottomCenter = Vector2(
-                Var.x,
-                sensorPositions[Sensor.BOTTOM_LEFT].y + fallPadding
-            );
-            
-            // Additional edge case detection for high speed falls
-            // These wide sensors help catch platform edges when falling fast
-            Vector2 bottomLeftWide = Vector2(
-                sensorPositions[Sensor.BOTTOM_LEFT].x - Var.widthrad * 0.3f,
-                sensorPositions[Sensor.BOTTOM_LEFT].y + fallPadding * 0.7f
-            );
-            
-            Vector2 bottomRightWide = Vector2(
-                sensorPositions[Sensor.BOTTOM_RIGHT].x + Var.widthrad * 0.3f,
-                sensorPositions[Sensor.BOTTOM_RIGHT].y + fallPadding * 0.7f
-            );
-            
-            // Create a sweep test for very high speeds
-            bool performSweepTest = Var.yspeed > 7.0f; // Only for high fall speeds
-            Rectangle sweepRect;
-            
-            if (performSweepTest) {
-                // Create a rectangle that covers the entire sweep path with extra width
-                sweepRect = Rectangle(
-                    Var.x - Var.widthrad * 0.9f,                          // Left edge (wider)
-                    sensorPositions[Sensor.BOTTOM_LEFT].y - fallPadding,  // Top edge (previous position)
-                    Var.widthrad * 1.8f,                                  // Width (using 90% of full width)
-                    fallPadding * 2                                       // Height (covers the swept area)
-                );
-            }
-            
-            // For extremely high fall speeds, use a broader detection area
-            Rectangle extremeFallRect;
-            bool useExtremeFallDetection = Var.yspeed > 12.0f;
-            
-            if (useExtremeFallDetection) {
-                // Create a very wide rectangle for extreme speeds
-                extremeFallRect = Rectangle(
-                    Var.x - Var.widthrad * 1.5f,                          // Much wider left edge
-                    sensorPositions[Sensor.BOTTOM_LEFT].y,                // Start at current position
-                    Var.widthrad * 3.0f,                                  // Very wide detection area
-                    fallPadding * 1.5f                                    // Shorter but focused height
-                );
-            }
-            
-            // Check for pre-collision with platform edges to prevent clipping at high speeds
-            bool edgePreventionCheck = false;
-            
-            // Only do edge prevention at high speeds when near platform edges
-            if (Var.yspeed > 9.0f) {
-                // Check if we're about to clip through the edge of a platform
-                // by comparing our position with the platform edges
-                bool nearLeftEdge = abs(Var.x - platform.x) < Var.widthrad * 1.2f && 
-                                  Var.x > platform.x && 
-                                  Var.y + Var.heightrad + fallPadding * 0.8f > platform.y &&
-                                  Var.y < platform.y;
-                                  
-                bool nearRightEdge = abs(Var.x - (platform.x + platform.width)) < Var.widthrad * 1.2f && 
-                                   Var.x < platform.x + platform.width &&
-                                   Var.y + Var.heightrad + fallPadding * 0.8f > platform.y &&
-                                   Var.y < platform.y;
+            // Check if we're above the platform and within a threshold for snapping to the ground
+            if (Var.y + Var.heightrad <= platform.y + fallSnapTolerance && 
+                Var.y < platform.y + platform.height/2 && // Make sure we're closer to top than bottom
+                Var.x + Var.widthrad * 0.7f >= platform.x && 
+                Var.x - Var.widthrad * 0.7f <= platform.x + platform.width) {
                 
-                // If we're near an edge and would clip through it, do edge prevention
-                if (nearLeftEdge || nearRightEdge) {
-                    // Create a special collision point on the platform edge
-                    Vector2 edgePoint = Vector2(
-                        nearLeftEdge ? platform.x + 2.0f : platform.x + platform.width - 2.0f,
-                        platform.y - 1.0f
-                    );
+                // Check bottom sensors
+                if (CheckCollisionPointRec(sensorPositions[Sensor.BOTTOM_LEFT], platform) || 
+                    CheckCollisionPointRec(sensorPositions[Sensor.BOTTOM_RIGHT], platform) ||
+                    // For high-speed falls, also check a bit ahead of the sensors
+                    (Var.yspeed > 1.0f && 
+                     (CheckCollisionPointRec(Vector2(sensorPositions[Sensor.BOTTOM_LEFT].x, 
+                                                      sensorPositions[Sensor.BOTTOM_LEFT].y + Var.yspeed * 0.5f), platform) || 
+                      CheckCollisionPointRec(Vector2(sensorPositions[Sensor.BOTTOM_RIGHT].x, 
+                                                      sensorPositions[Sensor.BOTTOM_RIGHT].y + Var.yspeed * 0.5f), platform)))) {
                     
-                    // Check if our extended sensor would hit this edge point
-                    if (CheckCollisionPointCircle(edgePoint, Vector2(Var.x, Var.y + Var.heightrad + fallPadding * 0.5f), Var.widthrad * 1.1f)) {
-                        edgePreventionCheck = true;
+                    // Ground collision detected
+                    Var.y = platform.y - Var.heightrad; // Snap to ground
+                    Var.yspeed = 0;
+                    Var.grounded = true;
+                    groundedThisFrame = true;
+                    
+                    // Only transition out of rolling if allowed
+                    if (state == PlayerState.FALLING_ROLL) {
+                        canExitRoll = true; // Allow exiting roll now that we've landed
+                        state = PlayerState.ROLLING;
                     }
+                    
+                    break; // Exit the loop once collision is resolved
                 }
             }
             
-            // Check if we're close enough to the ground to be considered grounded
-            // This helps with the oscillation issue by using a more forgiving ground check
-            bool isCloseToGround = false;
-            float groundProximityThreshold = 0.5f; // Distance within which we're considered "on the ground"
-            
-            // Calculate distance from bottom of player to top of platform
-            float distanceToGround = platform.y - (Var.y + Var.heightrad);
-            if (distanceToGround >= -0.1f && distanceToGround <= groundProximityThreshold) {
-                // Check if we're horizontally within the platform
-                if (Var.x + Var.widthrad * 0.7f >= platform.x && 
+            // Check ceiling collision (only when moving upward)
+            if (Var.yspeed < 0) {
+                if (Var.y - Var.heightrad <= platform.y + platform.height && 
+                    Var.y >= platform.y + platform.height/2 && // Make sure we're closer to bottom than top
+                    Var.x + Var.widthrad * 0.7f >= platform.x && 
                     Var.x - Var.widthrad * 0.7f <= platform.x + platform.width) {
-                    isCloseToGround = true;
-                }
-            }
-            
-            // Check all bottom sensors and sweep rect
-            if (CheckCollisionPointRec(sensorPositions[Sensor.BOTTOM_LEFT], platform) ||
-                CheckCollisionPointRec(sensorPositions[Sensor.BOTTOM_RIGHT], platform) ||
-                CheckCollisionPointRec(bottomLeftExt, platform) ||
-                CheckCollisionPointRec(bottomRightExt, platform) ||
-                CheckCollisionPointRec(bottomCenter, platform) ||
-                CheckCollisionPointRec(bottomLeftWide, platform) ||    // New wide sensor
-                CheckCollisionPointRec(bottomRightWide, platform) ||   // New wide sensor
-                (performSweepTest && CheckCollisionRecs(sweepRect, platform)) ||
-                (useExtremeFallDetection && CheckCollisionRecs(extremeFallRect, platform)) ||
-                edgePreventionCheck ||
-                isCloseToGround) {
                 
-                Var.grounded = true;
-                groundedThisFrame = true;  // Mark that we found ground this frame
-                Var.framesNotGrounded = 0;
-                
-                // Calculate a more precise landing position
-                // For high speeds, place character slightly above platform to prevent clipping through
-                float snapBuffer = Var.yspeed > 6.0f ? 0.2f : 0.1f; // Increased minimum buffer to prevent oscillation
-                if (Var.yspeed > 10.0f) snapBuffer = 0.25f;  // Even more buffer at extreme speeds
-                
-                // Only snap if we're not already very close to the platform (to prevent jitter)
-                if (!isCloseToGround || abs(distanceToGround) > 0.05f) {
-                    Var.y = platform.y - Var.heightrad - snapBuffer;
-                }
-                
-                // Apply ground friction to horizontal speed when landing at high speed
-                // Rolling should maintain more momentum when landing
-                if (Var.yspeed > 8.0f && abs(Var.xspeed) > 3.0f) {
-                    if (isRolling) {
-                        Var.xspeed *= 0.95f; // Reduce horizontal speed slightly when rolling (maintain momentum)
-                    } else {
-                        Var.xspeed *= 0.9f; // Reduce horizontal speed more when not rolling
+                    // Check top sensors
+                    if (CheckCollisionPointRec(sensorPositions[Sensor.TOP_LEFT], platform) || 
+                        CheckCollisionPointRec(sensorPositions[Sensor.TOP_RIGHT], platform)) {
+                        // Ceiling collision detected
+                        Var.y = platform.y + platform.height + Var.heightrad; // Push player down
+                        Var.yspeed = 0; // Stop upward movement
                     }
                 }
-                
-                // Special handling for edge prevention cases
-                if (edgePreventionCheck) {
-                    // If this was an edge prevention case, we need to ensure player stays on platform
-                    if (Var.x < platform.x + Var.widthrad) {
-                        // Near left edge, push slightly right
-                        Var.x = platform.x + Var.widthrad * 1.1f;
-                    } else if (Var.x > platform.x + platform.width - Var.widthrad) {
-                        // Near right edge, push slightly left
-                        Var.x = platform.x + platform.width - Var.widthrad * 1.1f;
-                    }
-                }
-                
-                Var.yspeed = 0;
-                break;
             }
         }
 
         // Update stability counter if we found ground
         if (groundedThisFrame) {
-            // Set stability counter to prevent oscillation for a few frames
-            groundStabilityCounter = 3; // Stay grounded for at least 3 frames to prevent oscillation
+            // Set grounded to true and reset the frames not grounded counter
+            Var.grounded = true;
+            Var.framesNotGrounded = 0;
+            
+            // Add stability counter to prevent oscillating between grounded/not grounded
+            // when moving quickly over uneven terrain
+            groundStabilityCounter = Var.GROUND_DEBOUNCE_FRAMES;
         }
 
         // Finally check for ceiling collisions - only when moving upward
-        if (Var.yspeed < 0) {
+        if (!useCsvLevel && Var.yspeed < 0) {
             foreach (platform; testPlatforms) {
-                // Add vertical padding for fast upward movement
-                float vertPadding = min(abs(Var.yspeed) * 0.5f, Var.heightrad * 0.3f);
+                if (Var.y - Var.heightrad <= platform.y + platform.height && 
+                    Var.y >= platform.y + platform.height/2 && // Make sure we're closer to bottom than top
+                    Var.x + Var.widthrad * 0.7f >= platform.x && 
+                    Var.x - Var.widthrad * 0.7f <= platform.x + platform.width) {
                 
-                // Adjust ceiling sensors with padding
-                Vector2 topLeftSensor = Vector2(
-                    sensorPositions[Sensor.TOP_LEFT].x,
-                    sensorPositions[Sensor.TOP_LEFT].y - vertPadding
-                );
-                
-                Vector2 topRightSensor = Vector2(
-                    sensorPositions[Sensor.TOP_RIGHT].x,
-                    sensorPositions[Sensor.TOP_RIGHT].y - vertPadding
-                );
-                
-                // Check ceiling collision
-                if (CheckCollisionPointRec(topLeftSensor, platform) || 
-                    CheckCollisionPointRec(topRightSensor, platform)) {
-                    
-                    // Snap to the bottom of the platform with a small buffer
-                    Var.y = platform.y + platform.height + Var.heightrad + 0.1f;
-                    
-                    // Bounce slightly off ceiling for better game feel
-                    Var.yspeed = abs(Var.yspeed) * 0.1f; // Small downward bounce
-                    
-                    break; // Exit loop if collided
+                    // Check top sensors
+                    if (CheckCollisionPointRec(sensorPositions[Sensor.TOP_LEFT], platform) || 
+                        CheckCollisionPointRec(sensorPositions[Sensor.TOP_RIGHT], platform)) {
+                        // Ceiling collision detected
+                        Var.y = platform.y + platform.height + Var.heightrad; // Push player down
+                        Var.yspeed = 0; // Stop upward movement
+                    }
                 }
             }
         }
         
         // Update player state based on grounded status and rolling state
         if (Var.grounded) {
-            if (!isRolling) {
-                if (state != PlayerState.IDLE && state != PlayerState.RUNNING && state != PlayerState.WALK) {
-                    state = abs(Var.xspeed) > 0.5f ? PlayerState.RUNNING : PlayerState.IDLE;
-                }
-            } else {
-                // Maintain rolling state
-                state = PlayerState.ROLLING;
-            }
+            // Additional state transitions can be added here
         } else {
-            if (isRolling) {
-                state = PlayerState.FALLING_ROLL; // Rolling in air
-            } else if (state == PlayerState.IDLE || state == PlayerState.RUNNING || state == PlayerState.WALK) {
-                state = Var.yspeed < 0 ? PlayerState.JUMPING : PlayerState.FALLING; // Set proper air state
+            // If not on ground and not already in a jumping or falling state, transition to falling
+            if (state != PlayerState.JUMPING && state != PlayerState.FALLING && 
+                state != PlayerState.FALLING_ROLL) {
+                // If we're rolling when we leave the ground, transition to falling roll
+                if (state == PlayerState.ROLLING) {
+                    state = PlayerState.FALLING_ROLL;
+                } else {
+                    state = PlayerState.FALLING;
+                }
             }
         }
         
@@ -567,11 +444,97 @@ class Player {
         if (wwasGrounded && !Var.grounded) {
             Var.framesNotGrounded++;
         } else if (Var.grounded) {
-            Var.framesNotGrounded = 0; // Reset if grounded
+            // Reset counter when grounded
+            Var.framesNotGrounded = 0;
         }
     }
 
-    public void update(float deltaTime) {
+    // Helper method to check collision with CSV level tiles
+    private void checkCollisionWithCSVLevel(ref bool groundedThisFrame) {
+        if (this.levelManagerInstance is null) return; // Use the class member
+
+        Level currentLevelInfo = this.levelManagerInstance.getCurrentLevelInfo();
+        int[][][] layersData = this.levelManagerInstance.layerTileData;
+
+        if (layersData is null || layersData.length == 0) {
+            // writeln("Player: No CSV level data to check for collision.");
+            return;
+        }
+
+        // writeln("Player: Checking collision with CSV level. Layers: ", layersData.length);
+
+        // For now, iterate all layers. Later, you might want to specify which layers are collidable.
+        foreach (layerIdx, int[][] singleLayerData; layersData) {
+            if (singleLayerData is null || singleLayerData.length == 0) continue;
+            
+            // Optional: Get layer name if needed for specific collision rules
+            // string layerName = (layerIdx < currentLevelInfo.layerNames.length) ? currentLevelInfo.layerNames[layerIdx] : "UnknownLayer";
+
+            // Example: Only collide with "Ground_1" for now, similar to app.d
+            // This requires knowing the exact name or a property to check.
+            // For a generic fix, we'll check all tiles in all layers passed.
+            // if (layerName != "Ground_1") continue; // Example filter
+
+            for (int ty = 0; ty < singleLayerData.length; ty++) {
+                if (singleLayerData[ty] is null || singleLayerData[ty].length == 0) continue;
+                for (int tx = 0; tx < singleLayerData[ty].length; tx++) {
+                    int rawTileId = singleLayerData[ty][tx];
+
+                    // Constants for Tiled flags (from Tiled documentation)
+                    const uint FLIPPED_HORIZONTALLY_FLAG = 0x80000000;
+                    const uint FLIPPED_VERTICALLY_FLAG   = 0x40000000;
+                    // const uint FLIPPED_DIAGONALLY_FLAG = 0x20000000; // Not used here yet
+
+                    // Clear the flags to get the actual tile ID (GID)
+                    int actualTileId = cast(int)(rawTileId & ~(FLIPPED_HORIZONTALLY_FLAG | FLIPPED_VERTICALLY_FLAG /* | FLIPPED_DIAGONALLY_FLAG */));
+
+                    if (actualTileId != -1) { // Use actualTileId for collision check
+                        Rectangle tileRect = { 
+                            cast(float)tx * currentLevelInfo.tileWidthPx, 
+                            cast(float)ty * currentLevelInfo.tileHeightPx, 
+                            cast(float)currentLevelInfo.tileWidthPx, 
+                            cast(float)currentLevelInfo.tileHeightPx 
+                        };
+
+                        // Basic AABB collision with player's bounding box
+                        Rectangle playerRect = { 
+                            Var.x - Var.widthrad, 
+                            Var.y - Var.heightrad, 
+                            Var.widthrad * 2, 
+                            Var.heightrad * 2 
+                        };
+
+                        if (CheckCollisionRecs(playerRect, tileRect)) {
+                            // writeln("Player: Collision with tileID ", tileID, " at [", tx, ",", ty, "] in layer ", layerIdx);
+                            // More sophisticated collision response needed here.
+                            // For now, just setting grounded if collision is below.
+                            // This is a very simplistic placeholder.
+                            if (playerRect.y + playerRect.height > tileRect.y && 
+                                playerRect.y < tileRect.y + tileRect.height && // Player is vertically aligned
+                                Var.yspeed >= 0) { // And moving downwards or stationary
+
+                                // Check if the collision is primarily from the bottom of the player
+                                float overlapY = (playerRect.y + playerRect.height) - tileRect.y;
+                                float overlapX = min(playerRect.x + playerRect.width, tileRect.x + tileRect.width) - max(playerRect.x, tileRect.x);
+
+                                if (overlapY > 0 && overlapY < Var.heightrad + 5 && overlapX > 0) { // Heuristic: overlap is small and from bottom
+                                     // Snap player to top of tile
+                                    Var.y = tileRect.y - Var.heightrad;
+                                    Var.yspeed = 0;
+                                    groundedThisFrame = true;
+                                    Var.grounded = true; 
+                                    this.groundStabilityCounter = Var.GROUND_DEBOUNCE_FRAMES; // Use class member
+                                }
+                            }
+                            // Handle side collisions, etc.
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+public void update(float deltaTime) {
         // Process player input
         processInput();
         
@@ -874,6 +837,48 @@ class Player {
             DrawLineV(start, end, Colors.SKYBLUE);
         }
         
+        // Get debug visualization flag from app.d
+        // We need to use this import with a public variable in app.d
+        import app;  // Import the entire module instead of a specific symbol
+        
+        // Draw sensor points for collision detection only if debug visualization is enabled
+        if (debugVisualizationEnabled) {
+            // Bottom sensors (floor)
+            DrawCircleV(sensorPositions[Sensor.BOTTOM_LEFT], 3.0f, Colors.GREEN);
+            DrawCircleV(sensorPositions[Sensor.BOTTOM_RIGHT], 3.0f, Colors.GREEN);
+            
+            // Middle sensors (walls)
+            DrawCircleV(sensorPositions[Sensor.MIDDLE_LEFT], 3.0f, Colors.RED);
+            DrawCircleV(sensorPositions[Sensor.MIDDLE_RIGHT], 3.0f, Colors.RED);
+            
+            // Top sensors (ceiling)
+            DrawCircleV(sensorPositions[Sensor.TOP_LEFT], 3.0f, Colors.BLUE);
+            DrawCircleV(sensorPositions[Sensor.TOP_RIGHT], 3.0f, Colors.BLUE);
+            
+            // Optional: Add sensor labels if not moving too fast
+            if (abs(Var.xspeed) < 5.0f) {
+                DrawText("Floor", 
+                    cast(int)sensorPositions[Sensor.BOTTOM_LEFT].x - 15, 
+                    cast(int)sensorPositions[Sensor.BOTTOM_LEFT].y + 5, 
+                    10, Colors.GREEN);
+                    
+                DrawText("Wall", 
+                    cast(int)sensorPositions[Sensor.MIDDLE_LEFT].x - 25, 
+                    cast(int)sensorPositions[Sensor.MIDDLE_LEFT].y, 
+                    10, Colors.RED);
+                    
+                DrawText("Wall", 
+                    cast(int)sensorPositions[Sensor.MIDDLE_RIGHT].x + 5, 
+                    cast(int)sensorPositions[Sensor.MIDDLE_RIGHT].y, 
+                    10, Colors.RED);
+                    
+                DrawText("Ceiling", 
+                    cast(int)sensorPositions[Sensor.TOP_LEFT].x - 15, 
+                    cast(int)sensorPositions[Sensor.TOP_LEFT].y - 15, 
+                    10, Colors.BLUE);
+            }
+        } // Close the debugVisualizationEnabled condition
+        
         // Draw state text (safer implementation)
         const(char)* stateText;
         if (isRolling) {
@@ -932,7 +937,7 @@ class Player {
                     prevX - Var.widthrad * 0.7f <= platform.x + platform.width &&
                     prevY + prevHeightrad >= platform.y - 1.0f && 
                     prevY + prevHeightrad <= platform.y + 1.0f) {
-                    
+                
                     groundPlatform = &platform;
                     groundY = platform.y;
                     break; // Found the ground platform

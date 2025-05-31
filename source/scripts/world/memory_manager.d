@@ -11,7 +11,7 @@ import std.json;
 
 import screen_manager;
 import screen_states;
-import level;
+import world.level; // Corrected import path
 import screen_settings; // Added import
 
 enum MemoryManagerState {

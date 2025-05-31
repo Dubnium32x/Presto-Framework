@@ -1,4 +1,4 @@
-module level_list;
+module world.level_list;
 
 import raylib;
 import std.stdio;

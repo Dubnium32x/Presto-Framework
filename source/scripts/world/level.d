@@ -1,453 +1,279 @@
-module level;
+module world.level;
 
-import raylib;
 import std.stdio;
 import std.string;
 import std.file;
 import std.algorithm;
 import std.conv;
-import std.array;
-import std.format;
+import std.array; // For Appender and .array()
+import std.path : buildPath;
 
-import parser.csv_tile_loader; // Import the CSV tile loader
-import screen_states;
-import screen_manager;
-import screen_settings;
-import level_list;
-import memory_manager;
-import tileset_manager; // Import the tileset manager
+import parser.csv_tile_loader; // Assuming module name in csv_tile_loader.d is parser.csv_tile_loader
+import world.level_list;
 
-// Define a struct to hold the level data
+import world.tileset_manager; // Import the new TilesetManager
+import screen_manager; // For IScreen interface
+
+import raylib;
+
 struct Level {
-    string name;
-    int tileWidth;
-    int tileHeight;
-    int[][] data;
-    Vector2 playerStartPosition = Vector2(-1, -1); // Default if not found
+    LevelList levelList;
+    ActNumber actNumber;
+    string levelName;
+    string[] layerNames;     // e.g., ["Ground_1", "SemiSolid_1", "Objects_1", ...]
+    string[] layerFilePaths; // Full paths to the CSV files
+    Vector2 playerStartPosition; // Added player start position
+    int tileWidthPx;         // Tile width in pixels (e.g., 16)
+    int tileHeightPx;        // Tile height in pixels (e.g., 16)
+    int levelWidthTiles;     // Level width in number of tiles
+    int levelHeightTiles;    // Level height in number of tiles
+
+    // Constructor might need adjustment based on how LevelManager populates it.
+    this(string name, LevelList ll, ActNumber an, string[] layerNames, string[] layerFiles, 
+         int tw, int th, int width, int height, Vector2 playerStart) { // Added playerStart
+        this.levelName = name;
+        this.levelList = ll;
+        this.actNumber = an;
+        this.layerNames = layerNames;
+        this.layerFilePaths = layerFiles;
+        this.tileWidthPx = tw;
+        this.tileHeightPx = th;
+        this.levelWidthTiles = width;
+        this.levelHeightTiles = height;
+        this.playerStartPosition = playerStart; // Initialize playerStart
+    }
 }
 
 class LevelManager : IScreen { // Implement IScreen
-    Level[] levels;
-    int currentLevelIndex;
-    Level currentLevel;
-    TilesetManager tilesetManager; // Tileset manager for texture rendering
-    bool useTextures = true; // Flag to toggle between texture rendering and debug rectangles
-    float scaleFactor = 1.0f; // Scale factor for rendering, adjustable with + and - keys
+    private TilesetManager tilesetManager;
+    private Level currentLevel;
+    /* private */ int[][][] layerTileData; 
+    private Vector2 levelPlayerStartPosition = Vector2(-1, -1); // Store the first valid player start found
 
-    // Constructor
-    this() {
-        currentLevelIndex = 0;
-        // Initialize the tileset manager
-        tilesetManager = TilesetManager.getInstance();
-        loadLevels(LevelList.LEVEL_0, ActNumber.ACT_1);
-    }
-    
-    // Destructor
-    ~this() {
-        // Clean up resources
-        if (tilesetManager !is null) {
-            tilesetManager.unloadTilesets();
-        }
-    }
+    // Define the expected order and base names of layers
+    private static const string[] LAYER_TYPE_SEQUENCE = [
+        "Ground", "SemiSolid", "Objects" 
+    ];
+    private static const int NUM_REPEATING_LAYER_PARTS = 5;
+    private static const string HAZARDS_LAYER_NAME = "Hazards"; 
 
-    void loadLevels(LevelList levelList, ActNumber actNumber) {
-        // Convert LevelList enum member to string for the level name
-        string levelEnumString = to!string(levelList);
-        int layersLoaded = 0;
-        int layersAttempted = 0;
-        
-        writeln("=== Starting to load level: ", levelEnumString, " Act: ", to!string(actNumber), " ===");
-        
-        // Iterate through LayerNames
-        for (int i = 0; i < LayerNames.length; i++) {
-            string layerName = LayerNames[i];
-            // Construct filePath based on new understanding from README
-            // e.g., resources/data/levels/LEVEL_0/LEVEL_0_Ground_1.csv
-            // Assuming actNumber might be part of the layerName or a subfolder if needed
-            // For now, let's assume actNumber isn't directly in this basic CSV path structure yet
-            // and that LayerNames already incorporate any act-specific parts if necessary,
-            // or that levels are structured in folders like LEVEL_0/ACT_1/Ground_1.csv
-            // Based on README: resources/data/levels/[LevelName]/
-            // And CSVs are like [LevelName]_[LayerName]_[ActNumber].csv
-            // However, the current loadLevels iterates LayerNames and tries to load a single CSV per layer.
-            // This seems to imply each "Level" struct might actually be a "LevelLayer"
-            // Or, a Level should contain multiple TileLayer structs.
+    private static const string LEVEL_DATA_BASE_PATH = "resources/data/levels/";
 
-            // Let's adjust to load multiple layers for the given levelList and actNumber
-            // The current `Level` struct seems to hold data for one layer.
-            // If `levels` is an array of these `Level` (layers), then the loop over `LayerNames` makes sense.
+    // --- Tileset Mapping ---
+    private static const string TILESET_NAME_GROUND = "ground_tiles";
+    private static const string TILESET_NAME_SEMISOLID = "semisolid_tiles";
+    private static const string TILESET_NAME_OBJECTS = "object_tiles";
+    private static const string TILESET_NAME_HAZARDS = "hazard_tiles";
 
-            string currentLevelName = to!string(levelList); // e.g., "LEVEL_0"
-            // The filePath was "levels/" ~ levelName ~ ".csv";
-            // Based on README, it should be more like "resources/data/levels/[LevelName]/[LayerName].csv"
-            // Or, if one CSV contains all data for a level, then "resources/data/levels/[LevelName].csv"
+    // TODO: User needs to confirm/provide actual filenames for Objects and Hazards.
+    public static const string TILESET_PATH_GROUND = "resources/image/tilemap/SPGSolidTileHeightCollision.png";
+    public static const string TILESET_PATH_SEMISOLID = "resources/image/tilemap/SPGSolidTileHeightSemiSolids.png";
+    public static const string TILESET_PATH_OBJECTS = "resources/image/tilemap/PLACEHOLDER_OBJECTS.png"; 
+    public static const string TILESET_PATH_HAZARDS = "resources/image/tilemap/PLACEHOLDER_HAZARDS.png";
 
-            // Given the error was about LevelNames, and the loop structure,
-            // it seems the intention was to load multiple *levels* (like LEVEL_0, LEVEL_1)
-            // not multiple *layers* for a single level in this specific loop.
-            // However, the constructor calls loadLevels with a specific level (LEVEL_0).
+    this(TilesetManager tm) {
+        this.tilesetManager = tm;
+        this.tilesetManager.loadTileset(TILESET_NAME_GROUND, TILESET_PATH_GROUND);
+        this.tilesetManager.loadTileset(TILESET_NAME_SEMISOLID, TILESET_PATH_SEMISOLID);
+        this.tilesetManager.loadTileset(TILESET_NAME_OBJECTS, TILESET_PATH_OBJECTS); 
+        this.tilesetManager.loadTileset(TILESET_NAME_HAZARDS, TILESET_PATH_HAZARDS); 
 
-            // Let's assume `loadLevels` is meant to load all layers for THE GIVEN `levelList` and `actNumber`.
-            // And `LevelNames` was a mistake, it should use `LayerNames`.
-
-            // The `Level` struct has `name`, `tileWidth`, `tileHeight`, `data`. This looks like one layer.
-            // If `levels` is an array of these `Level` (layers), then the loop over `LayerNames` makes sense.
-
-            // Construct the file path without appending the Act number
-            string filePath = "resources/data/levels/" ~ currentLevelName ~ "/" ~ currentLevelName ~ "_" ~ layerName ~ ".csv";
-            writeln("Attempting to load: ", filePath);
-
-            if (exists(filePath)) {
-                writeln("Loading layer for level: ", currentLevelName, ", Layer: ", layerName, ", Act: ", to!string(actNumber));
-                // loadCSVLayer expects path, name, tileWidth, tileHeight, playerStartTileID
-                // Use consistent tile dimensions based on known game tile sizes
-                // Typical Sonic-style games use 16x16 pixel tiles
-                int tileWidth = 16;
-                int tileHeight = 16;
-                auto loadResult = loadCSVLayer(filePath, layerName, tileWidth, tileHeight, 0); // 0 is the player start tile ID
-                
-                // Assuming the Level struct is for one layer's data
-                auto levelLayer = Level(
-                    currentLevelName ~ "_" ~ layerName ~ "_" ~ to!string(actNumber), // Name for this specific layer
-                    loadResult.layer.tileWidth, 
-                    loadResult.layer.tileHeight, 
-                    loadResult.layer.data,
-                    loadResult.playerStartPosition
-                );
-                levels ~= levelLayer; // Add this layer to the list
-                layersLoaded++;
-            }
-            else {
-                writeln("Layer file not found: ", filePath);
-            }
-            layersAttempted++;
-        }
-        
-        writeln("=== Finished loading level: ", layersLoaded, " layers loaded out of ", layersAttempted, " attempted ===");
-        
-        if (levels.length > 0) {
-            // currentLevel would be the first loaded layer/level by default.
-            // This might need adjustment if you expect currentLevel to be a composite of layers.
-            currentLevel = levels[0]; // Or handle currentLevelIndex appropriately
-            writeln("Loaded first layer as current: ", currentLevel.name);
-        }
-        else {
-            writeln("No levels loaded.");
-        }
-    }
-
-    // IScreen interface methods
-    void initialize() {
         writeln("LevelManager initialized.");
-        // Potentially load initial level or ensure it's loaded
-        if (levels.length == 0) {
-            // Default load if not already done, or handle error
-            loadLevels(LevelList.LEVEL_0, ActNumber.ACT_1); // Example default
+    }
+
+    string getTilesetNameForLayer(string layerNameWithPart) {
+        if (layerNameWithPart.startsWith("Ground")) return TILESET_NAME_GROUND;
+        if (layerNameWithPart.startsWith("SemiSolid")) return TILESET_NAME_SEMISOLID;
+        if (layerNameWithPart.startsWith("Objects")) return TILESET_NAME_OBJECTS;
+        if (layerNameWithPart == HAZARDS_LAYER_NAME) return TILESET_NAME_HAZARDS;
+        
+        stderr.writeln("LevelManager Error: Unknown layer name prefix for tileset mapping: ", layerNameWithPart);
+        return ""; 
+    }
+
+    void loadLevel(LevelList levelEnum, ActNumber actNum) {
+        string levelFolderName = levelEnum.to!string; 
+
+        // Use dynamic arrays directly instead of Appenders
+        string[] collectedLayerNames;
+        string[] collectedLayerFilePaths;
+        
+        this.layerTileData = null; 
+
+        int levelW = -1, levelH = -1;
+        int tileW = 16, tileH = 16; 
+        this.levelPlayerStartPosition = Vector2(-1, -1); // Reset for new level load
+
+        foreach (string layerBaseName; LAYER_TYPE_SEQUENCE) {
+            for (int i = 1; i <= NUM_REPEATING_LAYER_PARTS; i++) {
+                string layerFullName = layerBaseName ~ "_" ~ i.to!string; 
+                string csvFileName = levelFolderName ~ "_" ~ layerFullName ~ ".csv"; 
+                string csvFilePath = buildPath(LEVEL_DATA_BASE_PATH, levelFolderName, csvFileName);
+
+                if (std.file.exists(csvFilePath)) {
+                    writeln("LevelManager: Found layer file: ", csvFilePath);
+                    // Append directly to string arrays
+                    collectedLayerNames ~= layerFullName;
+                    collectedLayerFilePaths ~= csvFilePath;
+                    
+                    try {
+                        LevelLoadResult csvResult = parser.csv_tile_loader.loadCSVLayer(csvFilePath, layerFullName, tileW, tileH, 0);
+                        this.layerTileData ~= csvResult.layer.data; 
+                        
+                        if (this.levelPlayerStartPosition.x == -1 && csvResult.playerStartPosition.x != -1) {
+                            this.levelPlayerStartPosition = csvResult.playerStartPosition;
+                            writeln("LevelManager: Player start position set from layer '", layerFullName, "' to: ", this.levelPlayerStartPosition);
+                        }
+
+                        if (levelW == -1 && levelH == -1) { 
+                            if (csvResult.layer.data.length > 0 && csvResult.layer.data[0].length > 0) {
+                                levelW = cast(int)csvResult.layer.data[0].length; // Width from columns
+                                levelH = cast(int)csvResult.layer.data.length;    // Height from rows
+                            } else {
+                                levelW = 0; levelH = 0;
+                            }
+                        } else { 
+                            int currentLayerW = 0, currentLayerH = 0;
+                            if (csvResult.layer.data.length > 0 && csvResult.layer.data[0].length > 0) {
+                                currentLayerW = cast(int)csvResult.layer.data[0].length;
+                                currentLayerH = cast(int)csvResult.layer.data.length;
+                            }
+                            if (currentLayerW != levelW || currentLayerH != levelH) {
+                                stderr.writeln("LevelManager Warning: Layer '", layerFullName, "' dimensions (", currentLayerW, "x", currentLayerH, ") mismatch with previous layers (", levelW, "x", levelH, ").");
+                            }
+                        }
+                    } catch (Exception e) {
+                        stderr.writeln("LevelManager Error: Failed to load or parse CSV '", csvFilePath, "': ", e.msg);
+                    }
+                } else {
+                    // writeln("LevelManager: Optional layer file not found: ", csvFilePath);
+                }
+            }
+        }
+
+        string hazardsCsvFileName = levelFolderName ~ "_" ~ HAZARDS_LAYER_NAME ~ ".csv"; 
+        string hazardsCsvFilePath = buildPath(LEVEL_DATA_BASE_PATH, levelFolderName, hazardsCsvFileName);
+
+        if (std.file.exists(hazardsCsvFilePath)) {
+            writeln("LevelManager: Found layer file: ", hazardsCsvFilePath);
+            // Append directly to string arrays
+            collectedLayerNames ~= HAZARDS_LAYER_NAME;
+            collectedLayerFilePaths ~= hazardsCsvFilePath;
+            try {
+                LevelLoadResult csvResult = parser.csv_tile_loader.loadCSVLayer(hazardsCsvFilePath, HAZARDS_LAYER_NAME, tileW, tileH, 0);
+                this.layerTileData ~= csvResult.layer.data;
+
+                if (this.levelPlayerStartPosition.x == -1 && csvResult.playerStartPosition.x != -1) {
+                    this.levelPlayerStartPosition = csvResult.playerStartPosition;
+                     writeln("LevelManager: Player start position set from layer '", HAZARDS_LAYER_NAME, "' to: ", this.levelPlayerStartPosition);
+                }
+
+                int currentLayerW = 0, currentLayerH = 0;
+                if (csvResult.layer.data.length > 0 && csvResult.layer.data[0].length > 0) {
+                    currentLayerW = cast(int)csvResult.layer.data[0].length;
+                    currentLayerH = cast(int)csvResult.layer.data.length;
+                }
+
+                if (levelW == -1 && levelH == -1) { 
+                    levelW = currentLayerW;
+                    levelH = currentLayerH;
+                } else if (currentLayerW != levelW || currentLayerH != levelH) {
+                     stderr.writeln("LevelManager Warning: Layer '", HAZARDS_LAYER_NAME, "' dimensions (", currentLayerW, "x", currentLayerH, ") mismatch with previous layers (", levelW, "x", levelH, ").");
+                }
+            } catch (Exception e) {
+                stderr.writeln("LevelManager Error: Failed to load or parse CSV '", hazardsCsvFilePath, "': ", e.msg);
+            }
+        } else {
+            writeln("LevelManager: Hazards layer file not found: ", hazardsCsvFilePath);
+        }
+        
+        if (levelW == -1) levelW = 0; 
+        if (levelH == -1) levelH = 0;
+
+        // No longer need to convert from Appenders here
+
+        this.currentLevel = Level(
+            levelFolderName,
+            levelEnum,
+            actNum,
+            collectedLayerNames.dup, // Pass duplicates to the Level struct
+            collectedLayerFilePaths.dup, // Pass duplicates to the Level struct
+            tileW, tileH,
+            levelW, levelH,
+            this.levelPlayerStartPosition
+        );
+        
+        writeln("LevelManager: Loaded level '", levelFolderName, "' with ", this.layerTileData.length, " layers. Dimensions: ", levelW, "x", levelH, " tiles.");
+    }
+
+    // IScreen implementation
+    void initialize() {
+        // Load a default level, or ensure one is loaded.
+        // For now, let's load LEVEL_0, ACT_1 if no level is current,
+        // or if this is the intended initialization point for a screen.
+        writeln("LevelManager (IScreen) initialize called.");
+        if (this.currentLevel.levelName is null || this.currentLevel.levelName.empty) {
+             writeln("No current level, loading default LEVEL_0, ACT_1.");
+            loadLevel(LevelList.LEVEL_0, ActNumber.ACT_1);
+        } else {
+            writeln("Level '", this.currentLevel.levelName, "' already loaded or set.");
         }
     }
 
-    // Track currently selected tile for mapping purposes
-    private int selectedTileX = -1;
-    private int selectedTileY = -1;
-    private int selectedTileId = -1;
-    
+    // IScreen implementation
     void update() {
-        // Update the tileset explorer first to handle its input
-        tilesetManager.updateTilesetExplorer();
-        
-        // Handle input for toggling texture rendering
-        if (IsKeyPressed(KeyboardKey.KEY_T)) {
-            useTextures = !useTextures;
-            writeln("Texture rendering: ", useTextures ? "Enabled" : "Disabled");
-        }
-        
-        // Handle input for toggling tile ID display
-        if (IsKeyPressed(KeyboardKey.KEY_I)) {
-            tilesetManager.toggleShowTileIDs();
-        }
-        
-        // Handle input for toggling tileset explorer
-        if (IsKeyPressed(KeyboardKey.KEY_E)) {
-            tilesetManager.toggleTilesetExplorer();
-        }
-        
-        // Handle input for switching explorer tileset
-        if (IsKeyPressed(KeyboardKey.KEY_TAB)) {
-            tilesetManager.switchExplorerTileset();
-        }
-        
-        // Handle input for adjusting scale factor
-        if (IsKeyPressed(KeyboardKey.KEY_EQUAL) || IsKeyPressed(KeyboardKey.KEY_KP_ADD)) {
-            // Increase scale factor
-            scaleFactor += 0.1f;
-            writeln("Scale factor: ", scaleFactor);
-        }
-        else if (IsKeyPressed(KeyboardKey.KEY_MINUS) || IsKeyPressed(KeyboardKey.KEY_KP_SUBTRACT)) {
-            // Decrease scale factor, but don't go below 0.1
-            scaleFactor = max(0.1f, scaleFactor - 0.1f);
-            writeln("Scale factor: ", scaleFactor);
-        }
-        
-        // Handle mouse clicks for tile inspection and mapping
-        if (IsMouseButtonPressed(MouseButton.MOUSE_BUTTON_LEFT)) {
-            Vector2 mousePos = GetMousePosition();
-            
-            // Only process level tile clicks if the mouse isn't in the explorer area
-            bool isInExplorerArea = false;
-            if (tilesetManager.isExplorerVisible) {
-                // Check if the click was in the explorer area
-                int explorerHeight = GetScreenHeight() / 3; // Approximate height of explorer
-                if (mousePos.y >= GetScreenHeight() - explorerHeight) {
-                    isInExplorerArea = true;
-                }
-            }
-            
-            if (!isInExplorerArea) {
-                // Calculate world coordinates from screen coordinates
-                int screenCenterX = GetScreenWidth() / 2;
-                int screenCenterY = GetScreenHeight() / 2;
-                
-                int levelWidthScaled = cast(int)(currentLevel.data[0].length * currentLevel.tileWidth * scaleFactor);
-                int levelHeightScaled = cast(int)(currentLevel.data.length * currentLevel.tileHeight * scaleFactor);
-                
-                int offsetX = (screenCenterX - levelWidthScaled / 2) / 2;
-                int offsetY = (screenCenterY - levelHeightScaled / 2) / 2;
-                
-                // Calculate which tile was clicked
-                int tileX = cast(int)((mousePos.x - offsetX) / (currentLevel.tileWidth * scaleFactor));
-                int tileY = cast(int)((mousePos.y - offsetY) / (currentLevel.tileHeight * scaleFactor));
-                
-                // Check if tile coordinates are valid
-                if (tileX >= 0 && tileX < currentLevel.data[0].length && 
-                    tileY >= 0 && tileY < currentLevel.data.length) {
-                    
-                    selectedTileX = tileX;
-                    selectedTileY = tileY;
-                    selectedTileId = currentLevel.data[tileY][tileX];
-                    
-                    writeln("Selected tile at (", tileX, ",", tileY, ") with ID: ", selectedTileId);
-                    
-                    // Check if a tileset index is selected in the explorer, if yes, create a mapping
-                    int selectedTilesetIndex = tilesetManager.getSelectedExplorerTileIndex();
-                    if (selectedTilesetIndex >= 0 && selectedTileId > 0) {
-                        tilesetManager.addTileMapping(selectedTileId, selectedTilesetIndex);
-                        writeln("Created mapping: Level tile ID ", selectedTileId, 
-                               " -> Tileset index ", selectedTilesetIndex);
-                    }
-                }
-            }
-        }
-        
-        // Simpler mapping approach - press M to use the modulo approach (% maxTiles)
-        // for the selected tile
-        if (IsKeyPressed(KeyboardKey.KEY_M) && selectedTileId != -1) {
-            // Remove any custom mapping for this tile ID, letting it fallback to the default modulo approach
-            tilesetManager.addTileMapping(selectedTileId, selectedTileId % 20); // Assume modulo 20 is a good default
-            writeln("Using modulo-based mapping for tile ID ", selectedTileId);
-        }
-        
-        // Press D to show details about the selected tile
-        if (IsKeyPressed(KeyboardKey.KEY_D) && selectedTileId != -1) {
-            writeln("=== Selected Tile Details ===");
-            writeln("Tile ID: ", selectedTileId);
-            writeln("Position: (", selectedTileX, ", ", selectedTileY, ")");
-            writeln("Modulo 20 would be index: ", selectedTileId % 20);
-            writeln("Recommended: Select a tile in the explorer and click on this level tile to create a mapping");
-            writeln("==========================");
-        }
+        // Placeholder for level-specific update logic (e.g., moving platforms, animations)
+        // Currently, player update is handled in app.d's physicsTestMode or would be part of a gameplay screen.
     }
 
     void draw() {
-        // Drawing logic for the current level/screen
-        // NO BeginDrawing(), EndDrawing(), or ClearBackground() here.
-        // ScreenManager handles the render target.
-        // All coordinates are relative to the virtual screen (e.g., 640x360).
+        if (this.layerTileData is null || this.layerTileData.length == 0) {
+            return;
+        }
 
-        // Debug information
-        DrawText("GAME SCREEN (LevelManager)".toStringz(), 10, 10, 20, Colors.MAROON);
-        
-        // Add drawing calls for the level content here
-        // e.g., draw tiles from currentLevel.data
-        if (currentLevel.data.length > 0) {
-            string levelInfoText = format("Level: %s, Size: %dx%d, Tile Size: %dx%d", 
-                          currentLevel.name, 
-                          currentLevel.data[0].length, 
-                          currentLevel.data.length,
-                          currentLevel.tileWidth,
-                          currentLevel.tileHeight);
-            DrawText(levelInfoText.toStringz(), 10, 40, 12, Colors.WHITE);
+        foreach (layerIdx, int[][] singleLayerData; this.layerTileData) {
+            if (singleLayerData is null || singleLayerData.length == 0) continue;
+
+            string currentLayerName = this.currentLevel.layerNames[layerIdx]; 
+            string tilesetToUse = getTilesetNameForLayer(currentLayerName);
+
+            if (tilesetToUse.empty) {
+                continue; 
+            }
+
+            for (int y = 0; y < currentLevel.levelHeightTiles; y++) {
+                if (y >= singleLayerData.length) break; 
+                int[] row = singleLayerData[y];
+                for (int x = 0; x < currentLevel.levelWidthTiles; x++) {
+                    if (x >= row.length) break; 
                     
-            int visibleTiles = 0; // Count tiles that will be drawn
-            
-            // Scale factor is now a class member variable that can be adjusted with + and - keys
-            // This is for debugging only - normally you'd use camera controls for this
-            
-            // Calculate offset to center the level better on screen
-            int screenCenterX = GetScreenWidth() / 2;
-            int screenCenterY = GetScreenHeight() / 2;
-            
-            int levelWidthScaled = cast(int)(currentLevel.data[0].length * currentLevel.tileWidth * scaleFactor);
-            int levelHeightScaled = cast(int)(currentLevel.data.length * currentLevel.tileHeight * scaleFactor);
-            
-            // Center the level
-            int offsetX = (screenCenterX - levelWidthScaled / 2) / 2;  // Divide by 2 to shift it left a bit
-            int offsetY = (screenCenterY - levelHeightScaled / 2) / 2;  // Divide by 2 to shift it up a bit
+                    int rawTileId = row[x];
+                    if (rawTileId == -1) continue; // Skip empty tiles
+
+                    // Constants for Tiled flags (from Tiled documentation)
+                    const uint FLIPPED_HORIZONTALLY_FLAG = 0x80000000;
+                    const uint FLIPPED_VERTICALLY_FLAG   = 0x40000000;
+                    // const uint FLIPPED_DIAGONALLY_FLAG = 0x20000000; // Not used here
+
+                    bool flipHorizontal = (rawTileId & FLIPPED_HORIZONTALLY_FLAG) != 0;
+                    bool flipVertical = (rawTileId & FLIPPED_VERTICALLY_FLAG) != 0;
+                    // bool flipDiagonal = (rawTileId & FLIPPED_DIAGONALLY_FLAG) != 0; // Not used here
+
+                    // Clear the flags to get the actual tile ID (GID)
+                    int actualTileId = cast(int)(rawTileId & ~(FLIPPED_HORIZONTALLY_FLAG | FLIPPED_VERTICALLY_FLAG /* | FLIPPED_DIAGONALLY_FLAG */));
+
+                    Vector2 position;
+                    position.x = cast(float)(x * currentLevel.tileWidthPx);
+                    position.y = cast(float)(y * currentLevel.tileHeightPx);
                     
-            for (int y = 0; y < currentLevel.data.length; y++) {
-                for (int x = 0; x < currentLevel.data[y].length; x++) {
-                    int tileId = currentLevel.data[y][x];
-                    if (tileId != -1) // Assuming -1 is an empty tile
-                        {
-                        // Simple culling - skip tiles that would be outside the screen bounds
-                        int tileScreenX = offsetX + cast(int)(x * currentLevel.tileWidth * scaleFactor);
-                        int tileScreenY = offsetY + cast(int)(y * currentLevel.tileHeight * scaleFactor);
-                        int tileScreenWidth = cast(int)(currentLevel.tileWidth * scaleFactor);
-                        int tileScreenHeight = cast(int)(currentLevel.tileHeight * scaleFactor);
-                        
-                        // Skip if the tile is completely outside the screen
-                        if (tileScreenX + tileScreenWidth < 0 || 
-                            tileScreenY + tileScreenHeight < 0 ||
-                            tileScreenX > GetScreenWidth() || 
-                            tileScreenY > GetScreenHeight()) {
-                            continue;
-                        }
-                        
-                        // Handle flipped tiles (negative numbers)
-                        bool flippedHorizontally = false;
-                        bool flippedVertically = false;
-                        bool flippedDiagonally = false;
-                        
-                        // Constants for the flip bits (based on Tiled)
-                        enum FLIPPED_HORIZONTALLY_FLAG = 0x80000000;
-                        enum FLIPPED_VERTICALLY_FLAG   = 0x40000000;
-                        enum FLIPPED_DIAGONALLY_FLAG   = 0x20000000;
-                        enum TILE_ID_MASK              = 0x1FFFFFFF;
-                        
-                        if (tileId < 0 || tileId > TILE_ID_MASK) {
-                            // Extract flip flags if they exist
-                            flippedHorizontally = (tileId & FLIPPED_HORIZONTALLY_FLAG) != 0;
-                            flippedVertically = (tileId & FLIPPED_VERTICALLY_FLAG) != 0;
-                            flippedDiagonally = (tileId & FLIPPED_DIAGONALLY_FLAG) != 0;
-                            
-                            // Clear the flip flags to get the actual tile ID
-                            tileId &= TILE_ID_MASK;
-                            
-                            writeln("Found flipped tile: ", tileId, 
-                                   " H:", flippedHorizontally, 
-                                   " V:", flippedVertically, 
-                                   " D:", flippedDiagonally);
-                        }
-                        
-                        // Calculate destination rectangle for the tile
-                        Rectangle destRect = Rectangle(
-                            offsetX + cast(int)(x * currentLevel.tileWidth * scaleFactor), 
-                            offsetY + cast(int)(y * currentLevel.tileHeight * scaleFactor), 
-                            cast(int)(currentLevel.tileWidth * scaleFactor), 
-                            cast(int)(currentLevel.tileHeight * scaleFactor)
-                        );
-                        
-                        // Get layer name from the current level name (e.g., "LEVEL_0_Ground_1_ACT_1" -> "Ground_1")
-                        string layerName = "";
-                        auto nameParts = currentLevel.name.split("_");
-                        if (nameParts.length >= 4) {
-                            layerName = nameParts[2] ~ "_" ~ nameParts[3];
-                        }
-                        
-                        // Draw either texture or debug rectangle based on the useTextures flag
-                        if (useTextures) {
-                            // Use white tint for normal rendering
-                            Color tint = Colors.WHITE;
-                            
-                            // Draw the tile using the tileset manager
-                            tilesetManager.drawTile(
-                                tileId, 
-                                layerName, 
-                                destRect, 
-                                tint, 
-                                flippedHorizontally, 
-                                flippedVertically, 
-                                flippedDiagonally
-                            );
-                        } else {
-                            // Debug rendering with colored rectangles
-                            Color tileColor = Colors.BLUE;
-                            if (flippedHorizontally || flippedVertically || flippedDiagonally) {
-                                tileColor = Colors.PURPLE; // Use purple for flipped tiles
-                            }
-                            
-                            // Draw a debug rectangle
-                            DrawRectangleRec(destRect, tileColor);
-                        }
-                        
-                        visibleTiles++; // Count each tile we draw
-                    }
+                    // Pass flip flags to drawTile
+                    tilesetManager.drawTile(tilesetToUse, actualTileId, position.x, position.y, flipHorizontal, flipVertical);
                 }
             }
-            
-            // Draw highlight around the currently selected tile if applicable
-            if (selectedTileX >= 0 && selectedTileY >= 0 && 
-                selectedTileX < currentLevel.data[0].length && 
-                selectedTileY < currentLevel.data.length) {
-                
-                Rectangle selectedRect = Rectangle(
-                    offsetX + cast(int)(selectedTileX * currentLevel.tileWidth * scaleFactor), 
-                    offsetY + cast(int)(selectedTileY * currentLevel.tileHeight * scaleFactor), 
-                    cast(int)(currentLevel.tileWidth * scaleFactor), 
-                    cast(int)(currentLevel.tileHeight * scaleFactor)
-                );
-                
-                // Draw a highlighted rectangle around selected tile
-                DrawRectangleLinesEx(selectedRect, 2, Colors.YELLOW);
-            }
-            
-            string tilesText = format("Visible tiles: %d (Scale: %.1f%%) - %s", 
-                                 visibleTiles, scaleFactor * 100, 
-                                 useTextures ? "Textures On" : "Debug View");
-            DrawText(tilesText.toStringz(), 10, 60, 12, Colors.WHITE);
-            
-            // Add controls info
-            string controlsText = "Controls: T-Toggle Textures, I-Show Tile IDs, +/- Adjust Scale";
-            DrawText(controlsText.toStringz(), 10, 100, 10, Colors.GREEN);
-            
-            // Add simple mapping instructions
-            string mappingText = "E-Toggle Tileset Explorer, Select tileset tile, then click level tile to map";
-            DrawText(mappingText.toStringz(), 10, 115, 10, Colors.GREEN);
-            
-            // Add extra controls
-            string extraText = "D-Show tile details, M-Use modulo mapping for selected tile";
-            DrawText(extraText.toStringz(), 10, 130, 10, Colors.GREEN);
-            
-            // Show currently selected tile info if applicable
-            if (selectedTileId != -1) {
-                string selectedText = format("Selected tile: (%d,%d) ID: %d", 
-                                           selectedTileX, selectedTileY, selectedTileId);
-                DrawText(selectedText.toStringz(), 10, 145, 10, Colors.YELLOW);
-            }
-            
-            // Add player position information if available
-            if(currentLevel.playerStartPosition.x != -1 && currentLevel.playerStartPosition.y != -1) {
-                string playerPosText = format("Player start: %.1f, %.1f", 
-                    currentLevel.playerStartPosition.x, 
-                    currentLevel.playerStartPosition.y);
-                DrawText(playerPosText.toStringz(), 10, 80, 12, Colors.YELLOW);
-            }
-            
-            // Draw player start position for debugging
-            if(currentLevel.playerStartPosition.x != -1 && currentLevel.playerStartPosition.y != -1) {
-                // Ensure player start position is also drawn relative to virtual screen and scaled
-                Vector2 scaledPos = Vector2(
-                    offsetX + currentLevel.playerStartPosition.x * scaleFactor,
-                    offsetY + currentLevel.playerStartPosition.y * scaleFactor
-                );
-                DrawCircleV(scaledPos, 5, Colors.RED);
-            }
-        } else {
-            DrawText("No level data to draw.".toStringz(), 10, 30, 20, Colors.LIGHTGRAY); // Adjusted position
         }
-        
-        // Draw the tileset manager UI elements
-        tilesetManager.drawUI();
-        
-        // NO EndDrawing();
+    }
+    
+    Level getCurrentLevelInfo() {
+        return this.currentLevel;
     }
 }

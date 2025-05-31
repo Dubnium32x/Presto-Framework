@@ -2,7 +2,7 @@ module player.var;
 
 import std.stdio;
 
-import level;
+import world.level;
 
 class Var {
     public static float x = 0;
