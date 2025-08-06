@@ -10,6 +10,9 @@ import std.traits : EnumMembers;
 
 import world.screen_settings;
 import world.screen_state;
+import screens.test_screen;
+import world.transition_manager; // Import TransitionType
+import world.transition_manager : TransitionType;
 
 // ---- SCREEN INTERFACE ----
 interface IScreen {
@@ -152,16 +155,17 @@ class ScreenManager : IScreen {
     
     // Transition to a new state with animated effect
     void transitionToState(ScreenState newState, TransitionType transitionType = TransitionType.WORMHOLE, float duration = 1.0f) {
-        import world.transition_manager;
-        
-        auto transitionManager = TransitionManager.getInstance();
-        
-        // Only start transition if not already transitioning
-        if (!transitionManager.isTransitioning()) {
-            transitionManager.startTransition(_currentState, newState, transitionType, duration);
+        if (currentScreen !is null) {
+            currentScreen.unload();
+        }
+
+        if (newState in screenRegistry && screenRegistry[newState] !is null) {
+            _currentState = newState;
+            currentScreen = screenRegistry[newState];
+            currentScreen.initialize();
+            writeln("Transitioned to state: ", newState);
         } else {
-            writeln("ScreenManager: Transition already in progress, falling back to immediate change");
-            changeState(newState);
+            writeln("ERROR: Screen not registered: ", newState);
         }
     }
 }
@@ -210,7 +214,7 @@ class ResolutionManager {
 
     this() {
         instance = this;
-        currentResolution = Resolution.RES_1080P; // Default resolution
+        currentResolution = Resolution.RES_1X; // Default resolution
     }
 
     static ResolutionManager getInstance() {

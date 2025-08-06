@@ -4,6 +4,10 @@ import std.stdio;
 import std.file;
 import std.string;
 import std.array;
+import std.conv : to;
+import std.json;
+import std.file;
+import std.exception;
 
 enum SavedCharacter {
     SONIC,
@@ -64,7 +68,16 @@ void loadSaveData(DataSlot slot) {
 
     // Read the file and deserialize the JSON
     auto jsonData = readText(filePath);
-    playerSaveData = fromJSON!SaveData(jsonData);
+    JSONValue parsed = parseJSON(jsonData);
+    auto obj = parsed.object;
+    playerSaveData = SaveData(
+        cast(int)obj["playerScore"].integer,
+        cast(int)obj["playerLevel"].integer,
+        cast(byte)obj["playerEmeralds"].integer,
+        obj["playerName"].str,
+        cast(int)obj["playerLives"].integer,
+        cast(SavedCharacter)obj["playerCharacter"].integer
+    );
     currentDataSlot = slot;
     writeln("Save data loaded successfully.");
 }
@@ -72,8 +85,18 @@ void loadSaveData(DataSlot slot) {
 void saveData(DataSlot slot) {
     // Implementation for saving the current player data to a file
     auto filePath = "save_" ~ to!string(slot) ~ ".json";
-    auto jsonData = toJSON(playerSaveData);
-    writeText(filePath, jsonData);
+    
+    // Serialize SaveData manually
+    JSONValue obj = JSONValue([
+        "playerScore": JSONValue(playerSaveData.playerScore),
+        "playerLevel": JSONValue(playerSaveData.playerLevel),
+        "playerEmeralds": JSONValue(cast(int)playerSaveData.playerEmeralds),
+        "playerName": JSONValue(playerSaveData.playerName),
+        "playerLives": JSONValue(playerSaveData.playerLives),
+        "playerCharacter": JSONValue(cast(int)playerSaveData.playerCharacter)
+    ]);
+    auto jsonData = obj.toString();
+    std.file.write(filePath, jsonData);
     currentDataSlot = slot;
     writeln("Save data saved successfully.");
 }

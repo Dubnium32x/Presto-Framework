@@ -3,6 +3,7 @@ module world.input_manager;
 import raylib;
 import std.stdio;
 import std.algorithm;
+import std.math;
 
 /**
  * Input Manager for Presto Framework

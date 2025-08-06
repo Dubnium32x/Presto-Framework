@@ -16,6 +16,7 @@ import world.audio_manager;
 import world.memory_manager;
 import world.input_manager;
 import world.screen_settings;
+import screens.test_screen;
 
 // Define the world settings
 public const int SCREEN_WIDTH = 400;
@@ -53,8 +54,8 @@ void main() {
 
     SetExitKey(KeyboardKey.KEY_ESCAPE);
 
-    virtualScreen = LoadRenderTexture(VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT);
-    SetTextureFilter(virtualScreen.texture, TextureFilter.TEXTURE_FILTER_NEAREST);
+    auto virtualScreen = LoadRenderTexture(VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT);
+    SetTextureFilter(virtualScreen.texture, TextureFilter.TEXTURE_FILTER_POINT);
 
     auto memManager = MemoryManager.instance();
     memManager.initialize();
@@ -72,7 +73,7 @@ void main() {
     screenManager.registerScreen(ScreenState.INIT, TestScreen.getInstance());
     screenManager.changeState(ScreenState.INIT);
     
-    auto screenSettings = ScreenSettings();
+    auto screenSettings = new ScreenSettings();
     
     // Main game loop
     writeln("Starting Presto Framework main loop...");
