@@ -11,8 +11,10 @@ import std.algorithm;
 
 import data;
 import world.screen_manager;
-import world.screen_states;
+import world.screen_state;
 import world.audio_manager;
+import world.memory_manager;
+import world.input_manager;
 import world.screen_settings;
 
 // Define the world settings
@@ -54,10 +56,71 @@ void main() {
     virtualScreen = LoadRenderTexture(VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT);
     SetTextureFilter(virtualScreen.texture, TextureFilter.TEXTURE_FILTER_NEAREST);
 
-    auto memManager = MemoryManager();
-    auto inputManager = InputManager();
-    auto audioManager = AudioManager();
-    auto screenManager = ScreenManager();
+    auto memManager = MemoryManager.instance();
+    memManager.initialize();
+    
+    auto inputManager = InputManager.getInstance();
+    inputManager.initialize();
+    
+    auto audioManager = AudioManager.getInstance();
+    audioManager.initialize();
+    
+    auto screenManager = ScreenManager.getInstance();
+    screenManager.initialize();
+    
+    // Register the test screen
+    screenManager.registerScreen(ScreenState.INIT, TestScreen.getInstance());
+    screenManager.changeState(ScreenState.INIT);
+    
     auto screenSettings = ScreenSettings();
+    
+    // Main game loop
+    writeln("Starting Presto Framework main loop...");
+    
+    while (!WindowShouldClose()) {
+        float deltaTime = GetFrameTime();
+        
+        // Update managers
+        inputManager.update(deltaTime);
+        audioManager.update(deltaTime);
+        screenManager.update(deltaTime);
+        
+        // Draw everything to virtual screen
+        BeginTextureMode(virtualScreen);
+            ClearBackground(Colors.BLACK);
+            screenManager.draw();
+        EndTextureMode();
+        
+        // Draw virtual screen to actual window with scaling
+        BeginDrawing();
+            ClearBackground(Colors.BLACK);
+            
+            // Calculate scale to fit virtual screen into actual screen, maintaining aspect ratio
+            float scale = min(cast(float)GetScreenWidth() / VIRTUAL_SCREEN_WIDTH, 
+                              cast(float)GetScreenHeight() / VIRTUAL_SCREEN_HEIGHT);
+            
+            // Calculate position to center the scaled virtual screen
+            float destX = (GetScreenWidth() - (VIRTUAL_SCREEN_WIDTH * scale)) / 2.0f;
+            float destY = (GetScreenHeight() - (VIRTUAL_SCREEN_HEIGHT * scale)) / 2.0f;
+
+            // Define source and destination rectangles for drawing the texture
+            Rectangle sourceRec = Rectangle(0, 0, VIRTUAL_SCREEN_WIDTH, -VIRTUAL_SCREEN_HEIGHT); 
+            Rectangle destRec = Rectangle(destX, destY, VIRTUAL_SCREEN_WIDTH * scale, VIRTUAL_SCREEN_HEIGHT * scale);
+            Vector2 origin = Vector2(0, 0);
+
+            DrawTexturePro(virtualScreen.texture, sourceRec, destRec, origin, 0.0f, Colors.WHITE);
+            
+            // Optional: Display FPS
+            DrawFPS(10, 10);
+            
+        EndDrawing();
+    }
+    
+    // Cleanup
+    screenManager.unload();
+    memManager.unloadAllResources();
+    UnloadRenderTexture(virtualScreen);
+    CloseAudioDevice();
+    CloseWindow();
 }
 

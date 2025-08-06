@@ -1,4 +1,4 @@
-module world.screen_states;
+module world.screen_state;
 
 // ---- ENUMS ----
 enum ScreenState {
