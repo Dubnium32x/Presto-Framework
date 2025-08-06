@@ -4,6 +4,7 @@
 	],
 	"copyright": "Copyright © 2025, dylan",
 	"dependencies": {
+		"colorize": "~>1.0.5",
 		"raylib-d": "~>5.5.1"
 	},
 	"description": "A brand new Sonic 2D framework developed in D and Raylib.",
@@ -16,6 +17,10 @@
 	],
 	"lflags-posix": [
 		"-L."
+	],
+	"lflags-windows": [
+		"-L.",
+		"-static"
 	],
 	"libs": [
 		"raylib"

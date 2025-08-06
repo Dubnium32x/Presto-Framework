@@ -4,6 +4,7 @@ import screen_manager;
 import screen_settings;
 import screen_states;
 import player.player;
+import player.player_new;
 import player.var;
 import world.level; 
 import world.tileset_manager;
@@ -62,6 +63,8 @@ ScreenManager screenManager;
 
 // Player instance
 Player playerInstance;
+PlayerNew playerInstanceNew;
+bool useNewPlayer = true; // Default to new player
 
 // Physics test mode - simple platforms for testing physics
 Rectangle[] testPlatforms;
@@ -109,15 +112,43 @@ void main() {
             }
 
             if (currentLevelInfo.layerNames.length > 0 && levelManager.layerTileData.length > 0) {
-                size_t collisionLayerIdx = currentLevelInfo.layerNames.countUntil("Ground_1");
-                if (collisionLayerIdx != -1 && cast(size_t)collisionLayerIdx < levelManager.layerTileData.length) {
-                     csvPlatforms = generateCollisionRectangles(
-                                        levelManager.layerTileData[collisionLayerIdx], 
+                // Process both Ground and SemiSolid layers
+                CollisionRect[] allCollisionRects;
+                
+                // Process Ground layer
+                size_t groundLayerIdx = currentLevelInfo.layerNames.countUntil("Ground_1");
+                if (groundLayerIdx != -1 && cast(size_t)groundLayerIdx < levelManager.layerTileData.length) {
+                     CollisionRect[] groundRects = generateCollisionRectangles(
+                                        levelManager.layerTileData[groundLayerIdx], 
                                         currentLevelInfo.tileWidthPx, 
-                                        currentLevelInfo.tileHeightPx
+                                        currentLevelInfo.tileHeightPx,
+                                        "Ground_1"
                                     );
-                } else {
-                    writeln("Collision layer 'Ground_1' not found or data missing for initial load.");
+                     allCollisionRects ~= groundRects;
+                     writeln("Generated ", groundRects.length, " collision rectangles for Ground_1.");
+                }
+                
+                // Process SemiSolid layer
+                size_t semiSolidLayerIdx = currentLevelInfo.layerNames.countUntil("SemiSolid_1");
+                if (semiSolidLayerIdx != -1 && cast(size_t)semiSolidLayerIdx < levelManager.layerTileData.length) {
+                     CollisionRect[] semiRects = generateCollisionRectangles(
+                                        levelManager.layerTileData[semiSolidLayerIdx], 
+                                        currentLevelInfo.tileWidthPx, 
+                                        currentLevelInfo.tileHeightPx,
+                                        "SemiSolid_1"
+                                    );
+                     allCollisionRects ~= semiRects;
+                     writeln("Generated ", semiRects.length, " collision rectangles for SemiSolid_1.");
+                }
+                
+                // Extract just the rectangles for backward compatibility
+                csvPlatforms = [];
+                foreach(colRect; allCollisionRects) {
+                    csvPlatforms ~= colRect.rect;
+                }
+                
+                if (allCollisionRects.length == 0) {
+                    writeln("No collision layers found or data missing for initial load.");
                     csvPlatforms = [];
                 }
             }
@@ -139,16 +170,43 @@ void main() {
                     Level currentLevelInfo = levelManager.getCurrentLevelInfo();
                     
                     if (currentLevelInfo.layerNames.length > 0 && levelManager.layerTileData.length > 0) {
-                        size_t collisionLayerIdx = currentLevelInfo.layerNames.countUntil("Ground_1");
-                        if (collisionLayerIdx != -1 && cast(size_t)collisionLayerIdx < levelManager.layerTileData.length) {
-                             csvPlatforms = generateCollisionRectangles(
-                                                levelManager.layerTileData[collisionLayerIdx], 
+                        // Process both Ground and SemiSolid layers
+                        CollisionRect[] allCollisionRects;
+                        
+                        // Process Ground layer
+                        size_t groundLayerIdx = currentLevelInfo.layerNames.countUntil("Ground_1");
+                        if (groundLayerIdx != -1 && cast(size_t)groundLayerIdx < levelManager.layerTileData.length) {
+                             CollisionRect[] groundRects = generateCollisionRectangles(
+                                                levelManager.layerTileData[groundLayerIdx], 
                                                 currentLevelInfo.tileWidthPx, 
-                                                currentLevelInfo.tileHeightPx
+                                                currentLevelInfo.tileHeightPx,
+                                                "Ground_1"
                                             );
-                             writeln("Generated ", csvPlatforms.length, " collision rectangles for Ground_1.");
-                        } else {
-                            writeln("Collision layer 'Ground_1' not found or data missing on toggle.");
+                             allCollisionRects ~= groundRects;
+                             writeln("Generated ", groundRects.length, " collision rectangles for Ground_1.");
+                        }
+                        
+                        // Process SemiSolid layer
+                        size_t semiSolidLayerIdx = currentLevelInfo.layerNames.countUntil("SemiSolid_1");
+                        if (semiSolidLayerIdx != -1 && cast(size_t)semiSolidLayerIdx < levelManager.layerTileData.length) {
+                             CollisionRect[] semiRects = generateCollisionRectangles(
+                                                levelManager.layerTileData[semiSolidLayerIdx], 
+                                                currentLevelInfo.tileWidthPx, 
+                                                currentLevelInfo.tileHeightPx,
+                                                "SemiSolid_1"
+                                            );
+                             allCollisionRects ~= semiRects;
+                             writeln("Generated ", semiRects.length, " collision rectangles for SemiSolid_1.");
+                        }
+                        
+                        // Extract just the rectangles for backward compatibility
+                        csvPlatforms = [];
+                        foreach(colRect; allCollisionRects) {
+                            csvPlatforms ~= colRect.rect;
+                        }
+                        
+                        if (allCollisionRects.length == 0) {
+                            writeln("No collision layers found or data missing on toggle.");
                             csvPlatforms = [];
                         }
                     } else {
@@ -185,12 +243,15 @@ void main() {
 
 void initializePhysicsTest() {
     playerInstance = new Player();
-    // Set LevelManager for the player instance immediately after creation
+    playerInstanceNew = new PlayerNew(100, 100); // Start at position 100, 100
+    
+    // Set LevelManager for both player instances
     if (levelManager !is null) {
         playerInstance.setLevelManager(levelManager);
-        writeln("LevelManager set for playerInstance in initializePhysicsTest.");
+        playerInstanceNew.setLevelManager(levelManager);
+        writeln("LevelManager set for both player instances in initializePhysicsTest.");
     } else {
-        writeln("Error: levelManager is null when trying to set it for playerInstance in initializePhysicsTest.");
+        writeln("Error: levelManager is null when trying to set it for player instances in initializePhysicsTest.");
     }
 
     Var.x = 100; // Default start position if not overridden by level
@@ -223,7 +284,18 @@ void initializePhysicsTest() {
 }
 
 void updatePhysicsTest() {    
-    playerInstance.update(GetFrameTime());
+    // Toggle between old and new player with P key
+    if (IsKeyPressed(KeyboardKey.KEY_P)) {
+        useNewPlayer = !useNewPlayer;
+        writeln("Switched to ", useNewPlayer ? "NEW" : "OLD", " player implementation");
+    }
+    
+    // Update the appropriate player
+    if (useNewPlayer) {
+        playerInstanceNew.update();
+    } else {
+        playerInstance.update(GetFrameTime());
+    }
     
     if (IsKeyPressed(KeyboardKey.KEY_R)) {
         // Default reset position
@@ -235,9 +307,15 @@ void updatePhysicsTest() {
             Level currentLevelInfo = levelManager.getCurrentLevelInfo();
             if (currentLevelInfo.playerStartPosition.x != -1 || currentLevelInfo.playerStartPosition.y != -1) {
                 resetX = currentLevelInfo.playerStartPosition.x;
-                resetY = currentLevelInfo.playerStartPosition.y - Var.heightrad;
+                resetY = currentLevelInfo.playerStartPosition.y - 19; // Use fixed height instead of Var.heightrad
             }
         }
+        
+        // Reset the new player instance
+        playerInstanceNew = new PlayerNew(resetX, resetY);
+        playerInstanceNew.setLevelManager(levelManager);
+        
+        // Reset Var for compatibility
         Var.x = resetX;
         Var.y = resetY;
         Var.xspeed = 0; 
@@ -264,19 +342,59 @@ void drawPhysicsTest() {
     ClearBackground(Color(40, 40, 80, 255));
     BeginMode2D(camera);
     
+    // Declare currentLevelInfo at the beginning of the function to ensure it's in scope throughout
+    Level currentLevelInfo;
+    
     if (useCsvLevel && levelManager !is null) {
+        // Get the current level info at the beginning of the function
+        currentLevelInfo = levelManager.getCurrentLevelInfo();
+        
         levelManager.draw(); // Draw all layers from LevelManager
 
         // Optionally, draw collision rectangles for debugging
         if (debugVisualizationEnabled) {
-            foreach (Rectangle platform; csvPlatforms) {
-                DrawRectangleLinesEx(platform, 1, Colors.LIME); // Bright green outline for CSV collision boxes
+            // We need to regenerate the collision rects with type information
+            if (currentLevelInfo.layerNames.length > 0) {
+                // Process Ground layer
+                size_t groundLayerIdx = currentLevelInfo.layerNames.countUntil("Ground_1");
+                if (groundLayerIdx != -1 && cast(size_t)groundLayerIdx < levelManager.layerTileData.length) {
+                    CollisionRect[] groundRects = generateCollisionRectangles(
+                                    levelManager.layerTileData[groundLayerIdx], 
+                                    currentLevelInfo.tileWidthPx, 
+                                    currentLevelInfo.tileHeightPx,
+                                    "Ground_1"
+                                );
+                    // Draw solid ground rects in LIME
+                    foreach(colRect; groundRects) {
+                        DrawRectangleLinesEx(colRect.rect, 1, Colors.LIME);
+                    }
+                }
+                
+                // Process SemiSolid layer
+                size_t semiSolidLayerIdx = currentLevelInfo.layerNames.countUntil("SemiSolid_1");
+                if (semiSolidLayerIdx != -1 && cast(size_t)semiSolidLayerIdx < levelManager.layerTileData.length) {
+                    CollisionRect[] semiRects = generateCollisionRectangles(
+                                    levelManager.layerTileData[semiSolidLayerIdx], 
+                                    currentLevelInfo.tileWidthPx, 
+                                    currentLevelInfo.tileHeightPx,
+                                    "SemiSolid_1"
+                                );
+                    // Draw semi-solid rects in BLUE
+                    foreach(colRect; semiRects) {
+                        DrawRectangleLinesEx(colRect.rect, 1, Colors.SKYBLUE);
+                        
+                        // Draw a line at the top to indicate that only the top is collidable
+                        Vector2 lineStart = {colRect.rect.x, colRect.rect.y};
+                        Vector2 lineEnd = {colRect.rect.x + colRect.rect.width, colRect.rect.y};
+                        DrawLineEx(lineStart, lineEnd, 2.0f, Colors.BLUE);
+                    }
+                }
             }
         }
         
-        Level currentLevelInfo = levelManager.getCurrentLevelInfo();
+        // Draw player start position marker
         if (currentLevelInfo.playerStartPosition.x > 0 || currentLevelInfo.playerStartPosition.y > 0) {
-             if (debugVisualizationEnabled) DrawCircleV(currentLevelInfo.playerStartPosition, 5, Colors.RED);
+            if (debugVisualizationEnabled) DrawCircleV(currentLevelInfo.playerStartPosition, 5, Colors.RED);
         }
     } else {
         foreach (size_t i, platform; testPlatforms) {
@@ -291,78 +409,49 @@ void drawPhysicsTest() {
         }
     }
     
-    playerInstance.draw();
+    // Draw the appropriate player
+    if (useNewPlayer) {
+        playerInstanceNew.draw();
+    } else {
+        playerInstance.draw();
+    }
     EndMode2D();
     
+    // Minimal debug info - only essential collision information
     Color whiteColor = Colors.WHITE;
     Color redColor = Colors.RED;
     Color greenColor = Colors.GREEN;
-    Color jumpStateColor = Colors.YELLOW;
     
+    // Essential player state
     DrawText(TextFormat("SPEED: %.1f, %.1f", Var.xspeed, Var.yspeed), 5, 5, 12, whiteColor);
     DrawText(TextFormat("GROUNDED: %d", Var.grounded ? 1 : 0), 5, 20, 12, Var.grounded ? greenColor : redColor);
-    DrawText(TextFormat("POS: %.0f, %.0f", Var.x, Var.y), 5, 35, 12, whiteColor);
+    //DrawText(TextFormat("PLAYER: %s", useNewPlayer ? "NEW (Sonic Physics)" : "OLD"), 5, 35, 12, useNewPlayer ? Colors.GREEN : Colors.YELLOW);
     
-    string levelModeText = useCsvLevel ? "MODE: CSV LEVEL (L to toggle)" : "MODE: TEST PLATFORMS (L to toggle)";
-    DrawText(levelModeText.toStringz(), 5, 50, 10, useCsvLevel ? greenColor : whiteColor);
-    
-    if (useCsvLevel && levelManager !is null) {
-        Level currentLevelInfo = levelManager.getCurrentLevelInfo();
-        string levelNameText = currentLevelInfo.levelName ? currentLevelInfo.levelName : "N/A";
-        // string levelInfoText = format("Level: %s (%s)", levelNameText, currentLevelInfo.basePath); // Error: no basePath
-        string levelInfoText = format("Level: %s (Folder: %s)", levelNameText, currentLevelInfo.levelName); // Using levelName again as placeholder for path info
-        DrawText(levelInfoText.toStringz(), 5, 65, 10, whiteColor);
-        
-        string layersLoadedText = format("Layers: %d [%s]", currentLevelInfo.layerNames.length, currentLevelInfo.layerNames.join(", "));
-        DrawText(layersLoadedText.toStringz(), 5, 80, 10, whiteColor);
-        
-        string cameraText = format("Camera: (%.0f, %.0f) Zoom: %.1f", camera.target.x, camera.target.y, camera.zoom);
-        DrawText(cameraText.toStringz(), 5, 95, 10, whiteColor);
-        
-        string collisionText = format("Coll.Rects: %d (Ground_1)", csvPlatforms.length);
-        DrawText(collisionText.toStringz(), 5, 110, 10, whiteColor);
-    }
-    
-    // Display key states at bottom right
-    bool zKeyPressed = IsKeyDown(KeyboardKey.KEY_Z);
-    bool leftPressed = IsKeyDown(KeyboardKey.KEY_LEFT);
-    bool rightPressed = IsKeyDown(KeyboardKey.KEY_RIGHT);
-    
-    // Draw key indicators in the bottom right corner
-    DrawRectangle(screenSettings.virtualWidth - 50, screenSettings.virtualHeight - 20, 10, 10, 
-                  leftPressed ? greenColor : redColor);
-    DrawText("L", screenSettings.virtualWidth - 48, screenSettings.virtualHeight - 20, 10, whiteColor);
-    
-    DrawRectangle(screenSettings.virtualWidth - 35, screenSettings.virtualHeight - 20, 10, 10, 
-                  rightPressed ? greenColor : redColor);
-    DrawText("R", screenSettings.virtualWidth - 33, screenSettings.virtualHeight - 20, 10, whiteColor);
-    
-    DrawRectangle(screenSettings.virtualWidth - 20, screenSettings.virtualHeight - 20, 10, 10, 
-                  zKeyPressed ? greenColor : redColor);
-    DrawText("Z", screenSettings.virtualWidth - 18, screenSettings.virtualHeight - 20, 10, whiteColor);
-    
-    // Show current speed 
-    string speedText = format("Speed: %.1f", abs(Var.xspeed));
-    DrawText(speedText.toStringz(), screenSettings.virtualWidth / 2 - 30, screenSettings.virtualHeight - 30, 20, whiteColor);
-    
-    // Instructions - simplified and moved to bottom
-    DrawText("L: Toggle Level | +/-: Zoom | TAB: Debug Vis", 
-        5, screenSettings.virtualHeight - 30, 10, jumpStateColor);
-    DrawText("ARROWS: Move | DOWN: Roll | Z: Jump | R: Reset", 
-        5, screenSettings.virtualHeight - 15, 10, jumpStateColor);
+    // Simple controls reminder
+    DrawText("ARROWS: Move | DOWN: Roll | Z: Jump | R: Reset | P: Toggle Player | TAB: Debug", 
+        5, screenSettings.virtualHeight - 15, 10, whiteColor);
     
     EndDrawing();
 }
 
+// Define a struct to hold both the rectangle and its type
+struct CollisionRect {
+    Rectangle rect;
+    bool isSemiSolid;
+}
+
 // Convert a specific tile layer data to collision rectangles
-Rectangle[] generateCollisionRectangles(int[][] layerData, int tileWidth, int tileHeight) {
-    Rectangle[] rects;
+CollisionRect[] generateCollisionRectangles(int[][] layerData, int tileWidth, int tileHeight, string layerName) {
+    CollisionRect[] rects;
     if (layerData is null) return rects; // Return empty if layerData is null
 
     // Constants for Tiled flags
     const uint FLIPPED_HORIZONTALLY_FLAG = 0x80000000;
     const uint FLIPPED_VERTICALLY_FLAG   = 0x40000000;
 
+    // Check if this is a semi-solid layer
+    bool isSemiSolidLayer = layerName.length >= 9 && layerName[0..9] == "SemiSolid";
+    
     for (int y = 0; y < layerData.length; y++) {
         if (layerData[y] is null) continue; // Skip if row is null
         for (int x = 0; x < layerData[y].length; x++) {
@@ -373,19 +462,37 @@ Rectangle[] generateCollisionRectangles(int[][] layerData, int tileWidth, int ti
             }
             
             // Clear the flags to get the actual tile ID (GID)
-            // This actualTileId is used if you have other non-empty, non-collidable tiles
-            // that are not -1. For basic solid/empty, the rawTileId == -1 check is sufficient.
             int actualTileId = cast(int)(rawTileId & ~(FLIPPED_HORIZONTALLY_FLAG | FLIPPED_VERTICALLY_FLAG));
 
-            // For generating collision rects, if it wasn't -1 initially, 
-            // we assume it's collidable for now after stripping flags.
-            // If you have specific non-collidable positive tile IDs, you'd check actualTileId against them here.
-            rects ~= Rectangle(
+            // Skip actualTileId == 0 as well (another representation of empty tiles)
+            if (actualTileId == 0) continue;
+
+            // For semi-solid layer, check if it's a top edge
+            bool isSemiSolidTop = false;
+            if (isSemiSolidLayer) {
+                // Check if the tile above is empty
+                bool tileAboveIsEmpty = true;
+                if (y > 0 && y < layerData.length && x < layerData[y-1].length) {
+                    int rawTileIdAbove = layerData[y-1][x];
+                    if (rawTileIdAbove != -1) {
+                        int actualTileIdAbove = cast(int)(rawTileIdAbove & ~(FLIPPED_HORIZONTALLY_FLAG | FLIPPED_VERTICALLY_FLAG));
+                        tileAboveIsEmpty = (actualTileIdAbove == 0 || actualTileIdAbove == -1);
+                    }
+                }
+                isSemiSolidTop = tileAboveIsEmpty;
+            }
+            
+            // Create the collision rectangle and add to collection
+            CollisionRect colRect;
+            colRect.rect = Rectangle(
                 cast(float)x * tileWidth,
                 cast(float)y * tileHeight,
                 cast(float)tileWidth,
                 cast(float)tileHeight
             );
+            colRect.isSemiSolid = isSemiSolidLayer;
+            
+            rects ~= colRect;
         }
     }
     return rects;
