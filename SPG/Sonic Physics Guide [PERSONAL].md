@@ -81,19 +81,22 @@
     - Water Shield
     - Lightning Shield
 18. [Player 2](#player-2)
+    - Player 2 Control
     - Player 2 CPU
     - Respawning
 19. [Special Stages](#special-stages)
     - Rotating Maze
 20. [Camera](#camera)
+    - View Borders
+    - Looking Up and Down
+    - Spindash Lag
+    - Extended Camera (Sonic CD)
 21. [Animations](#animations)
     - Animation System
     - Variable Speed Animation Timings
     - Normal Animation Timings
     - Animation Rules
-22. [Overlay Scripts](#overlay-scripts)
-    - Sonic 1 Overlay
-    - Sonic 2 Overlay
+22. [Conclusion](#conclusion)
 ---
 
 ## 1. Introduction
@@ -2072,4 +2075,671 @@ Because the higher spinrev is, the faster it depletes, it is nearly impossible t
 
 Note: Water has no effect on the release speed. 
 
-... This is a work in progress. We will focus on Dropdash and Peelout next.
+### Super Peel Out
+Once the button is pressed, Sonic will begin charging the Dash. After 30 frames have passed, he is ready to go. When the Up button is released, Sonic launches at a speed of 12. If the Up button is released early, nothing happens. 
+
+### Insta-Shield
+In Sonic 3, The Insta-Shield expands Sonic's hitbox giving it a width radius of 24 and a height radius of 24, resulting in an overall height of 49 x 49. This lasts for 14 frames. The actual animation of the Insta-Shield effect only lasts 6 frames, with the duration of each sub-sprite being a singe frame.
+
+When the Insta-Shield is active, Sonic will become invincible for the duration of the Insta-Shield. The Insta-Shield does not effect the player's X-Speed or Y-Speed.
+
+While never implemented, you may want to give the Insta-Shield the ability to reflect bullets, like the rest of the shields in Sonic 3. 
+
+### Flying
+When Tails begins to fly, his Y Speed is unaffected. However, since Tails has to release the button in order to press it again to fly, he can't possibly fly up faster than -4.
+
+While flying, the variables are much like a standard jump. He accelerates at 0.09375 (24 subpixels), and there is no separate deceleration value. The normal air drag calculation is performed, which means Tails can't fly horizontally as fast while moving upward than when moving downward. The air drag cancels out the acceleration at an X Speed of 3. There is no air drag while moving down, though, so he can reach an 'X Speed' of 6, the normal maximum.
+
+While flying, Gravity is 0.03125 (8 subpixels). Pressing Up or Down doesn't decrease or increase it.
+
+Pressing the button doesn't cause an immediate loss of vertical speed (like a double-jump), but instead a temporary change in gravity. Gravity becomes -0.125 (-32 subpixels), and remains so until Y Speed is less than -1. Then Gravity returns to normal in the next step and Tails begins to fly back down. If Y Speed is already less than -1, pressing the button does nothing.
+
+Tails can only fly for 480 frames, or 8 seconds, before getting tired. The only difference being tired makes (besides the pooped-out expression) is that pressing the button doesn't have any effect anymore. Gravity, and all other variables, remain the same.
+
+As stated above if you have negative gravity, a Y Speed smaller than -1 is needed to return to positive gravity. This can cause issues when you hit a ceiling and your Y Speed is set to 0. Your Gravity will remain negative and you will be stuck. In your engine, to prevent Tails from being stuck in negative gravity, you should reset Gravity to the positive value when a ceiling is detected. 
+
+#### Flying Attack
+Tails' tails can be used to attack enemies while he is flying. They also deflect projectiles (just like the Shields do). When an enemy/projectile touches Tails' normal hitbox while he is flying, the angle between the enemy/projectile's X/Y Position and Tails' X/Y Position is measured. If and that angle is within 46° (223) to 135° (160) inclusive (a 90 degree slice directly above Tails). the enemy will be destroyed (or projectile bounced). 
+
+### Gliding
+When Knuckles first begins gliding, his X Speed is set to 4 in the direction he is facing. Y Speed is set to 0, but only if it was negative at the time, otherwise it is unaffected. X Speed then accelerates by 0.015625 (4 subpixels) every step.
+
+Gliding has a top speed of 24. This top speed is so high that it is unreachable anywhere in the game -- except for Mushroom Hill Zone Act 1, where Super/Hyper Knuckles can glide across the top of the level to achieve this speed.
+
+During the glide, gravity is 0.125 (32 subpixels), which is weaker than usual. Also, unlike a normal jump, gravity is only added while Y Speed is less than 0.5 (128 subpixels). If Y Speed is higher than that (say Knuckles was falling quickly when he began to glide), gravity is subtracted from Y Speed instead, slowing his descent.
+
+```
+if (Y Speed < 0.5) Y Speed += 0.125;
+if (Y Speed > 0.5) Y Speed -= 0.125;
+```
+
+When you let go of the button, Knuckles drops, and his X Speed is multiplied by 0.25. When he hits the ground, it is set to 0. While dropping from a glide, Gravity is the normal value.
+
+If you don't release the button, but allow Knuckles to glide into the ground he will begin to slide.
+
+If Knuckles hits a wall while gliding, he catches on, and can climb it. He will catch on even if he's turning around, as long as his X Speed is still in the direction of the wall. 
+
+#### Turning Around
+When Knuckles is gliding, you can turn him around simply by tapping the Left or Right button. Even if you let go, he will continue to make a full turn. You can, however, reverse your decision and turn him back in the original direction before he makes a full turn.
+
+You might think that turning around while gliding would be much like turning around while running on the ground. X Speed would be steadily decreased until it reached zero, and then would start adding in the other direction. This is not the case, though, and a special method is used that preserves Knuckles' gliding speed.
+
+When Knuckles is gliding, there is a value, which we'll call a, that is 0 when he's gliding to the right, and 180 when he's gliding to the left.
+
+When Knuckles begins to turn, his X Speed is stored - let's call the stored value t. If he's turning from the left to the right, a is decreased by 2.8125 (2 pixels and 208 subpixels) until it reaches 0 (which takes 64 steps). If he's turning from right to left, a is increased by 2.8125 (2 pixels and 208 subpixels) until it reaches 180. During the turn X speed is made to equal t times the cosine of a.
+
+```
+a += 2.8125 * -sign(t);
+X Speed = t * cosine(a);
+```
+
+So, no matter how fast Knuckles is gliding, he turns around in the same amount of time, and his speed reverses fully. During the turn, there is no acceleration. It kicks back in once he's finished turning all the way around. 
+
+#### Gliding Rebound
+An interesting side-effect of the fact that Knuckles' Y Speed is not immediately blunted when he begins gliding while falling quickly is the "Gliding Rebound". If you press the button to begin gliding just as Knuckles connects with an enemy or item monitor, his Y Speed is reversed from the rebound just as he begins to glide. Since gliding gravity is weaker than standard gravity, he goes soaring up into the air. This is not necessarily a bug - it's actually kind of fun.
+
+Once Knuckles is already gliding, rebound operates normally. Since he can't exceed a Y Speed of 0.5 (128 subpixels) while gliding, though, the effect is rather weak. 
+
+#### Underwater
+Strangely enough, Knuckles' gliding and climbing physics are totally unaffected by water. I suspect this is because the code performed when entering and exiting the water simply changes the acceleration, deceleration, and top speed constants (this is why falling in water nullifies Super Fast Shoes). Because Knuckles' gliding and climbing code operates irrespective of these values, his abilities couldn't be affected by water without rewriting the water entry and exit code. In your engine you may wish to halve some of Knuckles' speeds when submerged to be more realistic, unless you want to remain 100% true to the original games. 
+
+#### Sliding
+When you finish a glide by sliding on the ground, the game doesn't set Knuckles' grounded flag until he stops. Though, he mostly acts grounded, sticking to the floor and changing his angle as normal.
+
+While sliding on his stomach, he has a friction value of 0.125 (32 subpixels). He starts to stand up as soon as X Speed reaches 0. If you release the button after he has begun to slide, X Speed is set to 0 immediately, and he begins to stand up. Pressing Left or Right while sliding or standing up has no effect, but you can break into the standing up animation to jump if you press the jump button again.
+
+#### Gliding Attack
+Knuckles will attack enemies while he is gliding or sliding. He will also deflect projectiles (just like the Shields do).
+
+This happens when an enemy/projectile touches Knuckles' normal hitbox any time he is in either the gliding or sliding state, no matter where the enemy is in relation. 
+
+### Climbing
+He climbs up and down at a speed of 1. When Knuckles jumps off of a wall, his X Speed is set to 4 in the opposite direction of the wall, and his Y Speed is set to -4.
+
+Interestingly, because of a pixel offset when sprites are flipped, Knuckles' feet poke 1 pixel out from the side of his size when he is on a wall to the left. This means his feet should be inside the wall a bit. Well, when on a left wall there is actually a 1 pixel gap between Knuckles' X Position - Push Radius and the wall, purely to make it look correct. 
+
+#### Falling
+When climbing, Knuckles will fall off the bottom of a wall if no wall is found at his Y Position + Height Radius (checking horizontally into the wall). 
+
+#### Clambering
+Knuckles will clamber atop a ledge if it no wall is found at his Y Position - Height Radius (checking horizontally into the wall). 
+![alt text](image-76.png)
+When clambering, Knuckles plays a 3 sub-image animation. Each sub-image of the animation lasts 6 frames, and after the 3rd sub-image knuckles is standing on the ledge, where his X Position is the ledge X. Each frame of the animation moves knuckles to a new position as shown.
+
+His position moves back and forth a bit as he climbs so that his sprite aligns. If your camera is set up correctly, usually the first 2 sub-images of motion will push the camera forward into place and the 3rd sub-image's backward motion won't move the camera at all, which makes it look smooth enough. 
+
+---
+## 17. Elemental Shields
+Elemental Shields are special abilities that Sonic can use while in the air, each with unique effects.
+
+### Fire Shield
+When Sonic performs the Fire Shield action while airborne, his X Speed is set to 8 in the direction he is facing, and his Y speed is set to 0, regardless of their previous values. 
+
+### Water Shield
+| Constants | Values |
+|-----------|--------|
+| down_force   | 8      |
+| bounce_force  | 7.5 ( - 4 if underwater)      |
+
+When Sonic performs the Bubble Shield bounce, his X Speed is set to 0, and his Y Speed to down_force. However, in Sonic Mania, X Speed is halved instead of set to 0. 
+
+When he rebounds from the ground, bounce_force is subtracted from X Speed and Y Speed, using cos() and sin() to get the right values.
+
+```
+X Speed -= bounce_force * sin(Ground Angle);
+Y Speed -= bounce_force * cos(Ground Angle);
+```
+
+On steep slopes, the bubble shield is unlikely to bounce at the right angle. That's because this bounce speed is applied AFTER Sonic lands and has calculated his new Ground Speeds and new X Speed and Y Speed from landing on the ground. On steep slopes, this landing Y Speed is likely to be high (downwards), effectively cancelling out a lot of the bounce Y Speed that gets applied. 
+
+### Lightning Shield
+When Sonic performs the Lightning Shield double jump, his X Speed is unaffected, but his Y Speed is set to -5.5 regardless of its previous value.
+
+Note: All of the Shield abilities can only be performed once in the air. Sonic must land on the ground before he can perform them again.
+
+#### Ring Magnetization
+When Sonic has a Lightning shield, nearby Rings will become mobile and begin moving towards him in a unique way. 
+
+| Constants | Values |
+|-----------|--------|
+| follow_speed | 0.1875 |
+| turn_speed | 0.75 |
+
+If a Ring falls within a box 128 x 128 pixels around Sonic's position, it will become Magnetized and begin to move. When Magnetized, the Rings have an X and Y Speed and do not collide with anything (except for Sonic). In order to move correctly, we have to calculate how fast to move the Ring, and in what direction to accelerate. The Ring accelerates at two different rates depending on its relative position and speed, follow_speed when already moving towards Sonic (in order to not pass him too quickly), and turn_speed when not (in order to quickly catch back up with him).
+
+First, it does a check to see where Sonic is in relative position horizontally. 
+
+| Sonic is to the left of a Ring |
+|--------------------------------|
+| If the Ring's X Speed is less than 0, subtract follow_speed from the Ring's X Speed. Otherwise, subtract turn_speed from the Ring's X Speed. |
+
+| Sonic is to the right of a Ring |
+|--------------------------------|
+| If the Ring's X Speed is greater than 0, subtract follow_speed from the Ring's X Speed. Otherwise, add turn_speed from the Ring's X Speed. |
+
+Then, the attracted Ring checks Sonic's relative position vertically. 
+
+| If Sonic is left and above of a Ring |
+|---------------------------------------|
+| If the Ring's Y Speed is less than 0, subtract follow_speed from the Ring's Y Speed. Otherwise, subtract turn_speed from the Ring's Y Speed. |
+
+| If Sonic is left and below of a Ring |
+|---------------------------------------|
+| If the Ring's Y Speed is less than 0, add follow_speed from the Ring's Y Speed. Otherwise, add turn_speed from the Ring's Y Speed. |
+
+The Ring's X and Y Speed is then added to the Ring's X and Y Positions, moving it.
+
+Here's some example code for the ring while magnetized: 
+
+```d
+if (ring.isMagnetized) {
+    // Update the ring's position based on its speed
+    auto tx = sign(ring.xSpeed);
+    auto ty = sign(ring.ySpeed);
+
+    // Relative Positions
+    auto sx = sign(sonic.x - ring.x);
+    auto sy = sign(sonic.y - ring.y);
+
+    // Add to speed
+    ring.xSpeed += (ring_acceleration[tx] * sx);
+    ring.ySpeed += (ring_acceleration[ty] * sy);
+
+    // move
+    ring.x += ring.xSpeed;
+    ring.y += ring.ySpeed;
+}
+```
+
+---
+
+## 18. Player 2
+Starting with Sonic 2, a second player can follow you around the stage. At first glance it may seem like they simply copy your inputs, but there is a lot more nuance to the following Player's (Player 2's) actions. 
+
+### Player 2 Control
+By default, Player 2 is CPU controlled; however every time the Player 2 controller detects input, CPU control will be disabled for 10 seconds. 
+
+### Player 2 CPU
+While the Player 2 is CPU controlled and is following Player 1, they access various bits of information about Player 1's state from 16 frames in the past. How does it do this? Well, Players keep lists of their actions and states each frame. 
+
+#### State Lists
+The information lists are stored as follows: 
+| List | Description |
+|------|-------------|
+| Position List | The X/Y Position of the Player. |
+| States List  | The grounded state, pushing state, jumping state and direction the player is facing.  |
+| Control List  | The complete controller inputs being used.  |
+
+These lists are added to each frame by the Player. Each list is 32 entries long and therefore retains information from the last 32 frames.
+
+Player 2 reads all the data from the entry 16 frames into the past. From this point on this guide, when Player 2 uses this information it will be labelled as target_inputs, target_x, target_y, or target_grounded, etc. These will be in reference to Player 1's state 16 frames in the past that was read from these lists. 
+
+#### CPU Inputs
+Firstly, Player 2 will adopt the target_inputs found from Player 1's control list as their CPU inputs. Some of these will be modified up ahead, but if left unchanged, this means Player 2 will copy Player 1 exactly, with a 16 frame delay. 
+
+#### CPU Following State
+Before anything else happens, if Player 2 currently has an active control lock and their Ground Speed is 0, they are most likely stuck on a slope and they will enter their CPU Spindash state. This state will be explained up ahead. Otherwise, Player 2 will continue onto CPU following.
+
+In the CPU Following state, Player 2 will decide upon how to modify their CPU controller inputs to adequately follow Player 1.
+
+Firstly, the game checks if Player 2 is stuck. If Player 2 is pushing and target_pushing is not true, this likely means Player 2 is stuck against a wall or object. If this is the case, Player 2 will skip normal movement entirely and move onto jumping. Otherwise, they will continue onto normal movement. Jumping will occur after normal movement if the game doesn't exit CPU following code. 
+
+#### Normal Movement
+In Sonic 2, normal movement is were Player 2 moves left or right to follow Player 1, and continues actions & performs checks. This will begin with walking towards Player 1.
+
+Note: In Sonic 3 onwards, if Player 1's absolute Ground Speed is less than 4 and they are not standing on an object, 32 is subtracted from target_x. This allows Player 2 to stand a little behind Player 1.
+
+##### Walking
+Player 2 will then compare their X Position to target_x. If Player 2's X Position is less than target_x, they will move right. If Player 2's X Position is greater than target_x, they will move left. If Player 2's X Position is equal to target_x, they will not move horizontally.
+
+If Player 2's X Position is larger than target_x, they will continue moving left until they reach the target_x position. If the absolute distance between Player 2's X Position and target_x is larger than 16 (48 in Sonic 3), Player 2 will begin to move left. They do this by holding Left on their CPU controller, releasing Right, and turning to face left.
+
+Also, Player 2's X Position is manipulated under certain conditions. If Player 2's Ground Speed is not 0, and they are facing left, and they are not pushing, 1 will be subtracted from their X Position, forcefully pulling them towards Player 1. 
+
+Now lets say if Player 2's X Position is less than target_x, they will begin to move right. If the absolute distance between Player 2's X Position and target_x is larger than 16 (48 in Sonic 3), Player 2 will begin to move right. They do this by holding Right on their CPU controller, releasing Left, and turning to face right.
+
+Also similarly, Player 2's X Position is again manipulated under certain conditions. If Player 2's Ground Speed is not 0, and they are facing right, and they are not pushing, 1 will be added to their X Position, forcefully pulling them towards Player 1. 
+
+If the Player 2's X Position is EQUAL to target_x, they will not move horizontally. They'll face the same way as Player 1.
+
+Next are the actions and checks. 
+
+##### Actions and Checks
+Here the game will check various conditions and ensure Player 2 continues actions such as while jumping. If the CPU following code is exited for the current frame after any of these checks, this means that any further checks and jumping will not occur. 
+
+If the CPU is jumping, they will hold down the A B and C buttons on their CPU controller, and then exit CPU following code for that frame. Otherwise, they will continue to the next set of checks.
+
+If Player 2 is too far away from Player 1, and the absolute distance between Player 2's X Position and target_x is larger than 64, Player 2 will exit the CPU following code for that frame. Otherwise, they will continue with the next set of checks, or check for more actions.
+
+If Player 2 is too far below Player 1, and Player 1's Y Position is equal to or greater than Player 2's Y Position, Player 1 is below Player 2 and it will exit the CPU following code for that frame. Otherwise, if the target_y is less than 32 pixels above Player 2's Y Position, Player 1 is less than 32 pixels above Player 2 and it will exit the CPU following code for that frame.
+
+If the CPU following code has not been exited, it will move ahead onto the jumping. 
+
+##### Jumping
+If the game logic has reached here, the game will allow Player 2 to jump even when Player 1 hasn't.
+
+Player 2 simply attempts to perform a jump once every 64 frames (checked on a global timer). When that occurs, if they aren't crouching, they will press and hold the jump buttons on their CPU controller inputs, and then finish execution.
+
+Note, when a jump is executed from this point, The jump buttons will always be held so it has the maximum height. in other cases, like Player 2 being close to Player 1, it will instead use the input buffer directly, as mentioned before
+
+#### CPU Spindash State
+When in the CPU Spindash state, a few checks are performed.
+
+Firstly, if control lock is active, the game will exit the CPU Spindash code for that frame, but will check again the next frame. 
+
+##### Crouching
+Before the Player 2 can Spindash, they'll try to crouch.
+
+Firstly, they'll check if their Ground Speed is 0. If it isn't, the game will exit the CPU Spindashing code for that frame.
+
+They'll turn to face Player 1.
+
+Then they will press and hold down the Down button on their CPU controller in order to crouch.
+
+Meanwhile, the game is checking if they are finally in their ducking sprite. If they are, they will tap the ABC buttons on their CPU controller to initiate the Spindash. However, at the same time every 128 frames (checked on a global timer) the game will check if Player 2 isn't yet crouching. If they are not, the game will cancel the CPU Spindash state entirely and set Player 2's state to the CPU Following state.
+Spindash
+
+Once Player 2 begins Spindashing, they will they will tap the ABC buttons on their CPU controller every 32 frames (checked on a global timer).
+
+Meanwhile, every 128 frames (checked on a global timer) the game will release the ABC buttons and down button on their CPU controller, releasing the Spindash. This will also switch the state back to CPU Following. 
+
+### Respawning
+Player 2 will Respawn if they are offscreen for 300 frames. 
+
+#### Tails
+In the case of Tails, when they respawn they'll begin flying back in.
+
+Upon respawning, Tails' X Position will be set to Player 1's X Position, and his Y Position will be set to Player 1's Y Position - 192. Also, Tails' target_x and target_y will be set to Player 1's current positions (for that frame only, from here on it uses the delayed values).
+Horizontal Movement
+
+When flying in, Tails will decide how much to move their X Position by based on the difference in X Position to target_x, and Player 1's X Speed. 
+
+Tails will face whichever direction target_x is in, and will move towards target_x by the distance away from Player 1 at a maximum speed of 12 pixels in that direction each frame. move_x is the distance from target_x being constantly interpolated towards 0, like the Air Drag function in the Player's air state. To prevent Tails from stopping short of target_x, target_x_speed + 1 is added to move_x. The logic below that is to prevent Tails from moving beyond target_x. 
+
+##### Vertical Movement
+Vertically, Tails will move up or down (modifying Y Position rather than using speeds) by 1 pixel per frame until they reach Player 1's Y Position. 
+
+##### Landing
+Player 2 will land when close enough to Sonic, when their X Position is equal to target_x and their Y Position is equal to target_y. In addition, target_grounded needs to be true.
+
+In Sonic 3, the game also makes sure that Player 1 isn't in their dying state.
+
+If you notice Tails can be incredibility stingy about landing, if you dislike this you may want to implement a distance comparison instead of the comparison above.
+
+##### ***Editor's Note: I wasn't able to include every detail on this section, and I left out the CPU Logic Loop because it was too big for a markdown document. Please refer to the source for the complete implementation details.***
+
+---
+## 19. Special Stage
+The Special Stage is a unique level in the game where the Player can collect Chaos Emeralds. The stage is set in a 3D environment, and the Player must navigate through a series of obstacles and collect rings to progress.
+
+### Rotating Maze
+The special stages in Sonic 1 have very unique physics, controls, and "feel". They do not share physics code with the normal gameplay at all. 
+
+#### Maze Blocks
+the Maze is constructed out of a grid of tiles. The size of each grid tile is 24 x 24. Some tiles contain solid "Blocks" (which includes normal solid blocks and special blocks such as Bumpers and Up/Down Blocks), some contain non-solid tiles like Rings, while others are empty.
+
+#### Maze Rotation
+The handling of Special Stage rotation is more of an illusion than actual rotation.
+
+While they appear to, these special stages don't actually rotate. The blocks don't even actually move at all. Instead, the Player's gravity, jump direction, and left/right input movement angle all change based on the stage's current angle. The actual Sonic object still moves relative to the static, unrotated, base layout.
+
+So, because the Player is only ever truly colliding with flat sides of a block and not sloped angles of rotated blocks, this makes collision much easier.
+Rotation Illusion
+
+When Player motion and physics are processed in the Maze, it's always happening on a static un-rotated grid of the stage tiles/blocks.
+
+While playing, the Player's gravity direction is being manipulated, and the stage is simply displayed as if it was rotated. When the game displays any given block, it gets rotated around Sonic (which is always centre of the screen) by the current Stage rotation angle. Thus completing the illusion. 
+![alt text](image-78.png)
+_How the game is actually processing the movement on the right (gravity direction shown as a white line)._
+
+A more general way to imagine this is: Instead of the stage itself rotating, it's as if the camera and gravity direction rotates while moving across the stage.
+Maze Speeds and Angles
+
+The special stage starts with a rotation speed of 0.25 in the original games. (In degrees, this would be -0.3515625)
+
+##### Note:
+The stage_angle is always kept positive, the angle needs to be "wrapped" otherwise it will give weird results when snapping the angle when negative.
+
+To get the snapped_stage_angle (used for physics and drawing the stage), just do (stage_angle div 4) * 4
+
+A rough conversion for degrees would be floor(stage_angle / 5.625) * 5.625 
+
+#### Maze Player Object
+Much of the Special stage Player object is the same as the normal Player object. 
+
+#### Variables and Properties
+The Player object is like any other, it uses similar constants, and has X/Y Speed values, and a Ground Speed value. However, these values are applied differently as will be explain up ahead. 
+| Constant | Value |
+|----------|-------|
+| acceleration_speed | 0.046875 (12 subpixels) |
+| deceleration_speed | 0.25 (64 subpixels) |
+| top_speed | 8 |
+| gravity_force | 0.1640625 (42 subpixels) |
+
+#### States
+At any time the Player knows if they are touching a solid block at any side (up, down, left, right, any). This will be referred to as the "block_hitting flag" (true or false). 
+
+#### Player Physics 
+##### Note:
+
+All of the Player's motion that reacts to the stage's angle uses the snapped_stage_angle rather than stage_angle.
+
+The Player is essentially always performing the same code, with only slight differences depending on the current situation. The following will describe the different functions/routines the Player can for their physics. How and when these routines are executed will be detailed in Player events.
+
+##### Left/Right Movement Routine
+The Movement routine checks for Left or Right input and updates Sonic's Ground Speed. Acceleration/deceleration works the same as normal, like when Sonic walks on normal ground. Friction (same as acceleration) is applied when no Left or Right input is detected.
+
+After updating Ground Speed, a potential_x_speed and potential_y_speed are created using Sonic's current Ground Speed and the movement_angle.
+```
+potential_x_speed = Ground Speed * cos(movement_angle); otential_y_speed = Ground Speed * -sin(movement_angle);
+```
+
+##### Movement Angle
+What's the movement_angle? The movement_angle used here is not the real stage_angle or even the snapped_stage_angle. movement_angle is the snapped_stage_angle wrapped to a 90 degree slice. 
+!['alt text'](image-79.png)
+_movement_angle shown as a white line over Sonic._
+
+The movement_angle keeps to a cardinal direction of the stage, but when the stage rotates too far, it snaps back 90 degrees.
+
+movement_angle = -((snapped_stage_angle + 45) div 90) * 90;
+
+This is the angle used for the Player's left/right movement, even when in the air. Because this occurs in the air too, it makes the special stage feel all the more disorienting, which is by design. 
+
+The game performs a tile check at the Player's X Position + potential_x_speed, and the Player's Y Position + potential_y_speed.
+
+If a solid block is found, Ground Speed is set to 0, otherwise, the potential_x_speed and potential_y_speed are simply directly added to the Player's X/Y Position. Neither the Player's block_hitting flag nor the Player's actual speeds are changed/used in this routine. 
+
+The fall routine is where the Player's real X Speed and Y Speed come into play.
+
+Firstly, the Player's block_hitting flag is reset to false. 
+
+Directional gravity speeds x_gravity and y_gravity are calculated based on the snapped_stage_angle. 
+
+```
+x_gravity = gravity_force * sin(-snapped_stage_angle);
+y_gravity = gravity_force * cos(-snapped_stage_angle);
+```
+
+Then, a potential_x_speed and potential_y_speed are calculated using that new gravity: 
+
+```
+potential_x_speed = X Speed + x_gravity;
+potential_y_speed = Y Speed + y_gravity;
+```
+
+The game then performs a tile check at the Player's X Position + potential_x_speed, and the Player's Y Position.
+
+If a solid block is found, potential_x_speed is set to 0, and Sonic's block_hitting flag is set to true.
+
+Then the game performs a tile check at the Player's X Position + potential_x_speed, and the Player's Y Position + potential_y_speed. 
+
+##### Note:
+Here, potential_x_speed could potentially be 0 if something was found in the previous tile check.
+
+If a solid block is found, potential_y_speed is set to 0, and the Player's block_hitting flag is set to true.
+
+Then, X Speed is set to potential_x_speed, and Y Speed is set to potential_y_speed. 
+
+#### Collision
+Judging by the complexity presented in game, you may think collision in a rotating special stage will be extremely complicated, but it's not at all as complicated as it first appears. As previously stated, the stage doesn't really rotate, which simplifies things incredibly.
+
+Collision is purely based on what tiles are nearby Sonic's position. 
+
+#### Tile Checks
+Whenever a tile check occurs, it accepts an x and y position as parameters and will check the 4 closest tiles to this location. In this case, it's the Players X/Y Position.
+
+To locate the tiles to check based on this position, it will do the following 
+```
+check_x = (X Position - 12) div 24;
+check_y = (Y Position - 12) div 24;
+```
+
+So this essentially rounds the position and gets the grid coordinates of the top left tile of what will be a 2 x 2 check area.
+
+The game then goes through and checks the top left, top right, bottom left, and bottom right tile in that square, in that order. It will always check all 4 tiles. 
+
+##### Note:
+No matter the stage rotation, this always happens the same way. Stage rotation is not accounted for.
+If any of these 4 tiles contains a solid Block, a solid Block was found and a collision will occur as stated in the physics routines previously. 
+
+The last tile checked which had a Block in it (no matter the Stage orientation or layout of the Blocks) will become the current_block, and will be the one focused on for any unique reaction (if it is a Bumper for example). 
+
+#### Reaction to Blocks
+Because of how collision is processed, the Player can only be "focused" on one block at any given time (the current_block), and will only react to that block. The Player will only react to the current_block if the block_hitting flag is currently true.
+
+Some blocks that change the special stage state have a global 48 frame cooldown timer (per block type) so the Player can only interact with them once even if they are touching them for more than 1 frame. These include the Up/Down blocks and the R block. 
+
+##### Up/Down Blocks
+Up blocks double the stage rotation speed,
+Down blocks divide it back.
+
+This Block turns into the opposite type each time it activates.
+
+Internally, Sonic 1 checks for bit 6 of the stage rotation speed to determine whether or not it should activate its effect, as this is mathematically efficient for the system. For a modern framework, a boolean should suffice. 
+
+##### R Blocks
+R blocks multiply the stage rotation speed by -1. 
+
+##### Bumper Blocks
+Bumper blocks act exactly like a normal Bumper does (aside from the fact that the initial collision condition is completely different)
+
+The game measures the angle from the centre of the Bumper tile to Sonic's position, with a repulsion force of 7. 
+
+##### Order of Events
+Each frame, the special stage works in the same order:
+
+1. Player Events
+
+Firstly, the Player's code is executed.
+
+    If the Player's block_hitting flag is true, run Jump Routine.
+    After this, regardless of the block_hitting flag state, the Player will then perform the Movement routine and lastly the Falling routine.
+
+After the movement routines, the current_block will be reacted to (only when the block_hitting flag is true).
+
+Then lastly, the Player's X Speed and Y Speed are added to his X/Y Position.
+
+2. Other Events
+
+After the Player's events, the game will update the stage_angle, by adding the rotation speed, and then calculating the snapped_stage_angle. 
+
+---
+
+## 20. Camera
+The camera is a crucial aspect of any stage, as it determines what the player can see and how the stage is presented. There are several key factors to consider.
+
+### View Borders
+The Sonic games have a screen size of 320x224 pixels during normal Zone play. The Player isn't always locked in the centre of the screen, but has some freedom of movement within the view borders before it begins to scroll. 
+
+#### Horizontal Borders
+In the Sega Mega Drive games, the horizontal border is defined as:
+
+- Left border: 144
+- Right border: 160
+
+Interestingly, this centres the Player when they walk right but they aren't centred when they walk left. If you so choose, you can change the borders to 152 and 168 instead, to even things out a bit.
+
+In Sonic CD, though, horizontal scrolling works a bit differently. The camera doesn't really have a horizontal border, but rather defines a horizontal singular point to focus the Player's sprite at. By default, it's placed dead centre at 160, but it does shift around with the extended camera, which is explained below. We will call this the horizontal focal point.
+
+When the Player moves past the border/horizontal focal point, the camera will catch up towards the Player by how much they have moved. However, the camera's movement speed is capped at 16 in Sonic 1, 2, and CD, and at 24 in Sonic 3, & K, due to limitations with the level drawing engine. This results in the camera lagging behind the Player if they are going too fast. 
+
+#### Vertical Border
+In all of the games, a singular vertical point is used for defining where to focus the Player's sprite at. By default, it's set to 96 pixels. It does shift around when the Player is looking up or down, which is explained below. We will call this the vertical focal point. 
+
+A border is defined when the Player is in the air, with its centre point located at the vertical focal point.
+
+- Top border: Centre - 32
+- Bottom border: Centre + 32
+
+When the vertical focal point is at its default position, it sets the top border at 64 and the bottom border at 128.
+
+When the Player moves past the border, the camera will catch up towards the Player by how much they have moved. However, the camera's movement speed is capped at 16 in Sonic 1, 2, and CD, and at 24 in Sonic 3 & K, due to limitations with the level drawing engine. This results in the camera lagging behind the Player if they are going too fast.
+
+The only time that the camera will scroll towards the Player when they are inside the border is when the bottom level boundary is in the middle of being shifted. In the original games, it only applies boundary checks when the camera is moving, and so when the bottom boundary is shifting, they keep the camera position updated. In your engine, it might be more ideal to always apply the boundary check, regardless of camera movement.
+
+Note: Knuckles uses the same vertical borders while gliding and climbing. He's considered back on the ground when he starts to clamber over the corner of a wall, or stands up after sliding from a glide (i.e. when sliding, even though he is in contact with the ground, it still considers him to be in the air). 
+
+Here's a demonstration to show how the Player's Y position roams freely between the Y borders. 
+![alt text](image-80.png)
+_Note: Sonic's position may appear a little lower than a border while jumping, this is due to a 5px offset while sonic is curled which applies to all characters. See Solid Tiles for more details._
+
+##### On the Ground
+On the ground, there's not really a border, but rather tries to keep the Player's sprite positioned on the vertical focal point. The camera will move towards the Player by how much they have moved past it, with a speed cap applied, like with when the Player is in the air. However, that speed cap varies depending on a few circumstances.
+
+If the vertical focal point is at its default position (again, 96), then the speed cap is 16 in Sonic 1, 2, and CD, or 24 in Sonic 3 & K if the Player's ground speed is greater than or equal to 8. If the Player's ground speed is less than 8, however, the speed cap will be set to 6. This makes the camera catch up faster when going fast, but otherwise go at a moderate pace.
+
+If the vertical focal point is NOT at its default position (a.k.a., when it has shifted from looking up or down), then the speed cap is set to 2, no matter what.
+
+Here's a demonstration to show how the Player's Y position stays locked to the central Y. 
+![alt text](image-81.png)
+
+### Looking Up and Down
+- Looking Up: Vertical focal point moves down by 104 pixels (effectively scrolling up), at a rate of 2 per step.
+- Looking Down: Vertical focal point moves up by 88 pixels (effectively scrolling down), at a rate of 2 per step.
+
+In Sonic 1, the camera begins to scroll immediately when you press up or down. Obviously, this is annoying if there is to be a spindash or super peel out in your engine. In Sonic 2, 3 & K, the solution is to simply wait 120 steps after you begin to hold the button before it starts scrolling. In Sonic CD, though, another method is employed. After you press the up or down button, you have 16 steps to press it again, upon which the screen begins to scroll. Unfortunately it will freeze the scrolling if you press the up or down button while the screen is already scrolling. For instance, look up by double-tapping, let go, and then press down. The screen will freeze, and stay there until you let go. Even initiating a spindash doesn't return things to normal.
+
+In all the games, once you let go of up or down (also in Sonic 2, 3, & K, once you initiate a spindash), the vertical focal point scrolls back to the default position by 2 pixels per step.
+
+As explained before, the camera moves when it detects that the Player is not positioned at the vertical focal point. The shift will cause it to move. 
+
+### Spindash Lag
+(Not in Sonic CD)
+
+The Player object has a previous position table in memory. The game knows where they've been over the last several seconds with frame precision. This is called upon for the spindash lag.
+
+When the spindash is launched, a timer (t) is set to 32 (minus the rev variable, which can be between 0 and 8 - see spindash for more details). t then decreases by 1 every step.
+
+While t is non-zero, the camera stops behaving normally and begins to move, not based on the Player's current position, but their position t-1 steps ago. Once t runs out, the camera returns to business as usual.
+
+If the camera travels 32 steps into the past, and moves based on those recorded positions for a duration of 32 steps, it would effectively just repeat them, and then switch back to the current position, hopping 32 steps back into the future. This isn't how it works. Since it goes back 32 steps, and waits 32 more to return to normal, that means a total of 64 recorded camera positions. In order to take all of these positions into account during the 32 steps before the camera returns to normal, they are added together in pairs.
+
+As an example, let's imagine the Player has been charging up their spindash for at least 32 steps, so that they haven't moved during this time. Then, they launch at a speed of 8. Since in the last 32 steps he hasn't moved, the camera will move by 0 + 0 for 16 frames, remaining stationary. Then, it will have caught up to the point in time at which the Player launched. The Player will have been moving 8 pixels every step from this point on. The camera will then move 16 pixels for 16 more steps until t runs out. (Technically, the Player doesn't move in the exact frame in which the spindash launches, so the camera will move by 0 + 8 for one step, and then 8 + 8 for a while, and the 7 + 8 as friction kicks in, and then 7 + 7, and so on).
+
+The trouble with this lag is that if you initiate and release a spindash quickly enough after moving, the camera will actually move backward to follow where you've been. 
+
+#### Flame Shield Lag
+The same lag routine happens when Sonic does the airdash as Hyper Sonic, or with the Flame Shield. However, the trick is when he launches, the entire previous position table is blanked out with his current position, so that the camera can't scroll backward. In your engine, if you do the same thing for the launch of a spindash, you won't have to worry about backward scrolling at all.
+
+##### Note:
+- You can achieve an almost identical effect without a previous position table by simply disallowing the camera to move for about 16 steps after launching. This is somewhat easier to do.
+
+### Extended Camera (Sonic CD)
+In Sonic CD only, when the Player reaches a ground speed of 6 (or is 16 steps into charging up a spindash or super peel out), the horizontal focal point is shifted back 64 pixels in the opposite direction the Player is facing, 2 per step. When their ground speed drops back below 6, it moves back to the default position (again, 160). The issue is, the ground speed doesn't update in mid-air, often leading to an off-centre view when jumping or running off of a ledge.
+
+If you use this shift effect in your engine, you could perhaps use the Player's actual horizontal speed instead, as it doesn't make sense to scroll horizontally when going down or up a wall, or worse, on a ceiling. 
+
+--- 
+
+## 21. Animations
+Animations are a crucial part of the Sonic games, as they provide visual feedback to the Player and enhance the overall experience. Each character has a set of animations that are played based on their current state and actions.
+
+### Animation System
+The animation system works as a simple counter, counting down the animation subimage for a specific number of frames (the duration), then updating the animation upon completion, and resetting the counter.
+
+The timings are very specifically coded however. For example, an animation might set the duration counter for its subimages to 7, and counts down every frame after. On the frame this counter reaches -1, the duration counter is reset and the subimage is increased. This means the subimage lasts for 1 frame more than the duration is actually set to. Bizarrely, to account for this the values in the game code are deliberately 1 less than the actual intended duration. So if an animation subimage needs to show onscreen for exactly 24 frames, the game actually uses a value of 23 in its animation system. This is important to note. 
+
+#### Process
+On the frame that the animation is first changed to a variable animation, the subimage will be set to the first of the animation (or another if specified), and the subimage duration timer will be set. On the next frame, the duration counter will begin decreasing by one each frame. Once the counter reaches -1, on that same frame the animation moves to the next subimage and the duration counter is set. On the next frame, the counter will begin to decrease again. 
+
+### Variable Speed Animation Timings
+##### Note:
+- This applies to the walk, run, pushing, & ball (rolling & jumping) animations only.
+
+Some animations update their subimage durations dynamically, to allow animations to speed up or slow down based on the Player's movement. However it works in a very specific way. Unlike updating "image_speed" every frame in Game Maker, the duration of a subimage is only updated every time the subimage actually changes.
+
+For Player animations that have variable speed, this speed is based on Sonic's ground speed. On a frame that the subimage duration is set, the following will happen:
+
+For walking and running
+
+    `duration = floor(max(0, 8-abs(GroundSpeed)))`
+
+For rolling and jumping
+
+    `duration = floor(max(0, 4-abs(GroundSpeed)))`
+
+For pushing
+
+    `duration = floor(max(0, 8-abs(GroundSpeed)) * 4) //this is because sonic can be moving while pushing, such as when pushing a block in MZ`
+
+
+Notes:
+
+- The values from these calculations are directly used as subimage durations by the animation system. So the subimages actually spend 1 more frame onscreen than those values.
+- When rolling in the air or jumping, the animation speed will remain constant due to the fact that ground speed does NOT update in the air. In other words, the animation remains the speed it was when you left the ground until you land.
+- Once the subimage exceeds the amount of subimages in a looping animation, on that frame the subimage is simply set to the first subimage.
+
+### Normal Animation Timings
+Shown below are the subimage durations of the animations featured in the Sonic games.
+
+##### Note:
+
+- From this point whenever a subimage frame timing is directly specified, the value represents the time the subimage actually spends on screen. The value used in the game code for the duration will be 1 less.
+
+#### Idle
+##### Sonic 1
+Every sprite subimage in this animation lasts for 24 frames. Sonic stays still for 288 frames (the subimage occurs 12 times in the animation code) before entering the waiting subimages of the idle animation. When the waiting portion begins, Sonic enters a subimage for 24 frames, then has his eyes wide open for 72 frames. Afterwards, he will alternate between two subimages every 24 frames, making Sonic appear to tap his foot on the ground. This will loop until the player takes action.
+##### Sonic 2
+Every sprite subimage in this animation lasts for 6 frames. Sonic stays still for 180 frames (the subimage occurs 30 times in the animation code) before entering the first set of waiting subimages of the idle animation. He then blinks, which lasts for 6 frames, then has his eyes wide open for 30 frames. Afterwards, he will alternate between two subimages every 18 frames, making Sonic appear to tap his foot on the ground. This will loop until the player takes action.
+
+Should the player NOT take action after Sonic taps his foot 3 times (126 frames) (Note: the animation starts with Sonic's foot down and ends with it pointing upwards), he will then look down at his wrist(watch?) for 60 frames, then resume tapping his foot. This foot-tapping/wristwatch sequence will continue 3 more times (204 frames/sequence*4=816 total frames). Afterwards, if no action is taken at this point, Sonic will enter a new animation where he lies down on the floor. It takes 6 frames for him to drop to the ground. He then enters a final alternating sequence tapping his finger against his shoe. Both subimages in this sequence last for 18 frames each.
+##### Sonic 3K
+Every sprite subimage in this animation lasts for 6 frames.
+Balancing
+
+##### Sonic 1
+While balancing, the animation waits 32 frames before advancing to the next subimage.
+##### Sonic 2
+In Sonic 2 each of the 3 balancing animations have different animation speeds.
+
+The facing forward balance animation waits 10 frames before advancing to the next subimage.
+
+The backwards balance animation waits 20 frames before advancing to the next subimage.
+
+And the last balance animation waits 4 frames before advancing to the next subimage.
+##### Sonic 3
+In Sonic 3 there are only 2 balancing animations, the one when you're at the edge, and the one when you're further down the edge.
+
+The first one waits 8 frames before advancing to the next subimage.
+
+And the second one waits 6 frames before advancing to the next subimage. 
+
+#### Breaking/Skidding
+Skidding is merely an animation, with no deceleration or friction calculations exclusive to it. In Sonic 1, the animation waits 8 frames before advancing to the next subimage while braking. It will continue to loop between the two subimages until Sonic has stopped. In Sonic 2 and Sonic 3K, the animation will stop when it finishes, instead of looping.
+
+Note: Sonic can only brake ("screech to a halt") in Floor mode. 
+
+#### Spindash
+The spindash animation itself waits 1 frame to advance a subimage.
+
+When a button is pressed to charge up the spindash, the subimage is set to 1 (therefore resetting it). 
+
+### Animation Rules
+Of course, it's not enough to simply know how these animations play, you have to know when and why they play (for those where it's not exactly obvious). 
+
+#### Idle/Walking/Running Animation
+If you include Sonic CD in the mix, Sonic has 3 different running animations. He is depicted as standing still only if gsp is exactly zero. If he has any gsp whatsoever, he enters his walking animation, the subimage advances in relation to his ground speed as described above.
+
+Once his gsp equals (or exceeds) 6, he enters his running animation, with the whirling feet. Once his gsp equals (or exceeds) 10, he enters his Dashing animation, with the figure-eight feet. Of course, the Dashing animation is only in Sonic CD. 
+
+#### Rolling and Jumping Animation
+Typically Sonic's jump/ball animation includes one full ball subimage and 4 detailed subimages of his body rotating (once every spin). However if gsp equals (or exceeds) 6, even while in the air, the animation will include a full ball subimage after every 2 full body subimages (twice every spin). 
+
+#### Spring Animation
+The "up" springboard animation waits 48 frames before changing to the walking animation.
+
+For all of the diagonal springboards, Sonic doesn't change to the walking animation in the air at all. Instead, he remains in the corkscrew (3D spinning) animation, this animation waits 5.5 frames before advancing a subimage. 
+
+#### Braking Animation
+Sonic enters his braking animation when you turn around only if his absolute gsp is equal to or more than 4. In Sonic 1 and Sonic CD, he then stays in the braking animation until gsp reaches zero or changes sign. In the other 3 games, Sonic returns to his walking animation after the braking animation finishes displaying all of its frames. 
+
+
+---
+## 22. Conclusion
+
+In conclusion, understanding Sonic's physics and animations is crucial for creating a faithful representation of the character in any game. By analyzing the various states and transitions Sonic goes through, we can better appreciate the complexity of his movements and the underlying systems that govern them. Whether it's the subtle differences in animation speed between games or the specific conditions that trigger certain actions, every detail contributes to the overall experience of playing as Sonic.
+
+By keeping these principles in mind, developers can create more engaging and authentic gameplay experiences that resonate with fans of the franchise.
+
+Ultimately, a deep understanding of Sonic's physics and animations will lead to more polished and enjoyable games that capture the essence of what makes Sonic so beloved.
+
