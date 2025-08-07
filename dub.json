@@ -18,13 +18,21 @@
 	"lflags-posix": [
 		"-L."
 	],
-	"lflags-windows": [
-		"-L.",
-		"-static"
+	"lflags-windows": ["/LIBPATH:c:/Users/dbkle/Documents/libraylib/lib"],
+	"libs-windows": [
+		"raylib",
+		"winmm",
+		"gdi32",
+		"opengl32",
+		"user32",
+		"shell32",
+		"advapi32",
+		"legacy_stdio_definitions"
 	],
 	"libs": [
 		"raylib"
 	],
+	"preBuildCommands": ["dub run raylib-d:install -- -q -u=no"],
 	"license": "proprietary",
 	"name": "presto-framework"
 }
