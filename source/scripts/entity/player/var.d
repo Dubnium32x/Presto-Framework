@@ -20,8 +20,8 @@ struct PlayerVariables {
     float groundAngle = 0.0f;        // Player's ground angle (0-255, where 0=right, 64=down, 128=left, 192=up)
     
     // Size variables
-    float widthRadius = 9.0f;        // Width from center point (left and right)
-    float heightRadius = 19.0f;      // Height from center point (up and down)
+    float widthRadius = 18.0f;       // Width from center point (left and right) - doubled for better visibility
+    float heightRadius = 38.0f;      // Height from center point (up and down) - doubled for better visibility
     
     // State flags
     bool isGrounded = false;         // Whether player is on the ground
@@ -135,10 +135,23 @@ struct PlayerVariables {
     
     // Calculate ground speed from X/Y speeds (for landing)
     void updateGroundSpeedFromSpeeds() {
+        // If both speeds are very small, treat as idle
+        if (abs(xSpeed) < 0.1f && abs(ySpeed) < 0.1f) {
+            groundSpeed = 0;
+            return;
+        }
+        
+        // Use xSpeed if moving primarily horizontally
         if (abs(xSpeed) > abs(ySpeed)) {
             groundSpeed = xSpeed;
         } else {
+            // Use ySpeed when falling/moving vertically (with angle consideration)
             groundSpeed = ySpeed * 0.5f * -((sin(groundAngleRadians()) >= 0) ? 1 : -1);
+        }
+        
+        // Clamp very small groundSpeeds to zero on flat surfaces
+        if (groundAngle == 0 && abs(groundSpeed) < 0.25f) {
+            groundSpeed = 0;
         }
     }
     
@@ -153,6 +166,9 @@ struct PlayerVariables {
     // Apply slope factor to ground speed
     void applySlopeFactor() {
         if (!isGrounded) return;
+        
+        // Don't apply slope factor on flat ground
+        if (abs(groundAngle) < 1.0f) return;
         
         float slopeFactor = SLOPE_FACTOR_NORMAL;
         

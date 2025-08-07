@@ -118,7 +118,7 @@ class LevelManager {
         for (int i = 0; i < 10; i++) {
             levelList ~= LevelMetadata(
                 "LEVEL_" ~ i.to!string,
-                ["Ground_1", "SemiSolid_1", "Objects_1"],
+                ["Ground_1", "SemiSolid_1", "Objects_1", "Ground_2", "SemiSolid_2", "Collision"],
                 i,
                 "World_1"
             );
@@ -136,14 +136,20 @@ class LevelManager {
     }
     
     // Load all layers for a specific level
-    int[][][string] loadLevel(int levelIndex, string basePath = "resources/data/levels/") {
+    int[][][string] loadLevel(int levelIndex, string basePath = "resources/data/") {
         auto metadata = getLevelMetadata(levelIndex);
         if (metadata.levelName.length == 0) {
             return null;
         }
         
-        string levelPath = basePath ~ metadata.levelName;
-        return CSVLoader.loadLevelLayers(levelPath, metadata.layerNames);
+        string levelPath = basePath ~ "levels/" ~ metadata.levelName;
+        // Build actual filenames with level prefix
+        string[] actualFileNames;
+        foreach (layerName; metadata.layerNames) {
+            actualFileNames ~= metadata.levelName ~ "_" ~ layerName;
+        }
+        
+        return CSVLoader.loadLevelLayers(levelPath, actualFileNames);
     }
     
     // Get total number of levels

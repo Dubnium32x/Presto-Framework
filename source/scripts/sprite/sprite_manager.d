@@ -3,6 +3,8 @@ module sprite.sprite_manager;
 import raylib;
 
 import std.stdio;
+import std.algorithm : filter;
+import std.array : array;
 
 import entity.sprite_object;
 import utils.spritesheet_splitter;
@@ -28,7 +30,7 @@ class SpriteManager {
     }
 
     void removeSprite(int id) {
-        sprites = sprites.filter!(s => s.id != id);
+        sprites = sprites.filter!(s => s.id != id).array;
     }
 
     void update(float deltaTime) {
@@ -40,7 +42,7 @@ class SpriteManager {
     void draw() {
         foreach (sprite; sprites) {
             if (sprite.visible) {
-                DrawTextureEx(sprite.texture, sprite.position, 0.0f, sprite.scale, sprite.tint);
+                DrawTextureEx(sprite.texture, Vector2(sprite.x, sprite.y), 0.0f, sprite.scale, sprite.tint);
             }
         }
     }

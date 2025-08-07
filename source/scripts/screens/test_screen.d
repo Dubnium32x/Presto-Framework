@@ -5,9 +5,10 @@ import std.stdio;
 import std.string;
 import std.conv : to;
 import world.screen_state;
-import world.screen_manager : IScreen;
+import world.screen_manager : IScreen, ScreenManager;
 import utils.csv_loader;
 import entity.player.player;
+import screens.map_test_screen;
 import app;
 
 class TestScreen : IScreen {
@@ -82,6 +83,14 @@ class TestScreen : IScreen {
         if (IsKeyPressed(KeyboardKey.KEY_P)) {
             player.debugPrint();
         }
+        
+        // Switch to map test screen
+        if (IsKeyPressed(KeyboardKey.KEY_M)) {
+            writeln("M key pressed - Switching to Map Test Screen...");
+            auto screenManager = ScreenManager.getInstance();
+            screenManager.registerScreen(ScreenState.GAMEPLAY, new MapTestScreen());
+            screenManager.changeState(ScreenState.GAMEPLAY);
+        }
     }
     
     void draw() {
@@ -89,7 +98,8 @@ class TestScreen : IScreen {
         DrawText("This is the Test Screen", 100, 100, 20, Colors.RAYWHITE);
         DrawText("Press SPACE to test CSV loading", 100, 150, 20, Colors.RAYWHITE);
         DrawText("Press P to print player debug info", 100, 170, 20, Colors.RAYWHITE);
-        DrawText("Use ARROW KEYS or WASD to move player", 100, 190, 20, Colors.RAYWHITE);
+        DrawText("Press M to switch to Map Test Screen", 100, 190, 20, Colors.RAYWHITE);
+        DrawText("Use ARROW KEYS or WASD to move player", 100, 210, 20, Colors.RAYWHITE);
         
         // Draw ground line
         DrawLine(0, 400, 800, 400, Colors.WHITE);

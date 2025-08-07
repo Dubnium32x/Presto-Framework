@@ -10,6 +10,7 @@ import std.traits : EnumMembers;
 import std.array;
 import std.conv : to;
 import std.exception;
+import std.math : abs;
 
 import entity.sprite_object;
 import entity.player.var;
@@ -49,7 +50,7 @@ struct Player {
     // Constructor
     static Player create(float x, float y) {
         Player player;
-        player.sprite = SpriteObject.create();
+        player.sprite = SpriteObject();
         player.state = PlayerState.IDLE;
         player.vars = PlayerVariables();
         player.vars.resetPosition(x, y);
@@ -58,16 +59,16 @@ struct Player {
     
     // Initialize the player
     void initialize(float x, float y) {
-        sprite.initialize();
-        state = PlayerState.IDLE;
+        //state = PlayerState.IDLE;
         vars = PlayerVariables();
         vars.resetPosition(x, y);
         
-        // Set up sprite properties
+        // Initialize sprite positioning and sizing
         sprite.x = x;
         sprite.y = y;
         sprite.width = cast(int)(vars.widthRadius * 2);
         sprite.height = cast(int)(vars.heightRadius * 2);
+        sprite.setScale(8.0f); // Double the default scale for better visibility
         
         writeln("Player initialized at position: (", x, ", ", y, ")");
     }
@@ -104,26 +105,31 @@ struct Player {
         if (vars.controlLockTimer > 0) {
             vars.controlLockTimer--;
         }
-        
+
         if (vars.isGrounded) {
             updateGroundPhysics();
         } else {
             updateAirPhysics();
         }
-        
+
         // Apply gravity if airborne
         if (!vars.isGrounded) {
             vars.ySpeed += vars.GRAVITY_FORCE;
-            
-            // Cap falling speed
             if (vars.ySpeed > vars.TOP_Y_SPEED) {
                 vars.ySpeed = vars.TOP_Y_SPEED;
             }
         }
-        
+
         // Update position
         vars.xPosition += vars.xSpeed;
         vars.yPosition += vars.ySpeed;
+
+        // Check for landing after moving
+        if (!vars.isGrounded) {
+            if (checkGroundCollision()) {
+                // Landed this frame, groundSpeed is now set from x/y speed
+            }
+        }
     }
     
     // Ground movement physics
@@ -205,6 +211,9 @@ struct Player {
         if (vars.keyJumpPressed) {
             vars.ySpeed = vars.INITIAL_JUMP_VELOCITY;
             vars.isGrounded = false;
+            // Transfer groundSpeed to xSpeed when taking off
+            vars.xSpeed = vars.groundSpeed;
+            writeln("JUMPING: groundSpeed ", vars.groundSpeed, " transferred to xSpeed ", vars.xSpeed);
         }
     }
     
@@ -237,6 +246,9 @@ struct Player {
         if (vars.ySpeed < -4.0f) {
             vars.xSpeed *= 0.96875f; // Air drag factor
         }
+        
+        // DO NOT UPDATE GROUNDSPEED WHILE AIRBORNE - this is key!
+        // groundSpeed should remain frozen until landing
     }
     
     // Rolling physics
@@ -358,9 +370,30 @@ struct Player {
         // For now, simple ground at y=400
         if (vars.yPosition >= 400) {
             vars.yPosition = 400;
+            
+            // Only update groundSpeed if we just landed (transition from air to ground)
+            if (!vars.isGrounded) {
+                vars.isGrounded = true;
+                
+                // SIMPLE RULE: If landing with very little horizontal movement, set groundSpeed to 0
+                // This prevents any unwanted drift when landing idle
+                if (abs(vars.xSpeed) < 1.0f) {
+                    vars.groundSpeed = 0;
+                } else {
+                    // Only preserve horizontal momentum if there's significant movement
+                    vars.groundSpeed = vars.xSpeed;
+                }
+                
+                writeln("LANDING: xSpeed=", vars.xSpeed, " -> groundSpeed=", vars.groundSpeed);
+                return true;
+            }
+            
+            // Already grounded, don't update groundSpeed
             vars.isGrounded = true;
-            vars.updateGroundSpeedFromSpeeds();
-            return true;
+            return false; // Not a new landing
+        } else {
+            // Not touching ground
+            vars.isGrounded = false;
         }
         return false;
     }

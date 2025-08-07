@@ -6,6 +6,7 @@ import std.array;
 import std.range;
 import std.algorithm;
 import std.conv;
+import std.stdio : writeln;
 
 // This module provides utilities for splitting spritesheets into individual frames
 class SpriteSheetSplitter {
@@ -26,7 +27,12 @@ class SpriteSheetSplitter {
                     x * frameWidth, y * frameHeight,
                     frameWidth, frameHeight
                 );
-                frames[y * cols + x] = LoadTextureFromImage(CopyImage(LoadTextureFromImage(spritesheet), sourceRec));
+                // Extract sub-image using ImageFromImage and load as texture
+                Image sheetImage = LoadImageFromTexture(spritesheet);
+                Image frameImage = ImageFromImage(sheetImage, sourceRec);
+                frames[y * cols + x] = LoadTextureFromImage(frameImage);
+                UnloadImage(frameImage);
+                UnloadImage(sheetImage);
             }
         }
         return frames;

@@ -28,7 +28,8 @@ struct SpriteObject {
     int id;
     string name;
     Texture2D texture;
-    Vector2 position;
+    float x;
+    float y;
     int width;
     int height;
     float scale;
@@ -50,7 +51,8 @@ struct SpriteObject {
         this.name = name;
         this.type = type;
         texture = tex;
-        position = pos;
+        x = pos.x;
+        y = pos.y;
         width = tex.width;
         height = tex.height;
         scale = 4.0f; // Scale up for better visibility
@@ -85,7 +87,7 @@ struct SpriteObject {
         );
         
         Rectangle destRec = Rectangle(
-            position.x, position.y,
+            x, y,
             width * scale, height * scale
         );
         
@@ -96,7 +98,7 @@ struct SpriteObject {
         PaletteManager paletteManager = PaletteManager.getInstance();
         ulong paletteIndex = paletteManager.getCurrentPaletteIndex();
         string debugText = name ~ " (Palette: " ~ paletteIndex.to!string ~ ")";
-        DrawText(debugText.toStringz, cast(int)position.x, cast(int)position.y - 20, 10, Colors.WHITE);
+        DrawText(debugText.toStringz, cast(int)x, cast(int)y - 20, 10, Colors.WHITE);
     }
     
     // Method to apply palette swapping to this sprite
@@ -106,7 +108,8 @@ struct SpriteObject {
     }
     
     void setPosition(Vector2 newPos) {
-        position = newPos;
+        x = newPos.x;
+        y = newPos.y;
     }
     
     void setScale(float newScale) {
