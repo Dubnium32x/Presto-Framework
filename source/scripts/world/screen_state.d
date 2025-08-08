@@ -8,7 +8,8 @@ enum ScreenState {
     GAMEOVER,
     SETTINGS,
     CREDITS,
-    LEVEL_TEST
+    LEVEL_TEST,
+    PALETTE_SWAP_TEST
 }
 
 enum GameplayState {

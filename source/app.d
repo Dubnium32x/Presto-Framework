@@ -17,6 +17,7 @@ import world.memory_manager;
 import world.input_manager;
 import world.screen_settings;
 import screens.test_screen;
+import screens.palette_swap_test_screen;
 
 // Define the world settings
 public const int SCREEN_WIDTH = 400;
@@ -69,9 +70,9 @@ void main() {
     auto screenManager = ScreenManager.getInstance();
     screenManager.initialize();
     
-    // Register the test screen
-    screenManager.registerScreen(ScreenState.INIT, TestScreen.getInstance());
-    screenManager.changeState(ScreenState.INIT);
+    // Register the palette swap test screen as the initial screen
+    screenManager.registerScreen(ScreenState.PALETTE_SWAP_TEST, PaletteSwapTestScreen.getInstance());
+    screenManager.changeState(ScreenState.PALETTE_SWAP_TEST);
     
     auto screenSettings = new ScreenSettings();
     

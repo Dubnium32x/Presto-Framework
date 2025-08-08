@@ -48,6 +48,48 @@ enum DataSlot {
     SLOT_8
 }
 
+// Options - Below will be a set of enums that will be selections for different options
+// ...such as CameraType, ColorSwapMethod, WindowSize, etc.
+enum CameraType {
+    GENESIS,
+    CD,
+    POCKET
+}
+
+enum ColorSwapMethod {
+    PALLETE,
+    INTERNAL
+}   
+
+enum WindowSize {
+    SIZE1,
+    SIZE2,
+    SIZE3,
+    SIZE4
+}
+
+bool isDebugMode = false; // Global debug mode flag
+bool isMusicEnabled = true; // Global music toggle
+bool isSoundEnabled = true; // Global sound effects toggle
+bool isFullscreen = false; // Global fullscreen toggle
+bool isVSyncEnabled = true; // Global VSync toggle
+
+bool isDropDashEnabled = true; // Global drop dash toggle
+bool isSuperPeelOutEnabled = true; // Global super peel out toggle
+bool instaShieldEnabled = true; // Global insta-shield toggle
+bool maxControlEnabled;
+bool isAndKnucklesEnabled = true; // Global "and Knuckles" toggle
+
+enum TailsAssistType {
+    SONIC2,
+    SONIC3,
+    SONIC2_2011,
+    MAX_CONTROL
+}
+
+bool timeLimitEnabled = false; // Global time limit toggle
+bool spriteTrailsEnabled = true; // Global sprite trails toggle
+
 auto currentDataSlot = DataSlot.NO_SAVE;
 auto playerSaveData = SaveData(0, 1, 0, "Player", 3, SavedCharacter.NONE);
 

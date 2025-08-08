@@ -12,6 +12,7 @@ import world.screen_settings;
 import world.screen_state;
 import screens.test_screen;
 import screens.level_test_screen;
+import screens.palette_swap_test_screen;
 import world.transition_manager; // Import TransitionType
 import world.transition_manager : TransitionType;
 
@@ -68,10 +69,12 @@ class ScreenManager : IScreen {
     void initialize() {
         // Register screens
         registerScreen(ScreenState.INIT, TestScreen.getInstance());
-        registerScreen(ScreenState.LEVEL_TEST, LevelTestScreen.getInstance());
-        
-        // Start with the LEVEL_TEST state to show the map
-        changeState(ScreenState.LEVEL_TEST);
+        // Register your screen of choice. By default, we register the init screen.
+        // For now, we are testing Palette Swap.
+        registerScreen(ScreenState.PALETTE_SWAP_TEST, PaletteSwapTestScreen.getInstance());
+
+        // Start with the PALETTE_SWAP_TEST state to show the palette swap test screen
+        changeState(ScreenState.PALETTE_SWAP_TEST);
     }
     
     // Register a screen implementation for a specific state

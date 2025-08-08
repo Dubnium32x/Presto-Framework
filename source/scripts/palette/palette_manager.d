@@ -11,6 +11,43 @@ import std.string;
 import entity.sprite_object;
 
 class PaletteManager {
+    // Apply palette using a specific column in the palette image
+    bool applyPalette(SpriteObject* sprite, int column) {
+        if (paletteImage.data is null) {
+            writeln("No palette image loaded!");
+            return false;
+        }
+
+        lastSprite = sprite;
+
+        if (originalSprite.data is null) {
+            originalSprite = LoadImageFromTexture(sprite.texture);
+            writeln("Stored original sprite image");
+        }
+
+        Image spriteImg = ImageCopy(originalSprite);
+        UnloadTexture(sprite.texture);
+
+        for (int y = 0; y < spriteImg.height; y++) {
+            for (int x = 0; x < spriteImg.width; x++) {
+                Color pixelColor = GetImageColor(spriteImg, x, y);
+
+                for (int i = 0; i < paletteImage.height; i++) {
+                    Color paletteColor = GetImageColor(paletteImage, 0, i);
+                    if (colorsMatch(pixelColor, paletteColor)) {
+                        Color newColor = GetImageColor(paletteImage, column, i);
+                        ImageDrawPixel(&spriteImg, x, y, newColor);
+                        break;
+                    }
+                }
+            }
+        }
+
+        sprite.texture = LoadTextureFromImage(spriteImg);
+        UnloadImage(spriteImg);
+
+        return true;
+    }
     private static PaletteManager instance;
     private Image paletteImage;
     private Image originalSprite;
@@ -18,7 +55,7 @@ class PaletteManager {
     private string[] palettePaths;
     private SpriteObject* lastSprite;
     
-    enum string PALETTE_BASE_PATH = "resources/sprite/palette";
+    enum string PALETTE_BASE_PATH = "resources/image/palette";
 
     static PaletteManager getInstance() {
         if (instance is null) {
@@ -30,25 +67,10 @@ class PaletteManager {
     private this() {
         loadPalettePaths();
         if (palettePaths.length > 0) {
-            // Try to find pal002 (Tenko's colors) first
-            size_t tenkoIndex = size_t.max;
-            foreach (i, path; palettePaths) {
-                if (path.canFind("pal002")) {
-                    tenkoIndex = i;
-                    break;
-                }
-            }
-            
-            if (tenkoIndex != size_t.max) {
-                currentPalette = tenkoIndex;
-                loadPaletteImage(palettePaths[tenkoIndex]);
-                writefln("Starting with Tenko's palette (pal002) at index %d", tenkoIndex);
-            } else {
-                // Fallback to first available palette
-                currentPalette = 0;
-                loadPaletteImage(palettePaths[0]);
-                writefln("pal002 not found, starting with first available palette: %s", palettePaths[0]);
-            }
+            // Use the first available palette file
+            currentPalette = 0;
+            loadPaletteImage(palettePaths[0]);
+            writefln("Starting with palette: %s", palettePaths[0]);
         } else {
             writeln("Warning: No valid palette files found!");
         }
@@ -65,20 +87,14 @@ class PaletteManager {
 
     private void loadPalettePaths() {
         try {
-            auto entries = dirEntries(PALETTE_BASE_PATH, SpanMode.shallow)
-                .filter!(e => e.isDir && baseName(e.name).startsWith("pal"))
-                .map!(e => buildPath(e.name, "pal.png"))
-                .filter!(path => exists(path)) // Only include paths where pal.png actually exists
+            // Look for .png files directly in the palette directory
+            auto entries = dirEntries(PALETTE_BASE_PATH, "*.png", SpanMode.shallow)
+                .filter!(e => e.isFile)
+                .map!(e => e.name)
                 .array;
             
-            bool compareNumbers(string a, string b) {
-                string numA = baseName(dirName(a))[3..$];
-                string numB = baseName(dirName(b))[3..$];
-                return numA.to!int < numB.to!int;
-            }
-            
-            palettePaths = entries.sort!(compareNumbers).array;
-            writefln("Found %d valid palettes (with pal.png files)", palettePaths.length);
+            palettePaths = entries.sort!().array;
+            writefln("Found %d palette files", palettePaths.length);
             
             // Debug: print all found palettes
             foreach (i, path; palettePaths) {
