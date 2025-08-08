@@ -11,6 +11,7 @@ import std.traits : EnumMembers;
 import world.screen_settings;
 import world.screen_state;
 import screens.test_screen;
+import screens.level_test_screen;
 import world.transition_manager; // Import TransitionType
 import world.transition_manager : TransitionType;
 
@@ -65,11 +66,12 @@ class ScreenManager : IScreen {
     }
 
     void initialize() {
-        // Register screens (this would be done by the game at startup)
-        // Example: registerScreen(ScreenState.INIT, new InitScreen());
+        // Register screens
+        registerScreen(ScreenState.INIT, TestScreen.getInstance());
+        registerScreen(ScreenState.LEVEL_TEST, LevelTestScreen.getInstance());
         
-        // Start with the INIT state
-        changeState(ScreenState.INIT);
+        // Start with the LEVEL_TEST state to show the map
+        changeState(ScreenState.LEVEL_TEST);
     }
     
     // Register a screen implementation for a specific state
