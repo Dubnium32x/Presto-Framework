@@ -28,8 +28,8 @@ class LevelTestScreen : IScreen {
     // Tile rendering
     private int tileSize = 16;
     private float renderScale = 2.0f; // Scale factor for rendering tiles
-    private Texture2D tilesetTexture;
-    private bool tilesetLoaded = false;
+    private Texture2D[string] tilesets; // Multiple tilesets for different layers
+    private bool tilesetsLoaded = false;
     
     // Layer visibility toggles
     private bool showGroundLayer1 = true;
@@ -66,8 +66,8 @@ class LevelTestScreen : IScreen {
         camera.zoom = 1.0f;
         cameraTarget = camera.target;
         
-        // Try to load default tileset
-        loadTileset("resources/image/tilemap/Ground_1.png");
+        // Load tilesets for different layers
+        loadTilesets();
         
         // Scan for available levels
         scanForLevels();
@@ -110,23 +110,48 @@ class LevelTestScreen : IScreen {
         }
     }
     
-    void loadTileset(string tilesetPath) {
-        try {
-            if (tilesetLoaded) {
-                UnloadTexture(tilesetTexture);
+    void loadTilesets() {
+        import std.file : exists;
+        
+        string[string] tilesetPaths = [
+            "ground1": "resources/image/tilemap/Ground_1.png",
+            "ground2": "resources/image/tilemap/Ground_2.png",
+            "ground3": "resources/image/tilemap/Ground_1.png", // Fallback to Ground_1
+            "semisolid1": "resources/image/tilemap/SemiSolids_1.png",
+            "semisolid2": "resources/image/tilemap/SemiSolids_2.png",
+            "semisolid3": "resources/image/tilemap/SemiSolids_1.png", // Fallback to SemiSolids_1
+            "collision": "resources/image/tilemap/SPGSolidTileHeightCollision.png",
+            "hazard": "resources/image/tilemap/SPGSolidTileHeightSemiSolids.png"
+        ];
+        
+        writeln("Loading tilesets...");
+        foreach (layerName, path; tilesetPaths) {
+            if (!exists(path)) {
+                writeln("Tileset file not found: ", path);
+                continue;
             }
-            tilesetTexture = LoadTexture(tilesetPath.toStringz);
-            tilesetLoaded = (tilesetTexture.id != 0);
             
-            if (tilesetLoaded) {
-                writeln("Tileset loaded: ", tilesetPath);
-            } else {
-                writeln("Failed to load tileset: ", tilesetPath);
+            try {
+                writeln("Attempting to load: ", path);
+                Texture2D texture = LoadTexture(path.toStringz);
+                if (texture.id != 0) {
+                    tilesets[layerName] = texture;
+                    writeln("Successfully loaded tileset for ", layerName, ": ", path, " (ID: ", texture.id, ", Size: ", texture.width, "x", texture.height, ")");
+                } else {
+                    writeln("Failed to load tileset for ", layerName, ": ", path, " (texture ID is 0)");
+                }
+            } catch (Exception e) {
+                writeln("Exception loading tileset for ", layerName, ": ", e.msg);
             }
-        } catch (Exception e) {
-            writeln("Error loading tileset: ", e.msg);
-            tilesetLoaded = false;
         }
+        
+        tilesetsLoaded = (tilesets.length > 0);
+        writeln("Total tilesets loaded: ", tilesets.length);
+    }
+    
+    void loadTileset(string tilesetPath) {
+        // Legacy method - kept for compatibility but not used
+        writeln("Legacy loadTileset called with: ", tilesetPath);
     }
     
     void loadLevel(string levelPath) {
@@ -232,6 +257,18 @@ class LevelTestScreen : IScreen {
             camera.zoom = 1.0f;
         }
         
+        // Debug key to reload tilesets
+        if (IsKeyPressed(KeyboardKey.KEY_T)) {
+            writeln("Reloading tilesets...");
+            foreach (layerName, texture; tilesets) {
+                if (texture.id != 0) {
+                    UnloadTexture(texture);
+                }
+            }
+            tilesets.clear();
+            loadTilesets();
+        }
+        
         // Layer visibility toggles
         if (IsKeyPressed(KeyboardKey.KEY_ONE)) showGroundLayer1 = !showGroundLayer1;
         if (IsKeyPressed(KeyboardKey.KEY_TWO)) showGroundLayer2 = !showGroundLayer2;
@@ -276,14 +313,14 @@ class LevelTestScreen : IScreen {
     
     void drawLevel() {
         // Draw layers in order (back to front)
-        if (showGroundLayer3) drawTileLayer(currentLevel.groundLayer3, Color(255, 255, 255, 255));
-        if (showGroundLayer2) drawTileLayer(currentLevel.groundLayer2, Color(255, 255, 255, 255));
-        if (showGroundLayer1) drawTileLayer(currentLevel.groundLayer1, Color(255, 255, 255, 255));
-        if (showSemiSolid3) drawTileLayer(currentLevel.semiSolidLayer3, Color(255, 255, 255, 200));
-        if (showSemiSolid2) drawTileLayer(currentLevel.semiSolidLayer2, Color(255, 255, 255, 200));
-        if (showSemiSolid1) drawTileLayer(currentLevel.semiSolidLayer1, Color(255, 255, 255, 200));
-        if (showHazardLayer) drawTileLayer(currentLevel.hazardLayer, Color(255, 100, 100, 255));
-        if (showCollisionLayer) drawTileLayer(currentLevel.collisionLayer, Color(255, 255, 0, 128));
+        if (showGroundLayer3) drawTileLayer(currentLevel.groundLayer3, Color(255, 255, 255, 255), "ground3");
+        if (showGroundLayer2) drawTileLayer(currentLevel.groundLayer2, Color(255, 255, 255, 255), "ground2");
+        if (showGroundLayer1) drawTileLayer(currentLevel.groundLayer1, Color(255, 255, 255, 255), "ground1");
+        if (showSemiSolid3) drawTileLayer(currentLevel.semiSolidLayer3, Color(255, 255, 255, 200), "semisolid3");
+        if (showSemiSolid2) drawTileLayer(currentLevel.semiSolidLayer2, Color(255, 255, 255, 200), "semisolid2");
+        if (showSemiSolid1) drawTileLayer(currentLevel.semiSolidLayer1, Color(255, 255, 255, 200), "semisolid1");
+        if (showHazardLayer) drawTileLayer(currentLevel.hazardLayer, Color(255, 100, 100, 255), "hazard");
+        if (showCollisionLayer) drawTileLayer(currentLevel.collisionLayer, Color(255, 255, 0, 128), "collision");
         
         // Draw objects
         if (showObjects) {
@@ -304,8 +341,11 @@ class LevelTestScreen : IScreen {
         }
     }
     
-    void drawTileLayer(const Tile[][] layer, Color tint) {
+    void drawTileLayer(const Tile[][] layer, Color tint, string layerType) {
         if (layer.length == 0) return;
+        
+        // Get the appropriate tileset for this layer
+        Texture2D* tileset = (layerType in tilesets);
         
         for (int y = 0; y < layer.length; y++) {
             for (int x = 0; x < layer[y].length; x++) {
@@ -317,12 +357,18 @@ class LevelTestScreen : IScreen {
                     y * tileSize * renderScale
                 );
                 
-                if (tilesetLoaded) {
+                if (tileset !is null && tileset.id != 0) {
                     // Calculate source rectangle from tileset
                     // Assuming tileset is organized as a grid
-                    int tilesPerRow = tilesetTexture.width / tileSize;
-                    int srcX = (tile.tileId - 1) % tilesPerRow;
-                    int srcY = (tile.tileId - 1) / tilesPerRow;
+                    int tilesPerRow = tileset.width / tileSize;
+                    if (tilesPerRow <= 0) tilesPerRow = 1; // Prevent division by zero
+                    
+                    // Debug: Show original tile ID from CSV and adjusted ID
+                    int originalCsvId = tile.tileId - 1; // Show what was in CSV
+                    int adjustedTileId = tile.tileId - 1; // Adjust for tileset offset
+                    
+                    int srcX = adjustedTileId % tilesPerRow;
+                    int srcY = adjustedTileId / tilesPerRow;
                     
                     Rectangle source = Rectangle(
                         srcX * tileSize,
@@ -338,7 +384,9 @@ class LevelTestScreen : IScreen {
                         tileSize * renderScale
                     );
                     
-                    DrawTexturePro(tilesetTexture, source, dest, Vector2(0, 0), 0.0f, tint);
+                    DrawTexturePro(*tileset, source, dest, Vector2(0, 0), 0.0f, tint);
+                    
+                    // (Removed debug DrawText for tile IDs)
                 } else {
                     // Fallback: draw colored rectangles
                     Color tileColor = getTileColor(tile);
@@ -437,6 +485,9 @@ class LevelTestScreen : IScreen {
             
             DrawText(format("Objects: %d", currentLevel.objects.length).toStringz, 10, y, 16, Colors.LIGHTGRAY);
             y += lineHeight;
+            
+            DrawText(format("Tilesets loaded: %d", tilesets.length).toStringz, 10, y, 16, Colors.LIGHTGRAY);
+            y += lineHeight;
         }
         
         y += 10;
@@ -456,6 +507,8 @@ class LevelTestScreen : IScreen {
         y += lineHeight - 2;
         DrawText("I: Toggle debug info", 10, y, 14, Colors.LIGHTGRAY);
         y += lineHeight - 2;
+        DrawText("T: Reload tilesets", 10, y, 14, Colors.LIGHTGRAY);
+        y += lineHeight - 2;
         DrawText("P: Back to Palette Test", 10, y, 14, Colors.LIGHTGRAY);
         
         // Layer visibility status
@@ -472,6 +525,17 @@ class LevelTestScreen : IScreen {
         drawLayerStatus("8: Hazards", showHazardLayer, 10, y); y += lineHeight - 2;
         drawLayerStatus("9: Objects", showObjects, 10, y); y += lineHeight - 2;
         
+        // Tileset status
+        if (tilesets.length > 0) {
+            y += 10;
+            DrawText("LOADED TILESETS:", 10, y, 16, Colors.YELLOW);
+            y += lineHeight;
+            foreach (layerName, texture; tilesets) {
+                DrawText(format("%s: %dx%d", layerName, texture.width, texture.height).toStringz, 10, y, 14, Colors.GREEN);
+                y += lineHeight - 2;
+            }
+        }
+        
         // Camera info
         y += 10;
         DrawText(format("Camera: (%.1f, %.1f) Zoom: %.2f", camera.target.x, camera.target.y, camera.zoom).toStringz, 10, y, 14, Colors.DARKGRAY);
@@ -486,10 +550,14 @@ class LevelTestScreen : IScreen {
     void unload() {
         writeln("LevelTestScreen unloaded");
         
-        if (tilesetLoaded) {
-            UnloadTexture(tilesetTexture);
-            tilesetLoaded = false;
+        // Unload all tilesets
+        foreach (layerName, texture; tilesets) {
+            if (texture.id != 0) {
+                UnloadTexture(texture);
+            }
         }
+        tilesets.clear();
+        tilesetsLoaded = false;
         
         levelLoaded = false;
         initialized = false;
