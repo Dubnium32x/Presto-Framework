@@ -1,483 +1,281 @@
 module utils.level_loader;
 
 import raylib;
+
 import std.stdio;
 import std.file;
-import std.path;
 import std.string;
-import std.array;
+import std.json;
 import std.conv : to;
-import std.algorithm;
-import std.format;
+import std.array : array;
+import std.algorithm : map, filter;
 
 import utils.csv_loader;
-import utils.csv_converter;
-import world.level_list;
+import world.tile_collision;
+import world.screen_state;
+import world.screen_settings;
+import world.screen_manager;
 
-/**
- * Level Loader for Presto Framework
- * 
- * Handles loading and caching of level data, including tile maps,
- * collision data, object placement, and level metadata.
- */
+bool levelInitialized = false;
 
-// Tile types for different layers
-enum TileType {
-    EMPTY = 0,
-    SOLID = 1,
-    SEMI_SOLID = 2,
-    WATER = 3,
-    LAVA = 4,
-    WIND = 5,
-    ICE = 6,
-    SLIPPERY = 7,
-    BREAKABLE = 8,
-    SPIKES = 9,
-    CHECKPOINT = 10,
-    GOAL = 11
-}
-
-// Object types that can be placed in levels
-enum ObjectType {
-    NONE = 0,
-    RING = 1,
-    MONITOR_SPEED = 2,
-    MONITOR_JUMP = 3,
-    MONITOR_SHIELD_FIRE = 4,
-    MONITOR_SHIELD_LIGHTNING = 5,
-    MONITOR_SHIELD_WATER = 6,
-    MONITOR_INVINCIBILITY = 7,
-    MONITOR_EXTRA_LIFE = 8,
-    SPRING_YELLOW = 9,
-    SPRING_RED = 10,
-    SPRING_BLUE = 11,
-    ENEMY_MOTOBUG = 12,
-    ENEMY_CRABMEAT = 13,
-    ENEMY_BUZZER = 14,
-    ENEMY_CHOPPER = 15,
-    CHECKPOINT_LAMP = 16,
-    GOAL_POST = 17
-}
-
-// Structure for individual tiles
+// Enhanced tile structure with properties
 struct Tile {
     int tileId;
-    TileType tileType;
-    int angle; // For slopes (in hex angle format)
-    bool isSolid;
-    bool hasCollision;
-    
-    this(int id, TileType type = TileType.EMPTY, int tileAngle = 0) {
-        tileId = id;
-        tileType = type;
-        angle = tileAngle;
-        isSolid = (type == TileType.SOLID || type == TileType.SEMI_SOLID);
-        hasCollision = isSolid;
-    }
+    bool isSolid = false;
+    bool isPlatform = false;
+    bool isHazard = false;
+    int heightProfile = 0; // For slopes
+    ubyte flipFlags = 0; // Horizontal/vertical/diagonal flip flags
 }
 
-// Structure for objects placed in the level
-struct LevelObject {
-    ObjectType objectType;
-    float x, y;
-    int subType; // For variations of the same object type
-    bool isActive;
-    
-    this(ObjectType type, float posX, float posY, int sub = 0) {
-        objectType = type;
-        x = posX;
-        y = posY;
-        subType = sub;
-        isActive = true;
-    }
-}
-
-// Complete level data structure
+// Enhanced level data with multiple layers
 struct LevelData {
-    // Level metadata
     string levelName;
-    int levelNumber;
-    int actNumber;
-    int width, height; // In tiles
+    int width;
+    int height;
     
-    // Tile layers (multiple layers for complex level geometry)
-    Tile[][] groundLayer1;      // Primary solid terrain
-    Tile[][] groundLayer2;      // Secondary solid terrain (overlays)
-    Tile[][] semiSolidLayer1;   // Jump-through platforms
-    Tile[][] semiSolidLayer2;   // Additional platforms
-    Tile[][] collisionLayer;    // Pure collision data (simplified)
+    // Multiple tile layers
+    Tile[][] groundLayer1;
+    Tile[][] groundLayer2;
+    Tile[][] groundLayer3;
+    Tile[][] semiSolidLayer1;
+    Tile[][] semiSolidLayer2;
+    Tile[][] semiSolidLayer3;
+    Tile[][] collisionLayer;
+    Tile[][] hazardLayer;
     
-    // Object layer
+    // Object data (separate from tiles)
     LevelObject[] objects;
     
-    // Level properties
-    Vector2 playerStartPosition;
-    Vector2 cameraStartPosition;
+    // Level metadata
+    Vector2 playerSpawnPoint;
+    string tilesetName;
     Color backgroundColor;
-    string backgroundMusic;
-    
-    // Physics properties
-    float gravity = 56.0f / 256.0f; // Default Sonic gravity
-    float waterLevel = -1.0f; // Y position of water surface (-1 = no water)
-    bool hasWind = false;
-    Vector2 windForce = Vector2(0, 0);
-    
-    this(string name, int level, int act, int w, int h) {
-        levelName = name;
-        levelNumber = level;
-        actNumber = act;
-        width = w;
-        height = h;
-        
-        // Initialize tile layers
-        groundLayer1 = new Tile[][](height, width);
-        groundLayer2 = new Tile[][](height, width);
-        semiSolidLayer1 = new Tile[][](height, width);
-        semiSolidLayer2 = new Tile[][](height, width);
-        collisionLayer = new Tile[][](height, width);
-        
-        // Default properties
-        playerStartPosition = Vector2(64, 64);
-        cameraStartPosition = Vector2(0, 0);
-        backgroundColor = Color(135, 206, 235, 255); // Sky blue
-        backgroundMusic = "";
-    }
+    int timeLimit; // In seconds, 0 = no limit
 }
 
-/**
- * Level Loader Class
- */
-class LevelLoader {
-    private static LevelLoader _instance;
-    private LevelData[string] levelCache; // Cache loaded levels
-    private LevelManager levelManager;
-    private string baseLevelPath;
+// Structure for level objects (enemies, items, etc.)
+struct LevelObject {
+    int objectId;
+    float x, y;
+    int objectType; // Enemy, item, trigger, etc.
+    string[] properties; // Additional properties as strings
+}
+
+// Load a complete level with all layers and objects
+LevelData loadCompleteLevel(string levelPath) {
+    LevelData level;
     
-    private this() {
-        levelManager = new LevelManager();
-        baseLevelPath = "resources/data/levels/";
+    // Try to load level metadata first
+    string metadataPath = levelPath ~ "/metadata.json";
+    if (exists(metadataPath)) {
+        level = loadLevelMetadata(metadataPath);
+    } else {
+        // Set defaults
+        level.levelName = "Unnamed Level";
+        level.backgroundColor = Color(135, 206, 235, 255); // Sky blue
+        level.tilesetName = "default";
+        level.playerSpawnPoint = Vector2(100, 100);
     }
     
-    static LevelLoader getInstance() {
-        if (_instance is null) {
-            _instance = new LevelLoader();
+    // Load all tile layers
+    level.groundLayer1 = loadTileLayer(levelPath ~ "/LEVEL_0_Ground_1.csv");
+    level.groundLayer2 = loadTileLayer(levelPath ~ "/LEVEL_0_Ground_2.csv");
+    level.groundLayer3 = loadTileLayer(levelPath ~ "/Ground_3.csv"); // Fallback name
+    level.semiSolidLayer1 = loadTileLayer(levelPath ~ "/LEVEL_0_SemiSolid_1.csv");
+    level.semiSolidLayer2 = loadTileLayer(levelPath ~ "/LEVEL_0_SemiSolid_2.csv");
+    level.semiSolidLayer3 = loadTileLayer(levelPath ~ "/SemiSolid_3.csv"); // Fallback name
+    level.collisionLayer = loadTileLayer(levelPath ~ "/LEVEL_0_Collision.csv");
+    level.hazardLayer = loadTileLayer(levelPath ~ "/Hazards.csv"); // Fallback name
+    
+    // Calculate level dimensions from largest layer
+    calculateLevelDimensions(level);
+    
+    // Load objects
+    level.objects = loadLevelObjects(levelPath ~ "/LEVEL_0_Objects_1.csv");
+    
+    writeln("Loaded level: ", level.levelName, " (", level.width, "x", level.height, ")");
+    writeln("  Objects: ", level.objects.length);
+    
+    return level;
+}
+
+// Load level metadata from JSON file
+LevelData loadLevelMetadata(string metadataPath) {
+    LevelData level;
+    
+    try {
+        string content = readText(metadataPath);
+        JSONValue json = parseJSON(content);
+        
+        if ("levelName" in json) level.levelName = json["levelName"].str;
+        if ("tilesetName" in json) level.tilesetName = json["tilesetName"].str;
+        if ("timeLimit" in json) level.timeLimit = cast(int)json["timeLimit"].integer;
+        
+        if ("playerSpawn" in json) {
+            auto spawn = json["playerSpawn"];
+            level.playerSpawnPoint = Vector2(
+                cast(float)spawn["x"].floating,
+                cast(float)spawn["y"].floating
+            );
         }
-        return _instance;
+        
+        if ("backgroundColor" in json) {
+            auto bg = json["backgroundColor"];
+            level.backgroundColor = Color(
+                cast(ubyte)bg["r"].integer,
+                cast(ubyte)bg["g"].integer,
+                cast(ubyte)bg["b"].integer,
+                cast(ubyte)bg["a"].integer
+            );
+        }
+        
+    } catch (Exception e) {
+        writeln("Warning: Could not parse metadata: ", e.msg);
+    }
+    
+    return level;
+}
+
+// Load a single tile layer from CSV with enhanced tile properties
+Tile[][] loadTileLayer(string csvPath) {
+    if (!exists(csvPath)) {
+        writeln("Layer file not found: ", csvPath, " (using empty layer)");
+        return [];
     }
 
-    void LoadRVWIntoCache(const char *fileName, uint position, string levelKey) {
-        import utils.rvw_loader;
-        RVWLoader rvwLoader = new RVWLoader();
-        levelCache[levelKey] = rvwLoader.LoadRVW(fileName, position);
-    }
-    void SayAndTapCache(string levelKey){
-        import std.conv : to;
-        printf(levelCache[levelKey].semiSolidLayer1.length.to!string.toStringz);
-    }
-    /**
-     * Load a complete level by number and act
-     */
-    LevelData loadLevel(LevelNumber levelNum, ActNumber actNum) {
-        string levelKey = format("LEVEL_%d_ACT_%d", cast(int)levelNum, cast(int)actNum);
-        
-        // Check cache first
-        if (levelKey in levelCache) {
-            writeln("Loading cached level: ", levelKey);
-            return levelCache[levelKey];
-        }
-        
-        writeln("Loading new level: ", levelKey);
-        
-        // Load level metadata
-        auto metadata = levelManager.getLevelMetadata(cast(int)levelNum);
-        // Use just the level number for the folder and file names, not the full levelKey
-        string levelFolder = format("LEVEL_%d", cast(int)levelNum);
-        string levelPath = baseLevelPath ~ levelFolder ~ "/";
-        
-        // Initialize level data with temporary size - will be updated when loading tiles
-        LevelData level = LevelData(levelKey, cast(int)levelNum, cast(int)actNum, 40, 20); // Initial size
-        
-        // Load each layer and update level size based on actual data
-        loadTileLayer(level.groundLayer1, levelPath ~ levelFolder ~ "_Ground_1.csv", TileType.SOLID);
-        if (level.groundLayer1.length > 0) {
-            level.height = cast(int)level.groundLayer1.length;
-            level.width = cast(int)level.groundLayer1[0].length;
-        }
-        
-        loadTileLayer(level.groundLayer2, levelPath ~ levelFolder ~ "_Ground_2.csv", TileType.SOLID);
-        loadTileLayer(level.semiSolidLayer1, levelPath ~ levelFolder ~ "_SemiSolid_1.csv", TileType.SEMI_SOLID);
-        loadTileLayer(level.semiSolidLayer2, levelPath ~ levelFolder ~ "_SemiSolid_2.csv", TileType.SEMI_SOLID);
-        loadTileLayer(level.collisionLayer, levelPath ~ levelFolder ~ "_Collision.csv", TileType.SOLID);
-        
-        // Load objects
-        loadObjectLayer(level.objects, levelPath ~ levelFolder ~ "_Objects_1.csv");
-        
-        // Load level properties from metadata file if it exists
-        loadLevelProperties(level, levelPath ~ levelFolder ~ "_Properties.csv");
-        
-        // Cache the level
-        levelCache[levelKey] = level;
-        
-        writeln("Successfully loaded level: ", levelKey);
-        return level;
-    }
+    auto csvData = CSVLoader.loadCSVString(csvPath);
+    Tile[][] tiles;
 
-    /**
-     * Load a complete level by key/name
-     */
-    LevelData loadLevelByName(string levelKey) {
-        // Check cache first
-        if (levelKey in levelCache) {
-            writeln("Loading cached level: ", levelKey);
-            return levelCache[levelKey];
-        }
-        
-        writeln("Loading new level: ", levelKey);
-        string levelPath = baseLevelPath ~ levelKey ~ "/";
-        
-        // Initialize level data with temporary size - will be updated when loading tiles
-        LevelData level = LevelData(levelKey, 0, 0, 40, 20); // Initial size
-        
-        // Load each layer and update level size based on actual data
-        loadTileLayer(level.groundLayer1, levelPath ~ levelKey ~ "_Ground_1.csv", TileType.SOLID);
-        if (level.groundLayer1.length > 0) {
-            level.height = cast(int)level.groundLayer1.length;
-            level.width = cast(int)level.groundLayer1[0].length;
-        }
-        
-        loadTileLayer(level.groundLayer2, levelPath ~ levelKey ~ "_Ground_2.csv", TileType.SOLID);
-        loadTileLayer(level.semiSolidLayer1, levelPath ~ levelKey ~ "_SemiSolid_1.csv", TileType.SEMI_SOLID);
-        loadTileLayer(level.semiSolidLayer2, levelPath ~ levelKey ~ "_SemiSolid_2.csv", TileType.SEMI_SOLID);
-        loadTileLayer(level.collisionLayer, levelPath ~ levelKey ~ "_Collision.csv", TileType.SOLID);
-        
-        // Load objects
-        loadObjectLayer(level.objects, levelPath ~ levelKey ~ "_Objects_1.csv");
-        
-        // Load level properties from metadata file if it exists
-        loadLevelProperties(level, levelPath ~ levelKey ~ "_Properties.csv");
-        
-        // Cache the level
-        levelCache[levelKey] = level;
-        
-        writeln("Successfully loaded level: ", levelKey);
-        return level;
-    }
+    foreach (row; csvData) {
+        Tile[] tileRow;
+        foreach (cellStr; row) {
+            int tileId = to!int(cellStr);
+            Tile tile;
 
-    /**
-     * Load a tile layer from CSV data
-     */
-    private void loadTileLayer(ref Tile[][] layer, string csvPath, TileType defaultType) {
-        if (!exists(csvPath)) {
-            writeln("Tile layer file not found: ", csvPath, " - using empty layer");
-            return;
-        }
-        
-        int[][] csvData = CSVLoader.loadCSVInt(csvPath);
-        if (csvData.length == 0) {
-            writeln("Failed to load tile data from: ", csvPath);
-            return;
-        }
-        
-        // Resize layer to match CSV data
-        int height = cast(int)csvData.length;
-        int width = height > 0 ? cast(int)csvData[0].length : 0;
-        layer = new Tile[][](height, width);
-        
-        // Convert CSV data to tiles
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int tileId = (x < csvData[y].length) ? csvData[y][x] : 0;
-                layer[y][x] = Tile(tileId, tileId > 0 ? defaultType : TileType.EMPTY);
+            // Handle -1 and 0 as empty tiles
+            if (tileId <= 0) {
+                tileId = 0;
+            } else {
+                // Adjust tile ID offset
+                tileId += 1;
             }
-        }
-        
-        writeln("Loaded tile layer: ", csvPath, " (", width, "x", height, ")");
-    }
-    
-    /**
-     * Load object layer from CSV data
-     */
-    private void loadObjectLayer(ref LevelObject[] objects, string csvPath) {
-        if (!exists(csvPath)) {
-            writeln("Object layer file not found: ", csvPath, " - using empty object list");
-            return;
-        }
-        
-        string[][] csvData = CSVLoader.loadCSVString(csvPath);
-        if (csvData.length == 0) {
-            writeln("Failed to load object data from: ", csvPath);
-            return;
-        }
-        
-        objects = [];
-        
-        // Parse object data (expected format: objectType, x, y, subType)
-        foreach (row; csvData) {
-            if (row.length >= 4) {
-                try {
-                    ObjectType objType = cast(ObjectType)row[0].to!int;
-                    float x = row[1].to!float * 16.0f; // Convert tile position to pixel position
-                    float y = row[2].to!float * 16.0f;
-                    int subType = row[3].to!int;
-                    
-                    objects ~= LevelObject(objType, x, y, subType);
-                } catch (Exception e) {
-                    writeln("Error parsing object row: ", row, " - ", e.msg);
+
+            tile.tileId = tileId;
+
+            // Set tile properties based on ID ranges or specific values
+            if (tileId > 0) {
+                if (tileId >= 1 && tileId <= 50) {
+                    tile.isSolid = true;
+                } else if (tileId >= 51 && tileId <= 100) {
+                    tile.isPlatform = true;
+                } else if (tileId >= 200 && tileId <= 250) {
+                    tile.isHazard = true;
+                } else if (tileId >= 100 && tileId <= 150) {
+                    tile.isSolid = true;
+                    tile.heightProfile = tileId - 100;
                 }
             }
+
+            tileRow ~= tile;
         }
-        
-        writeln("Loaded ", objects.length, " objects from: ", csvPath);
+        tiles ~= tileRow;
     }
-    
-    /**
-     * Load level properties from CSV data
-     */
-    private void loadLevelProperties(ref LevelData level, string csvPath) {
-        if (!exists(csvPath)) {
-            writeln("Properties file not found: ", csvPath, " - using defaults");
-            return;
-        }
-        
-        string[][] csvData = CSVLoader.loadCSVString(csvPath);
-        if (csvData.length == 0) return;
-        
-        // Parse properties (expected format: property_name, value)
-        foreach (row; csvData) {
-            if (row.length >= 2) {
-                string property = row[0].strip().toLower();
-                string value = row[1].strip();
-                
-                try {
-                    switch (property) {
-                        case "player_start_x":
-                            level.playerStartPosition.x = value.to!float;
-                            break;
-                        case "player_start_y":
-                            level.playerStartPosition.y = value.to!float;
-                            break;
-                        case "camera_start_x":
-                            level.cameraStartPosition.x = value.to!float;
-                            break;
-                        case "camera_start_y":
-                            level.cameraStartPosition.y = value.to!float;
-                            break;
-                        case "background_music":
-                            level.backgroundMusic = value;
-                            break;
-                        case "water_level":
-                            level.waterLevel = value.to!float;
-                            break;
-                        case "gravity":
-                            level.gravity = value.to!float;
-                            break;
-                        case "wind_x":
-                            level.windForce.x = value.to!float;
-                            level.hasWind = true;
-                            break;
-                        case "wind_y":
-                            level.windForce.y = value.to!float;
-                            level.hasWind = true;
-                            break;
-                        default:
-                            break;
-                    }
-                } catch (Exception e) {
-                    writeln("Error parsing property: ", property, " = ", value, " - ", e.msg);
-                }
+
+    return tiles;
+}
+
+// Load level objects from CSV
+LevelObject[] loadLevelObjects(string csvPath) {
+    if (!exists(csvPath)) {
+        writeln("Objects file not found: ", csvPath);
+        return [];
+    }
+
+    auto csvData = CSVLoader.loadCSVString(csvPath);
+    LevelObject[] objects;
+
+    foreach (row; csvData) {
+        if (row.length >= 4) {
+            LevelObject obj;
+            obj.objectId = to!int(row[0]);
+            obj.x = to!float(row[1]);
+            obj.y = to!float(row[2]);
+            obj.objectType = to!int(row[3]);
+
+            for (int i = 4; i < row.length; i++) {
+                obj.properties ~= row[i];
             }
+
+            objects ~= obj;
         }
-        
-        writeln("Loaded level properties from: ", csvPath);
     }
+
+    writeln("Loaded ", objects.length, " objects");
+    return objects;
+}
+
+// Calculate level dimensions from all layers
+void calculateLevelDimensions(ref LevelData level) {
+    int maxWidth = 0;
+    int maxHeight = 0;
     
-    /**
-     * Get tile at specific position (world coordinates)
-     */
-    Tile getTileAtPosition(const ref LevelData level, float worldX, float worldY, int layerIndex = 0) {
-        int tileX = cast(int)(worldX / 16.0f); // Assuming 16x16 tiles
-        int tileY = cast(int)(worldY / 16.0f);
-        
-        return getTileAtTilePosition(level, tileX, tileY, layerIndex);
-    }
+    // Check all layers and find the largest dimensions
+    Tile[][][] allLayers = [
+        level.groundLayer1, level.groundLayer2, level.groundLayer3,
+        level.semiSolidLayer1, level.semiSolidLayer2, level.semiSolidLayer3,
+        level.collisionLayer, level.hazardLayer
+    ];
     
-    /**
-     * Get tile at specific tile coordinates
-     */
-    Tile getTileAtTilePosition(const ref LevelData level, int tileX, int tileY, int layerIndex = 0) {
-        // Bounds check
-        if (tileX < 0 || tileY < 0) return Tile(0);
-        
-        Tile[][] targetLayer;
-        
-        switch (layerIndex) {
-            case 0: targetLayer = cast(Tile[][])level.groundLayer1; break;
-            case 1: targetLayer = cast(Tile[][])level.groundLayer2; break;
-            case 2: targetLayer = cast(Tile[][])level.semiSolidLayer1; break;
-            case 3: targetLayer = cast(Tile[][])level.semiSolidLayer2; break;
-            case 4: targetLayer = cast(Tile[][])level.collisionLayer; break;
-            default: return Tile(0);
+    foreach (layer; allLayers) {
+        if (layer.length > maxHeight) {
+            maxHeight = cast(int)layer.length;
         }
-        
-        if (tileY >= targetLayer.length || tileX >= targetLayer[0].length) {
-            return Tile(0);
-        }
-        
-        return targetLayer[tileY][tileX];
-    }
-    
-    /**
-     * Check if position has solid collision
-     */
-    bool isSolidAtPosition(const ref LevelData level, float worldX, float worldY) {
-        // Check all solid layers
-        for (int layer = 0; layer <= 1; layer++) { // Ground layers
-            Tile tile = getTileAtPosition(level, worldX, worldY, layer);
-            if (tile.isSolid) return true;
-        }
-        return false;
-    }
-    
-    /**
-     * Get all objects within a specific area
-     */
-    LevelObject[] getObjectsInArea(const ref LevelData level, float x, float y, float width, float height) {
-        LevelObject[] result;
-        
-        foreach (obj; level.objects) {
-            if (obj.isActive && 
-                obj.x >= x && obj.x <= x + width &&
-                obj.y >= y && obj.y <= y + height) {
-                result ~= obj;
-            }
-        }
-        
-        return result;
-    }
-    
-    /**
-     * Unload cached level data
-     */
-    void unloadLevel(string levelKey) {
-        if (levelKey in levelCache) {
-            levelCache.remove(levelKey);
-            writeln("Unloaded level from cache: ", levelKey);
+        if (layer.length > 0 && layer[0].length > maxWidth) {
+            maxWidth = cast(int)layer[0].length;
         }
     }
     
-    /**
-     * Clear all cached levels
-     */
-    void clearCache() {
-        levelCache = null;
-        writeln("Cleared all cached levels");
+    level.width = maxWidth;
+    level.height = maxHeight;
+}
+
+// Convenience function for backward compatibility
+LevelData loadLevelFromCSV(string csvPath) {
+    LevelData level;
+    level.groundLayer1 = loadTileLayer(csvPath);
+    calculateLevelDimensions(level);
+    return level;
+}
+
+// Get tile at specific position in a layer
+Tile getTileAtPosition(const Tile[][] layer, int x, int y) {
+    if (y >= 0 && y < layer.length && x >= 0 && x < layer[y].length) {
+        return layer[y][x];
+    }
+    return Tile(0); // Empty tile
+}
+
+// Check if position has solid collision (checks multiple layers)
+bool isSolidAtPosition(const LevelData level, float worldX, float worldY, int tileSize = 16) {
+    int tileX = cast(int)(worldX / tileSize);
+    int tileY = cast(int)(worldY / tileSize);
+    
+    // Check collision layer first
+    if (level.collisionLayer.length > 0) {
+        Tile collisionTile = getTileAtPosition(level.collisionLayer, tileX, tileY);
+        if (collisionTile.isSolid) return true;
     }
     
-    /**
-     * Get memory usage statistics
-     */
-    string getCacheStats() {
-        import std.format : format;
-        return format("Level Cache: %d levels loaded", levelCache.length);
-    }
+    // Check ground layers
+    Tile groundTile1 = getTileAtPosition(level.groundLayer1, tileX, tileY);
+    if (groundTile1.isSolid) return true;
+    
+    Tile groundTile2 = getTileAtPosition(level.groundLayer2, tileX, tileY);
+    if (groundTile2.isSolid) return true;
+    
+    Tile groundTile3 = getTileAtPosition(level.groundLayer3, tileX, tileY);
+    if (groundTile3.isSolid) return true;
+    
+    return false;
 }

@@ -16,7 +16,6 @@ import world.audio_manager;
 import world.memory_manager;
 import world.input_manager;
 import world.screen_settings;
-import screens.test_screen;
 import screens.palette_swap_test_screen;
 //import utils.csv_converter;
 //import utils.level_loader : LevelLoader;
@@ -125,21 +124,11 @@ void main() {
         EndDrawing();
     }
     
-    // Cleanup before closing
-    writeln("Starting cleanup...");
-    
-    // Clean up RVW files
-    import utils.rvw_loader;
-    auto rvwLoader = RVWLoader.getInstance();
-    rvwLoader.cleanupRVWFiles();
-    
-    // Cleanup managers
+    // Cleanup
     screenManager.unload();
     memManager.unloadAllResources();
     UnloadRenderTexture(virtualScreen);
     CloseAudioDevice();
     CloseWindow();
-    
-    writeln("Cleanup complete.");
 }
 

@@ -10,9 +10,8 @@ import std.traits : EnumMembers;
 
 import world.screen_settings;
 import world.screen_state;
-import screens.test_screen;
-import screens.level_test_screen;
 import screens.palette_swap_test_screen;
+import screens.level_test_screen;
 import world.transition_manager; // Import TransitionType
 import world.transition_manager : TransitionType;
 
@@ -74,8 +73,8 @@ class ScreenManager : IScreen {
         registerScreen(ScreenState.PALETTE_SWAP_TEST, PaletteSwapTestScreen.getInstance());
         registerScreen(ScreenState.LEVEL_TEST, LevelTestScreen.getInstance());
 
-        // Start with the PALETTE_SWAP_TEST state to show the palette swap test screen
-        changeState(ScreenState.PALETTE_SWAP_TEST);
+        // Start with the LEVEL_TEST state to show the new level test screen
+        changeState(ScreenState.LEVEL_TEST);
     }
     
     // Register a screen implementation for a specific state
@@ -173,6 +172,41 @@ class ScreenManager : IScreen {
         } else {
             writeln("ERROR: Screen not registered: ", newState);
         }
+    }
+}
+
+// ---- TEST SCREEN ----
+class TestScreen : IScreen {
+    private static TestScreen _instance;
+    
+    static TestScreen getInstance() {
+        if (_instance is null) {
+            _instance = new TestScreen();
+        }
+        return _instance;
+    }
+    
+    void initialize() {
+        writeln("TestScreen initialized");
+    }
+    
+    void update(float deltaTime) {
+        if (IsKeyPressed(KeyboardKey.KEY_P)) {
+            ScreenManager.getInstance().changeState(ScreenState.PALETTE_SWAP_TEST);
+        }
+        if (IsKeyPressed(KeyboardKey.KEY_L)) {
+            ScreenManager.getInstance().changeState(ScreenState.LEVEL_TEST);
+        }
+    }
+    
+    void draw() {
+        ClearBackground(Color(40, 40, 40, 255));
+        DrawText("Test Screen", 10, 10, 24, Colors.WHITE);
+        DrawText("Press P for Palette Test, L for Level Test", 10, 50, 16, Colors.LIGHTGRAY);
+    }
+    
+    void unload() {
+        writeln("TestScreen unloaded");
     }
 }
 

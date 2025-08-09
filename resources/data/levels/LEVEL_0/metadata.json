@@ -1,0 +1,15 @@
+{
+    "levelName": "Test Level 0",
+    "tilesetName": "default",
+    "timeLimit": 0,
+    "playerSpawn": {
+        "x": 100.0,
+        "y": 100.0
+    },
+    "backgroundColor": {
+        "r": 135,
+        "g": 206,
+        "b": 235,
+        "a": 255
+    }
+}
