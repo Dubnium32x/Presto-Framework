@@ -164,7 +164,13 @@ class LevelLoader {
         }
         return _instance;
     }
-    
+
+    void LoadRVWIntoCache(const char *fileName, uint position, string levelKey) {
+        levelCache[levelKey] = LoadRVW(fileName, position);
+    }
+    void SayAndTapCache(string levelKey){
+        printf(cast(string)levelCache[levelKey].semiSolidLayer1.length);
+    }
     /**
      * Load a complete level by number and act
      */
@@ -210,7 +216,7 @@ class LevelLoader {
         writeln("Successfully loaded level: ", levelKey);
         return level;
     }
-    
+
     /**
      * Load a tile layer from CSV data
      */

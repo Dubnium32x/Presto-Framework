@@ -12,7 +12,6 @@ import world.level_list;
 import utils.csv_loader;
 import utils.level_loader;
 import utils.csv_converter;
-import utils.rvw_loader;
 
 /**
  * Level Management System for Presto Framework
@@ -27,7 +26,6 @@ import utils.rvw_loader;
 class Level {
     private static Level _instance;
     private LevelLoader levelLoader;
-    private RVWLoader rvwLoader;
     private LevelData currentLevel;
     private bool isLevelLoaded = false;
     
@@ -43,8 +41,6 @@ class Level {
     
     private this() {
         levelLoader = LevelLoader.getInstance();
-        rvwLoader = RVWLoader.getInstance();
-        rvwLoader.initialize();
         camera = Camera2D();
         camera.target = Vector2(0, 0);
         camera.offset = Vector2(400, 224); // Half of virtual screen size

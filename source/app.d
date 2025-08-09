@@ -18,6 +18,8 @@ import world.input_manager;
 import world.screen_settings;
 import screens.test_screen;
 import screens.palette_swap_test_screen;
+//import utils.csv_converter;
+//import utils.level_loader : LevelLoader;
 
 // Define the world settings
 public const int SCREEN_WIDTH = 400;
@@ -49,6 +51,11 @@ Vector2 GetMousePositionVirtual() {
 
 // ---- MAIN FUNCTION ----
 void main() {
+    //ConvertCSV2RVW("build/levels/level_data.rvw", 0, "LEVEL_0");
+    //LevelLoader lovely = new LevelLoader();
+    //lovely.LoadRVWIntoCache("build/levels/level_data.rvw", 0, "LEVEL_0");
+    
+
     InitAudioDevice();
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Presto Framework Pre-Alpha v 0.1.0");
     SetTargetFPS(60);
