@@ -166,10 +166,13 @@ class LevelLoader {
     }
 
     void LoadRVWIntoCache(const char *fileName, uint position, string levelKey) {
-        levelCache[levelKey] = LoadRVW(fileName, position);
+        import utils.rvw_loader;
+        RVWLoader rvwLoader = new RVWLoader();
+        levelCache[levelKey] = rvwLoader.LoadRVW(fileName, position);
     }
     void SayAndTapCache(string levelKey){
-        printf(cast(string)levelCache[levelKey].semiSolidLayer1.length);
+        import std.conv : to;
+        printf(levelCache[levelKey].semiSolidLayer1.length.to!string.toStringz);
     }
     /**
      * Load a complete level by number and act
@@ -187,10 +190,53 @@ class LevelLoader {
         
         // Load level metadata
         auto metadata = levelManager.getLevelMetadata(cast(int)levelNum);
-        string levelPath = baseLevelPath ~ levelKey ~ "/";
+        // Use just the level number for the folder and file names, not the full levelKey
+        string levelFolder = format("LEVEL_%d", cast(int)levelNum);
+        string levelPath = baseLevelPath ~ levelFolder ~ "/";
         
         // Initialize level data with temporary size - will be updated when loading tiles
         LevelData level = LevelData(levelKey, cast(int)levelNum, cast(int)actNum, 40, 20); // Initial size
+        
+        // Load each layer and update level size based on actual data
+        loadTileLayer(level.groundLayer1, levelPath ~ levelFolder ~ "_Ground_1.csv", TileType.SOLID);
+        if (level.groundLayer1.length > 0) {
+            level.height = cast(int)level.groundLayer1.length;
+            level.width = cast(int)level.groundLayer1[0].length;
+        }
+        
+        loadTileLayer(level.groundLayer2, levelPath ~ levelFolder ~ "_Ground_2.csv", TileType.SOLID);
+        loadTileLayer(level.semiSolidLayer1, levelPath ~ levelFolder ~ "_SemiSolid_1.csv", TileType.SEMI_SOLID);
+        loadTileLayer(level.semiSolidLayer2, levelPath ~ levelFolder ~ "_SemiSolid_2.csv", TileType.SEMI_SOLID);
+        loadTileLayer(level.collisionLayer, levelPath ~ levelFolder ~ "_Collision.csv", TileType.SOLID);
+        
+        // Load objects
+        loadObjectLayer(level.objects, levelPath ~ levelFolder ~ "_Objects_1.csv");
+        
+        // Load level properties from metadata file if it exists
+        loadLevelProperties(level, levelPath ~ levelFolder ~ "_Properties.csv");
+        
+        // Cache the level
+        levelCache[levelKey] = level;
+        
+        writeln("Successfully loaded level: ", levelKey);
+        return level;
+    }
+
+    /**
+     * Load a complete level by key/name
+     */
+    LevelData loadLevelByName(string levelKey) {
+        // Check cache first
+        if (levelKey in levelCache) {
+            writeln("Loading cached level: ", levelKey);
+            return levelCache[levelKey];
+        }
+        
+        writeln("Loading new level: ", levelKey);
+        string levelPath = baseLevelPath ~ levelKey ~ "/";
+        
+        // Initialize level data with temporary size - will be updated when loading tiles
+        LevelData level = LevelData(levelKey, 0, 0, 40, 20); // Initial size
         
         // Load each layer and update level size based on actual data
         loadTileLayer(level.groundLayer1, levelPath ~ levelKey ~ "_Ground_1.csv", TileType.SOLID);

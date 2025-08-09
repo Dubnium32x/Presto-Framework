@@ -72,6 +72,7 @@ class ScreenManager : IScreen {
         // Register your screen of choice. By default, we register the init screen.
         // For now, we are testing Palette Swap.
         registerScreen(ScreenState.PALETTE_SWAP_TEST, PaletteSwapTestScreen.getInstance());
+        registerScreen(ScreenState.LEVEL_TEST, LevelTestScreen.getInstance());
 
         // Start with the PALETTE_SWAP_TEST state to show the palette swap test screen
         changeState(ScreenState.PALETTE_SWAP_TEST);

@@ -1,16 +1,15 @@
 module utils.csv_converter;
 // we probably need to get rid of a lot of this code ngl - Birb64
+// not to worry. some of it is useful, just need to be in the right places at the right time. - DiSKO
 import raylib;
+
 import std.stdio;
-//import std.fstream;
 import std.string;
 import core.memory;
 import core.stdc.stdlib;
 import utils.csv_loader;
 import utils.level_loader;
-//import std.vector;
-//import std.cstdio;
-//import std.cstdlib;
+import utils.rvw_loader;
 
 string LevelConverts = "build/levels/";
 
@@ -19,41 +18,9 @@ string TempLevel = "temp.rvw";
 string baseLevelPath = "resources/data/levels/";
 
 LevelData loadLevelcsv(string levelKey) {
-        
-        writeln("Loading new level: ", levelKey);
-        int levelNum = 0; // temporary, will be set by the level properties later
-        int actNum = 0; // temporary, will be set by the level properties later
-        // Load level metadata
-        auto metadata = levelManager.getLevelMetadata(cast(int)levelNum);
-        string levelPath = baseLevelPath ~ levelKey ~ "/";
-        
-        // Initialize level data with temporary size - will be updated when loading tiles
-        LevelData level = LevelData(levelKey, cast(int)levelNum, cast(int)actNum, 40, 20); // Initial size
-        
-        // Load each layer and update level size based on actual data
-        loadTileLayer(level.groundLayer1, levelPath ~ levelKey ~ "_Ground_1.csv", TileType.SOLID);
-        if (level.groundLayer1.length > 0) {
-            level.height = cast(int)level.groundLayer1.length;
-            level.width = cast(int)level.groundLayer1[0].length;
-        }
-        
-        loadTileLayer(level.groundLayer2, levelPath ~ levelKey ~ "_Ground_2.csv", TileType.SOLID);
-        loadTileLayer(level.semiSolidLayer1, levelPath ~ levelKey ~ "_SemiSolid_1.csv", TileType.SEMI_SOLID);
-        loadTileLayer(level.semiSolidLayer2, levelPath ~ levelKey ~ "_SemiSolid_2.csv", TileType.SEMI_SOLID);
-        loadTileLayer(level.collisionLayer, levelPath ~ levelKey ~ "_Collision.csv", TileType.SOLID);
-        
-        // Load objects - skipping for now
-        //loadObjectLayer(level.objects, levelPath ~ levelKey ~ "_Objects_1.csv");
-        
-        // Load level properties from metadata file if it exists - skipping for now
-        //loadLevelProperties(level, levelPath ~ levelKey ~ "_Properties.csv");
-        
-        // Cache the level - no need to cache for conversion
-        //levelCache[levelKey] = level;
-        
-        writeln("Successfully loaded level: ", levelKey);
-        return level;
-    }
+    writeln("Converting CSV level: ", levelKey);
+    return LevelLoader.getInstance().loadLevelByName(levelKey);
+}
     
 // fileName is where we will save the converted level, 
 // position kind of works like an index(mulitple levels can be stored in one file),
@@ -65,7 +32,7 @@ bool ConvertCSV2RVW(const char *fileName, uint position, string lvlName)
     uint newDataSize = 0;
     char *fileData = cast(char *)LoadFileData(fileName, &dataSize);
     char *newFileData = null;
-    
+        
     LevelData value = loadLevelcsv(lvlName);
 
     if (fileData != null)
@@ -124,29 +91,4 @@ bool ConvertCSV2RVW(const char *fileName, uint position, string lvlName)
     }
 
     return success;
-}
-
-LevelData LoadRVW(const char *fileName, uint position)
-{
-    LevelData value = LevelData();
-    int dataSize = 0;
-    char *fileData = cast(char *)LoadFileData(fileName, &dataSize);
-
-    if (fileData != null)
-    {
-        if (dataSize >= ((int)(position*4))) /*TraceLog(LOG_WARNING, "FILEIO: [%s] Failed to find storage position: %i", fileName, position);
-        else
-        {*/
-        {
-            LevelData *dataPtr = cast(LevelData *)fileData;
-            value = dataPtr[position];
-        }
-        //}
-
-        UnloadFileData(cast(ubyte *)fileData);
-
-        //TraceLog(LOG_INFO, "FILEIO: [%s] Loaded storage value: %i", fileName, value);
-    }
-
-    return value;
 }

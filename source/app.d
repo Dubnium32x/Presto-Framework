@@ -22,8 +22,8 @@ import screens.palette_swap_test_screen;
 //import utils.level_loader : LevelLoader;
 
 // Define the world settings
-public const int SCREEN_WIDTH = 400;
-public const int SCREEN_HEIGHT = 224;
+public const int SCREEN_WIDTH = 800;
+public const int SCREEN_HEIGHT = 448;
 public int VIRTUAL_SCREEN_WIDTH = 800;
 public int VIRTUAL_SCREEN_HEIGHT = 448;
 
@@ -125,11 +125,21 @@ void main() {
         EndDrawing();
     }
     
-    // Cleanup
+    // Cleanup before closing
+    writeln("Starting cleanup...");
+    
+    // Clean up RVW files
+    import utils.rvw_loader;
+    auto rvwLoader = RVWLoader.getInstance();
+    rvwLoader.cleanupRVWFiles();
+    
+    // Cleanup managers
     screenManager.unload();
     memManager.unloadAllResources();
     UnloadRenderTexture(virtualScreen);
     CloseAudioDevice();
     CloseWindow();
+    
+    writeln("Cleanup complete.");
 }
 

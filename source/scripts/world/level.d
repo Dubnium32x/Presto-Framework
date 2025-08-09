@@ -12,6 +12,7 @@ import world.level_list;
 import utils.csv_loader;
 import utils.level_loader;
 import utils.csv_converter;
+import utils.rvw_loader;
 
 /**
  * Level Management System for Presto Framework
@@ -48,6 +49,11 @@ class Level {
         camera.zoom = 1.0f;
         cameraOffset = Vector2(0, 0);
     }
+
+    // Destructor to clean up when the application closes
+    ~this() {
+        cleanup();
+    }
     
     static Level getInstance() {
         if (_instance is null) {
@@ -61,11 +67,21 @@ class Level {
      */
     bool loadLevel(LevelNumber levelNum, ActNumber actNum) {
         try {
+            // Clean up any existing level data first
+            cleanup();
+            
+            // FORCE clear the LevelLoader cache to prevent leftover tiles
+            levelLoader.clearCache();
+            
             currentLevel = levelLoader.loadLevel(levelNum, actNum);
             isLevelLoaded = true;
             
-            // Set camera to level start position
-            camera.target = currentLevel.cameraStartPosition;
+            // Initialize RVW Loader and load tilesets
+            RVWLoader rvwLoader = RVWLoader.getInstance();
+            rvwLoader.init();
+            
+            // Set camera to start at top-left of level for debugging
+            camera.target = Vector2(0, 0);
             
             writeln("Successfully loaded and activated level: ", currentLevel.levelName);
             return true;
@@ -74,6 +90,38 @@ class Level {
             isLevelLoaded = false;
             return false;
         }
+    }
+
+    /**
+     * Clean up level resources and temporary files
+     */
+    void cleanup() {
+        // FORCE clear all level data to prevent leftover tiles
+        currentLevel = LevelData();
+        
+        // Clear any cached collision data
+        lastCheckedTileX = -1;
+        lastCheckedTileY = -1;
+        lastCheckedTile = Tile();
+        
+        // Remove any RVW files from previous sessions
+        try {
+            import std.file : dirEntries, SpanMode, remove, exists;
+            import std.path : extension;
+            
+            auto rvwFiles = dirEntries(".", "*.rvw", SpanMode.shallow);
+            foreach (file; rvwFiles) {
+                if (exists(file.name)) {
+                    remove(file.name);
+                    writeln("Removed old RVW file: ", file.name);
+                }
+            }
+        } catch (Exception e) {
+            writeln("Warning: Could not clean up RVW files: ", e.msg);
+        }
+        
+        isLevelLoaded = false;
+        writeln("Level cleanup complete - all data cleared");
     }
     
     /**
@@ -96,7 +144,8 @@ class Level {
             return;
         }
         
-        BeginMode2D(camera);
+        // TEMPORARILY DISABLE camera for debugging - draw tiles at absolute positions
+        // BeginMode2D(camera);
         
         // Draw background color
         ClearBackground(currentLevel.backgroundColor);
@@ -119,7 +168,8 @@ class Level {
             drawCollisionLayer();
         }
         
-        EndMode2D();
+        // TEMPORARILY DISABLE camera for debugging
+        // EndMode2D();
         
         // Draw level HUD/UI elements
         drawLevelHUD();
@@ -144,7 +194,8 @@ class Level {
      * Draw a specific tile layer using RVW loader and tilesets
      */
     private void drawTileLayer(const Tile[][] layer, int layerIndex) {
-        if (layer.length == 0 || !rvwLoader.hasTilesetLoaded()) return;
+        auto rvwLoader = RVWLoader.getInstance();
+        if (layer.length == 0) return;
         
         // Convert Tile[][] to int[][] for RVW loader
         int[][] tileData = new int[][](layer.length);
@@ -155,36 +206,80 @@ class Level {
             }
         }
         
-        // Set tileset based on layer type
-        switch (layerIndex) {
-            case 0: // Ground Layer 1
-            case 1: // Ground Layer 2
-            case 4: // Collision Layer
-                rvwLoader.setCurrentTileset("spg_solid");
-                break;
-            case 2: // Semi-Solid Layer 1  
-            case 3: // Semi-Solid Layer 2
-                rvwLoader.setCurrentTileset("spg_semisolid");
-                break;
-            default:
-                rvwLoader.setCurrentTileset("spg_solid");
-                break;
+        // Check if tileset is loaded
+        if (rvwLoader.hasTilesetLoaded()) {
+            // Set tileset based on layer type
+            switch (layerIndex) {
+                case 0: // Ground Layer 1
+                case 1: // Ground Layer 2
+                case 4: // Collision Layer
+                    // RVWLoader.setCurrentTileset("spg_solid"); // Disabled - using preloaded tilesets
+                    break;
+                case 2: // Semi-Solid Layer 1  
+                case 3: // Semi-Solid Layer 2
+                    // RVWLoader.setCurrentTileset("spg_semisolid"); // Disabled - using preloaded tilesets
+                    break;
+                default:
+                    // RVWLoader.setCurrentTileset("spg_solid"); // Disabled - using preloaded tilesets
+                    break;
+            }
+            
+            // Apply transparency for overlay layers
+            Color layerTint = Colors.WHITE;
+            if (layerIndex > 0) {
+                layerTint = Color(255, 255, 255, 180); // Semi-transparent
+            }
+            
+            // Draw using RVW loader with culling for performance
+            rvwLoader.drawTileLayerCulled(tileData, camera, Vector2(0, 0), layerTint);
+        } else {
+            // Fall back to debug colored rectangles
+            drawTileLayerDebug(layer, layerIndex);
         }
+    }
+    
+    /**
+     * Draw tile layer using debug colored rectangles
+     */
+    private void drawTileLayerDebug(const Tile[][] layer, int layerIndex) {
+        // Calculate visible tile range for culling
+        int startX = cast(int)((camera.target.x - camera.offset.x) / tileSize) - 1;
+        int endX = cast(int)((camera.target.x - camera.offset.x + camera.offset.x * 2) / tileSize) + 1;
+        int startY = cast(int)((camera.target.y - camera.offset.y) / tileSize) - 1;
+        int endY = cast(int)((camera.target.y - camera.offset.y + camera.offset.y * 2) / tileSize) + 1;
         
-        // Apply transparency for overlay layers
-        Color layerTint = Colors.WHITE;
-        if (layerIndex > 0) {
-            layerTint = Color(255, 255, 255, 180); // Semi-transparent
+        // Clamp to layer bounds
+        startX = startX < 0 ? 0 : startX;
+        startY = startY < 0 ? 0 : startY;
+        endX = endX >= layer[0].length ? cast(int)layer[0].length : endX;
+        endY = endY >= layer.length ? cast(int)layer.length : endY;
+        
+        // Draw visible tiles
+        for (int y = startY; y < endY; y++) {
+            for (int x = startX; x < endX; x++) {
+                const Tile tile = layer[y][x];
+                if (tile.tileId > 0) {
+                    float drawX = x * tileSize;
+                    float drawY = y * tileSize;
+                    
+                    Color tileColor = getDebugTileColor(tile, layerIndex);
+                    DrawRectangle(cast(int)drawX, cast(int)drawY, tileSize, tileSize, tileColor);
+                    
+                    // Draw tile ID for debugging (for smaller IDs only)
+                    if (tile.tileId < 100) {
+                        import std.conv : to;
+                        DrawText(tile.tileId.to!string.toStringz, cast(int)drawX + 2, cast(int)drawY + 2, 8, Colors.WHITE);
+                    }
+                }
+            }
         }
-        
-        // Draw using RVW loader with culling for performance
-        rvwLoader.drawTileLayerCulled(tileData, camera, Vector2(0, 0), layerTint);
     }
     
     /**
      * Draw a single tile using RVW loader
      */
     private void drawTile(const Tile tile, float x, float y, int layerIndex) {
+        auto rvwLoader = RVWLoader.getInstance();
         if (!rvwLoader.hasTilesetLoaded()) {
             // Fallback to colored rectangles if no tileset
             Color tileColor = getDebugTileColor(tile, layerIndex);
@@ -199,9 +294,9 @@ class Level {
         
         // Set appropriate tileset based on tile type and layer
         if (tile.tileType == TileType.SEMI_SOLID) {
-            rvwLoader.setCurrentTileset("spg_semisolid");
+            // RVWLoader.setCurrentTileset("spg_semisolid"); // Disabled - using preloaded tilesets
         } else {
-            rvwLoader.setCurrentTileset("spg_solid");
+            // RVWLoader.setCurrentTileset("spg_solid"); // Disabled - using preloaded tilesets
         }
         
         // Apply transparency for overlay layers
@@ -465,4 +560,3 @@ class Level {
         }
     }
 }
-

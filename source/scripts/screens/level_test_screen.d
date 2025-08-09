@@ -83,6 +83,19 @@ class LevelTestScreen : IScreen {
             showInstructions = !showInstructions;
         }
         
+        // Return to palette swap test screen
+        if (IsKeyPressed(KeyboardKey.KEY_ESCAPE)) {
+            import world.screen_manager;
+            import world.screen_state;
+            ScreenManager.getInstance().changeState(ScreenState.PALETTE_SWAP_TEST);
+            return;
+        }
+        
+        // Convert CSV to RVW
+        if (IsKeyPressed(KeyboardKey.KEY_C)) {
+            convertCurrentLevelToRVW();
+        }
+        
         // Update level
         levelManager.update(deltaTime);
         
@@ -179,6 +192,12 @@ class LevelTestScreen : IScreen {
         DrawText("H: Toggle Help", 10, y, 14, Colors.WHITE);
         y += lineHeight;
         
+        DrawText("C: Convert current level CSV to RVW", 10, y, 14, Colors.WHITE);
+        y += lineHeight;
+        
+        DrawText("ESC: Return to Palette Test", 10, y, 14, Colors.WHITE);
+        y += lineHeight;
+        
         // Level system info
         DrawText("LEVEL SYSTEM INFO:", 400, 80, 16, Colors.YELLOW);
         y = 105;
@@ -210,6 +229,31 @@ class LevelTestScreen : IScreen {
         } else {
             writeln("Failed to load Level ", cast(int)levelNum + 1, "-", cast(int)actNum);
             writeln("Note: This is expected if level files don't exist yet");
+        }
+    }
+    
+    private void convertCurrentLevelToRVW() {
+        import utils.csv_converter;
+        import std.string : toStringz;
+        import std.file : mkdirRecurse;
+        
+        string levelFolder = format("LEVEL_%d", cast(int)currentLevelNum);
+        
+        // Create build/levels directory if it doesn't exist
+        mkdirRecurse("build/levels");
+        
+        string rvwFileName = format("build/levels/%s.rvw", levelFolder);
+        
+        writeln("Converting ", levelFolder, " to RVW format...");
+        writeln("Output file: ", rvwFileName);
+        
+        bool success = ConvertCSV2RVW(rvwFileName.toStringz, 0, levelFolder);
+        
+        if (success) {
+            writeln("Successfully converted ", levelFolder, " to RVW format!");
+            writeln("RVW file created: ", rvwFileName);
+        } else {
+            writeln("Failed to convert ", levelFolder, " to RVW format");
         }
     }
     

@@ -112,6 +112,14 @@ class PaletteSwapTestScreen : IScreen {
             changed = true;
         }
         
+        // Check for level test screen switch
+        if (IsKeyPressed(KeyboardKey.KEY_L)) {
+            import world.screen_manager;
+            import world.screen_state;
+            ScreenManager.getInstance().changeState(ScreenState.LEVEL_TEST);
+            return;
+        }
+        
         if (changed) {
             if (currentColumn == 0) {
                 // Restore original
@@ -131,14 +139,15 @@ class PaletteSwapTestScreen : IScreen {
         DrawText("Palette Swap Test", 10, 10, 24, Colors.WHITE);
         DrawText("Press number keys 0-9 to select palette column", 10, 40, 16, Colors.LIGHTGRAY);
         DrawText("Or use LEFT/A and RIGHT/D to navigate", 10, 60, 16, Colors.LIGHTGRAY);
-        DrawText(("Current Palette Column: " ~ currentColumn.to!string ~ " / " ~ (numColumns-1).to!string).toStringz, 10, 90, 16, Colors.YELLOW);
+        DrawText("Press L to switch to Level Test Screen", 10, 80, 16, Colors.LIGHTGRAY);
+        DrawText(("Current Palette Column: " ~ currentColumn.to!string ~ " / " ~ (numColumns-1).to!string).toStringz, 10, 110, 16, Colors.YELLOW);
 
         // Draw palette image with highlight for active column
-        DrawText("Palette Image:", 10, 120, 16, Colors.LIGHTGRAY);
-        DrawTextureEx(paletteTexture, Vector2(10, 140), 0.0f, 4.0f, Colors.WHITE);
+        DrawText("Palette Image:", 10, 140, 16, Colors.LIGHTGRAY);
+        DrawTextureEx(paletteTexture, Vector2(10, 160), 0.0f, 4.0f, Colors.WHITE);
         // Draw highlight box around active column (1px per column, 4x scale)
         int highlightX = 10 + currentColumn * 4; // 1px per column, 4x scale
-        DrawRectangleLines(highlightX, 140, 4, paletteTexture.height * 4, Colors.YELLOW);
+        DrawRectangleLines(highlightX, 160, 4, paletteTexture.height * 4, Colors.YELLOW);
 
         // Draw Sonic sprite (original or palette swapped)
         if (currentColumn == 0) {
