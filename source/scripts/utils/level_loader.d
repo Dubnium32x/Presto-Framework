@@ -279,3 +279,162 @@ bool isSolidAtPosition(const LevelData level, float worldX, float worldY, int ti
     
     return false;
 }
+
+// Helper functions for tile creation
+
+// Create an empty tile with default values
+Tile createEmptyTile() {
+    Tile tile;
+    tile.tileId = 0;
+    tile.isSolid = false;
+    tile.isPlatform = false;
+    tile.isHazard = false;
+    tile.heightProfile = 0;
+    tile.flipFlags = 0;
+    return tile;
+}
+
+// Create a tile from a tile ID with appropriate properties
+Tile createTileFromId(int tileId) {
+    Tile tile;
+    
+    // Handle -1 and 0 as empty tiles
+    if (tileId <= 0) {
+        return createEmptyTile();
+    }
+    
+    tile.tileId = tileId;
+    
+    // Set tile properties based on ID ranges (same logic as CSV loading)
+    if (tileId >= 1 && tileId <= 50) {
+        tile.isSolid = true;
+    } else if (tileId >= 51 && tileId <= 100) {
+        tile.isPlatform = true;
+    } else if (tileId >= 200 && tileId <= 250) {
+        tile.isHazard = true;
+    } else if (tileId >= 100 && tileId <= 150) {
+        tile.isSolid = true;
+        tile.heightProfile = tileId - 100;
+    }
+    
+    return tile;
+}
+
+// NEW JSON LOADING FUNCTIONS
+
+// Load a complete level from JSON file (Tiled format)
+LevelData loadLevelFromJSON(string jsonPath) {
+    LevelData level;
+    
+    try {
+        string jsonContent = readText(jsonPath);
+        JSONValue json = parseJSON(jsonContent);
+        
+        // Get level dimensions
+        level.width = cast(int)json["width"].integer;
+        level.height = cast(int)json["height"].integer;
+        
+        writeln("Loading JSON level: ", level.width, "x", level.height);
+        
+        // Set default metadata
+        level.levelName = "JSON Level";
+        level.backgroundColor = Color(135, 206, 235, 255); // Sky blue
+        level.tilesetName = "default";
+        level.playerSpawnPoint = Vector2(100, 100);
+        
+        // Initialize all layers
+        level.groundLayer1 = initializeLayer(level.width, level.height);
+        level.groundLayer2 = initializeLayer(level.width, level.height);
+        level.groundLayer3 = initializeLayer(level.width, level.height);
+        level.semiSolidLayer1 = initializeLayer(level.width, level.height);
+        level.semiSolidLayer2 = initializeLayer(level.width, level.height);
+        level.semiSolidLayer3 = initializeLayer(level.width, level.height);
+        level.collisionLayer = initializeLayer(level.width, level.height);
+        level.hazardLayer = initializeLayer(level.width, level.height);
+        
+        // Process each layer from JSON
+        foreach (layerJson; json["layers"].array) {
+            string layerName = layerJson["name"].str;
+            auto tileData = layerJson["data"].array;
+            
+            writeln("Processing JSON layer: ", layerName);
+            
+            // Map layer name to correct layer array
+            Tile[][] targetLayer = getLayerByName(level, layerName);
+            if (targetLayer !is null) {
+                loadJSONTileData(targetLayer, tileData, level.width, level.height);
+            }
+        }
+        
+        writeln("JSON level loaded successfully!");
+        
+    } catch (Exception e) {
+        writeln("Error loading JSON level: ", e.msg);
+    }
+    
+    return level;
+}
+
+// Helper to get layer reference by name
+Tile[][] getLayerByName(ref LevelData level, string layerName) {
+    switch (layerName) {
+        case "Ground_1_Collision":
+            return level.groundLayer1;
+        case "Ground_2_Collision":
+            return level.groundLayer2;
+        case "Ground_3_Collision":
+            return level.groundLayer3;
+        case "SemiSolids_1_Collision":
+            return level.semiSolidLayer1;
+        case "SemiSolids_2_Collision":
+            return level.semiSolidLayer2;
+        case "SemiSolids_3_Collision":
+            return level.semiSolidLayer3;
+        case "Collision":
+            return level.collisionLayer;
+        case "Hazard":
+            return level.hazardLayer;
+        default:
+            writeln("Unknown layer name: ", layerName);
+            return null;
+    }
+}
+
+// Initialize empty layer
+Tile[][] initializeLayer(int width, int height) {
+    Tile[][] layer = new Tile[][](height, width);
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            layer[y][x] = createEmptyTile();
+        }
+    }
+    return layer;
+}
+
+// Load tile data from JSON array into layer
+void loadJSONTileData(Tile[][] layer, JSONValue[] tileData, int width, int height) {
+    for (int i = 0; i < tileData.length && i < width * height; i++) {
+        int tileId = cast(int)tileData[i].integer;
+        int x = i % width;
+        int y = i / width;
+        
+        if (y < height && x < width) {
+            layer[y][x] = createTileFromId(tileId);
+        }
+    }
+}
+
+// Overloaded function to load level with JSON option
+LevelData loadCompleteLevel(string levelPath, bool useJSON) {
+    if (useJSON) {
+        string jsonPath = levelPath ~ "/LEVEL_0.json";
+        if (exists(jsonPath)) {
+            return loadLevelFromJSON(jsonPath);
+        } else {
+            writeln("JSON file not found: ", jsonPath, ", falling back to CSV");
+        }
+    }
+    
+    // Fall back to original CSV loading
+    return loadCompleteLevel(levelPath);
+}

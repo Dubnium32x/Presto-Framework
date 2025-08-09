@@ -12,6 +12,7 @@ import world.screen_state;
 import world.screen_manager;
 import world.input_manager;
 import utils.level_loader;
+import entity.entity_manager;
 
 class LevelTestScreen : IScreen {
     private static LevelTestScreen _instance;
@@ -47,6 +48,10 @@ class LevelTestScreen : IScreen {
     // Current level selection
     private string[] availableLevels;
     private int currentLevelIndex = 0;
+    private bool useJSONLoading = false; // Toggle between CSV and JSON loading
+    
+    // Entity management
+    private EntityManager entityManager;
     
     static LevelTestScreen getInstance() {
         if (_instance is null) {
@@ -58,6 +63,9 @@ class LevelTestScreen : IScreen {
     void initialize() {
         if (initialized) return;
         writeln("LevelTestScreen initialized");
+        
+        // Initialize entity manager
+        entityManager = EntityManager.getInstance();
         
         // Initialize camera
         camera.target = Vector2(0, 0);
@@ -156,7 +164,15 @@ class LevelTestScreen : IScreen {
     
     void loadLevel(string levelPath) {
         try {
-            currentLevel = loadCompleteLevel(levelPath);
+            // Use JSON loading if enabled, otherwise fall back to CSV
+            if (useJSONLoading) {
+                currentLevel = loadCompleteLevel(levelPath, true);
+                writeln("Loading level using JSON format");
+            } else {
+                currentLevel = loadCompleteLevel(levelPath);
+                writeln("Loading level using CSV format");
+            }
+            
             levelLoaded = true;
             
             // Center camera on level
@@ -166,11 +182,41 @@ class LevelTestScreen : IScreen {
             );
             camera.target = cameraTarget;
             
-            writefln("Level loaded: %s (%dx%d)", currentLevel.levelName, currentLevel.width, currentLevel.height);
+            writefln("Level loaded: %s (%dx%d) using %s format", 
+                     currentLevel.levelName, currentLevel.width, currentLevel.height,
+                     useJSONLoading ? "JSON" : "CSV");
+            
+            // Clear existing entities and load new ones from level
+            entityManager.clearAllEntities();
+            entityManager.loadEntitiesFromLevel(currentLevel);
+            
+            // Add some test entities if no entities were loaded from the level
+            if (entityManager.getEntityCount() == 0) {
+                writeln("No entities found in level data, adding test entities");
+                addTestEntities();
+            }
         } catch (Exception e) {
             writeln("Error loading level: ", e.msg);
             levelLoaded = false;
         }
+    }
+    
+    void addTestEntities() {
+        // Add some test collectibles
+        entityManager.createCollectible(Vector2(200, 350), "ring", 10);
+        entityManager.createCollectible(Vector2(250, 300), "ring", 10);
+        entityManager.createCollectible(Vector2(300, 350), "ring", 10);
+        entityManager.createCollectible(Vector2(400, 280), "power_up", 100);
+        
+        // Add some test enemies
+        entityManager.createEnemy(Vector2(500, 350), "badnik");
+        entityManager.createEnemy(Vector2(700, 350), "badnik");
+        
+        // Add test checkpoints
+        entityManager.createCheckpoint(Vector2(600, 350));
+        entityManager.createCheckpoint(Vector2(1000, 350));
+        
+        writeln("Added test entities to level");
     }
     
     void createTestLevel() {
@@ -203,6 +249,11 @@ class LevelTestScreen : IScreen {
     void update(float deltaTime) {
         handleInput(deltaTime);
         updateCamera(deltaTime);
+        
+        // Update entities
+        if (levelLoaded) {
+            entityManager.update(deltaTime);
+        }
     }
     
     void handleInput(float deltaTime) {
@@ -281,6 +332,33 @@ class LevelTestScreen : IScreen {
         if (IsKeyPressed(KeyboardKey.KEY_NINE)) showObjects = !showObjects;
         if (IsKeyPressed(KeyboardKey.KEY_ZERO)) showGrid = !showGrid;
         if (IsKeyPressed(KeyboardKey.KEY_I)) showDebugInfo = !showDebugInfo;
+        
+        // Toggle between JSON and CSV loading
+        if (IsKeyPressed(KeyboardKey.KEY_J)) {
+            useJSONLoading = !useJSONLoading;
+            writeln("Switched to ", useJSONLoading ? "JSON" : "CSV", " loading mode");
+            
+            // Reload current level with new format
+            if (levelLoaded && availableLevels.length > 0) {
+                loadLevel(availableLevels[currentLevelIndex]);
+            }
+        }
+        
+        // Entity management controls
+        if (IsKeyPressed(KeyboardKey.KEY_E)) {
+            if (levelLoaded) {
+                addTestEntities();
+            }
+        }
+        
+        if (IsKeyPressed(KeyboardKey.KEY_C)) {
+            entityManager.clearAllEntities();
+            writeln("Cleared all entities");
+        }
+        
+        if (IsKeyPressed(KeyboardKey.KEY_G)) {
+            entityManager.debugPrint();
+        }
     }
     
     void updateCamera(float deltaTime) {
@@ -325,6 +403,9 @@ class LevelTestScreen : IScreen {
         // Draw objects
         if (showObjects) {
             drawObjects();
+            
+            // Draw entities
+            entityManager.draw();
         }
         
         // Draw player spawn point
@@ -488,6 +569,12 @@ class LevelTestScreen : IScreen {
             
             DrawText(format("Tilesets loaded: %d", tilesets.length).toStringz, 10, y, 16, Colors.LIGHTGRAY);
             y += lineHeight;
+            
+            DrawText(format("Loading mode: %s", useJSONLoading ? "JSON" : "CSV").toStringz, 10, y, 16, Colors.LIGHTGRAY);
+            y += lineHeight;
+            
+            DrawText(format("Entities: %d", entityManager.getEntityCount()).toStringz, 10, y, 16, Colors.LIGHTGRAY);
+            y += lineHeight;
         }
         
         y += 10;
@@ -508,6 +595,14 @@ class LevelTestScreen : IScreen {
         DrawText("I: Toggle debug info", 10, y, 14, Colors.LIGHTGRAY);
         y += lineHeight - 2;
         DrawText("T: Reload tilesets", 10, y, 14, Colors.LIGHTGRAY);
+        y += lineHeight - 2;
+        DrawText("J: Toggle JSON/CSV loading", 10, y, 14, Colors.LIGHTGRAY);
+        y += lineHeight - 2;
+        DrawText("E: Add test entities", 10, y, 14, Colors.LIGHTGRAY);
+        y += lineHeight - 2;
+        DrawText("C: Clear all entities", 10, y, 14, Colors.LIGHTGRAY);
+        y += lineHeight - 2;
+        DrawText("G: Debug entity info", 10, y, 14, Colors.LIGHTGRAY);
         y += lineHeight - 2;
         DrawText("P: Back to Palette Test", 10, y, 14, Colors.LIGHTGRAY);
         
