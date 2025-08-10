@@ -46,4 +46,19 @@ class SpriteManager {
             }
         }
     }
+
+    Rectangle getRectangleByFrameIndex(int frameIndex) {
+        // Placeholder logic: Return a dummy rectangle for now
+        // Replace with actual logic to fetch the rectangle for the frame index
+        return Rectangle(0, 0, 32, 32); // Example: 32x32 frame size
+    }
+
+    Texture2D getTextureByAnimation(string animationName) {
+        // Placeholder logic: Return a dummy texture for now
+        // Replace with actual logic to fetch the texture for the animation name
+        if (sprites.length > 0) {
+            return sprites[0].texture; // Example: Return the first sprite's texture
+        }
+        return Texture2D(); // Return an empty texture if no sprites are available
+    }
 }

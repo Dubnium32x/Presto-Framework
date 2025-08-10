@@ -14,9 +14,11 @@ import std.math : abs;
 
 import entity.sprite_object;
 import entity.player.var;
+import entity.player.animations;
 import sprite.sprite_manager;
 import sprite.animation_manager;
 import utils.spritesheet_splitter;
+import world.input_manager;
 
 enum PlayerState {
     IDLE,
@@ -46,7 +48,8 @@ struct Player {
     SpriteObject sprite;
     PlayerState state;
     PlayerVariables vars;  // All the physics variables from var.d
-    
+    PlayerAnimations animations;
+
     // Constructor
     static Player create(float x, float y) {
         Player player;
@@ -56,40 +59,43 @@ struct Player {
         player.vars.resetPosition(x, y);
         return player;
     }
-    
+
     // Initialize the player
     void initialize(float x, float y) {
-        //state = PlayerState.IDLE;
         vars = PlayerVariables();
         vars.resetPosition(x, y);
-        
+
         // Initialize sprite positioning and sizing
         sprite.x = x;
         sprite.y = y;
         sprite.width = cast(int)(vars.widthRadius * 2);
         sprite.height = cast(int)(vars.heightRadius * 2);
         sprite.setScale(8.0f); // Double the default scale for better visibility
-        
+
+        // Initialize animations
+        animations = new PlayerAnimations();
+        animations.setPlayerAnimationState(PlayerAnimationState.IDLE);
+
         writeln("Player initialized at position: (", x, ", ", y, ")");
     }
-    
+
     // Update player input
     void updateInput() {
         // Store previous input state for edge detection
         bool prevJump = vars.keyJump;
-        
+
         // Read current input
         vars.keyLeft = IsKeyDown(KeyboardKey.KEY_LEFT) || IsKeyDown(KeyboardKey.KEY_A);
         vars.keyRight = IsKeyDown(KeyboardKey.KEY_RIGHT) || IsKeyDown(KeyboardKey.KEY_D);
         vars.keyUp = IsKeyDown(KeyboardKey.KEY_UP) || IsKeyDown(KeyboardKey.KEY_W);
         vars.keyDown = IsKeyDown(KeyboardKey.KEY_DOWN) || IsKeyDown(KeyboardKey.KEY_S);
         vars.keyJump = IsKeyDown(KeyboardKey.KEY_SPACE) || IsKeyDown(KeyboardKey.KEY_Z);
-        
+
         // Detect edge events
         vars.keyJumpPressed = vars.keyJump && !prevJump;
         vars.keyJumpReleased = !vars.keyJump && prevJump;
     }
-    
+
     // Main update function
     void update(float deltaTime) {
         updateInput();
@@ -98,7 +104,7 @@ struct Player {
         updateAnimation(deltaTime);
         updateSpritePosition();
     }
-    
+
     // Update physics based on SPG
     void updatePhysics(float deltaTime) {
         // Handle control lock timer
@@ -131,26 +137,26 @@ struct Player {
             }
         }
     }
-    
+
     // Ground movement physics
     void updateGroundPhysics() {
         // Skip input if control is locked
         if (vars.controlLockTimer > 0) {
             return;
         }
-        
+
         // Get current movement constants
         float accel = vars.isSuperSonic ? vars.SUPER_ACCELERATION_SPEED : vars.ACCELERATION_SPEED;
         float decel = vars.isSuperSonic ? vars.SUPER_DECELERATION_SPEED : vars.DECELERATION_SPEED;
         float topSpeed = vars.isSuperSonic ? vars.SUPER_TOP_SPEED : vars.TOP_SPEED;
         float friction = vars.FRICTION_SPEED;
-        
+
         // Handle rolling physics differently
         if (vars.isRolling) {
             updateRollingPhysics();
             return;
         }
-        
+
         // Left input
         if (vars.keyLeft && !vars.keyRight) {
             if (vars.groundSpeed > 0) {
@@ -193,20 +199,20 @@ struct Player {
                 vars.groundSpeed += (vars.groundSpeed < -friction) ? friction : -vars.groundSpeed;
             }
         }
-        
+
         // Apply slope physics
         vars.applySlopeFactor();
-        
+
         // Check for slipping on slopes
         if (vars.shouldSlipOnSlope()) {
             vars.isGrounded = false;
             vars.groundSpeed = 0;
             vars.controlLockTimer = 30; // 30 frames control lock
         }
-        
+
         // Update X/Y speeds from ground speed
         vars.updateSpeedsFromGroundSpeed();
-        
+
         // Handle jumping
         if (vars.keyJumpPressed) {
             vars.ySpeed = vars.INITIAL_JUMP_VELOCITY;
@@ -216,12 +222,12 @@ struct Player {
             writeln("JUMPING: groundSpeed ", vars.groundSpeed, " transferred to xSpeed ", vars.xSpeed);
         }
     }
-    
+
     // Air movement physics
     void updateAirPhysics() {
         float airAccel = vars.isSuperSonic ? vars.SUPER_AIR_ACCELERATION : vars.AIR_ACCELERATION_SPEED;
         float topSpeed = vars.isSuperSonic ? vars.SUPER_TOP_SPEED : vars.TOP_SPEED;
-        
+
         // Horizontal air movement
         if (vars.keyLeft && !vars.keyRight) {
             vars.xSpeed -= airAccel;
@@ -236,42 +242,42 @@ struct Player {
             }
             vars.setFacing(1);
         }
-        
+
         // Variable jump height
         if (vars.keyJumpReleased && vars.ySpeed < vars.RELEASE_JUMP_VELOCITY) {
             vars.ySpeed = vars.RELEASE_JUMP_VELOCITY;
         }
-        
+
         // Air drag (simplified version)
         if (vars.ySpeed < -4.0f) {
             vars.xSpeed *= 0.96875f; // Air drag factor
         }
-        
+
         // DO NOT UPDATE GROUNDSPEED WHILE AIRBORNE - this is key!
         // groundSpeed should remain frozen until landing
     }
-    
+
     // Rolling physics
     void updateRollingPhysics() {
         // Rolling can only decelerate, not accelerate
         float friction = vars.ROLLING_FRICTION;
-        
+
         if (vars.groundSpeed > 0) {
             vars.groundSpeed -= (vars.groundSpeed > friction) ? friction : vars.groundSpeed;
         } else if (vars.groundSpeed < 0) {
             vars.groundSpeed += (vars.groundSpeed < -friction) ? friction : -vars.groundSpeed;
         }
-        
+
         // Exit rolling if speed is too low
         if (abs(vars.groundSpeed) < 0.5f) {
             vars.isRolling = false;
         }
-        
+
         // Apply slope physics
         vars.applySlopeFactor();
         vars.updateSpeedsFromGroundSpeed();
     }
-    
+
     // Update player state
     void updateState() {
         if (vars.isGrounded) {
@@ -292,89 +298,65 @@ struct Player {
             }
         }
     }
-    
+
     // Update animation
     void updateAnimation(float deltaTime) {
-        vars.animationTimer += deltaTime;
-        
-        string newAnimation = "";
         switch (state) {
             case PlayerState.IDLE:
-                newAnimation = "idle";
+                animations.setPlayerAnimationState(PlayerAnimationState.IDLE);
                 break;
             case PlayerState.WALKING:
-                newAnimation = "walk";
+                animations.setPlayerAnimationState(PlayerAnimationState.WALK);
                 break;
             case PlayerState.RUNNING:
-                newAnimation = "run";
+                animations.setPlayerAnimationState(PlayerAnimationState.RUN);
                 break;
             case PlayerState.JUMPING:
-                newAnimation = "jump";
+                animations.setPlayerAnimationState(PlayerAnimationState.JUMP);
                 break;
             case PlayerState.FALLING:
-                newAnimation = "fall";
+                animations.setPlayerAnimationState(PlayerAnimationState.FALL);
                 break;
             case PlayerState.ROLLING:
-                newAnimation = "roll";
+                animations.setPlayerAnimationState(PlayerAnimationState.ROLL);
                 break;
             default:
-                newAnimation = "idle";
+                animations.setPlayerAnimationState(PlayerAnimationState.IDLE);
                 break;
         }
-        
-        if (newAnimation != vars.currentAnimation) {
-            vars.currentAnimation = newAnimation;
-            vars.animationFrame = 0;
-            vars.animationTimer = 0.0f;
-        }
+
+        animations.update(deltaTime);
     }
-    
+
     // Update sprite position
     void updateSpritePosition() {
         sprite.x = vars.xPosition;
         sprite.y = vars.yPosition;
     }
-    
+
     // Draw the player
     void draw() {
-        // Draw player hitbox for debugging
-        DrawRectangleLines(
-            cast(int)(vars.xPosition - vars.widthRadius),
-            cast(int)(vars.yPosition - vars.heightRadius),
-            cast(int)(vars.widthRadius * 2),
-            cast(int)(vars.heightRadius * 2),
-            Colors.GREEN
-        );
-        
-        // Draw center point
-        DrawCircle(cast(int)vars.xPosition, cast(int)vars.yPosition, 2, Colors.RED);
-        
-        // Draw facing direction
-        int arrowX = cast(int)(vars.xPosition + (vars.facing * 15));
-        DrawLine(cast(int)vars.xPosition, cast(int)vars.yPosition, arrowX, cast(int)vars.yPosition, Colors.BLUE);
-        
-        // TODO: Draw actual sprite when sprite system is ready
-        sprite.draw();
+        animations.render(Vector2(vars.xPosition, vars.yPosition));
     }
-    
+
     // Debug functions
     void debugPrint() {
         writeln("=== Player Debug ===");
         writeln("State: ", state);
         vars.debugPrint();
     }
-    
+
     // Collision detection placeholder
     bool checkGroundCollision() {
         // TODO: Implement ground collision with level data
         // For now, simple ground at y=400
         if (vars.yPosition >= 400) {
             vars.yPosition = 400;
-            
+
             // Only update groundSpeed if we just landed (transition from air to ground)
             if (!vars.isGrounded) {
                 vars.isGrounded = true;
-                
+
                 // SIMPLE RULE: If landing with very little horizontal movement, set groundSpeed to 0
                 // This prevents any unwanted drift when landing idle
                 if (abs(vars.xSpeed) < 1.0f) {
@@ -383,11 +365,11 @@ struct Player {
                     // Only preserve horizontal momentum if there's significant movement
                     vars.groundSpeed = vars.xSpeed;
                 }
-                
+
                 writeln("LANDING: xSpeed=", vars.xSpeed, " -> groundSpeed=", vars.groundSpeed);
                 return true;
             }
-            
+
             // Already grounded, don't update groundSpeed
             vars.isGrounded = true;
             return false; // Not a new landing
