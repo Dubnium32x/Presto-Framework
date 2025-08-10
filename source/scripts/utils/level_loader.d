@@ -11,6 +11,7 @@ import std.array : array;
 import std.algorithm : map, filter;
 
 import utils.csv_loader;
+import utils.rvw_converter;
 import world.tile_collision;
 import world.screen_state;
 import world.screen_settings;
@@ -425,16 +426,36 @@ void loadJSONTileData(Tile[][] layer, JSONValue[] tileData, int width, int heigh
 }
 
 // Overloaded function to load level with JSON option
-LevelData loadCompleteLevel(string levelPath, bool useJSON) {
-    if (useJSON) {
-        string jsonPath = levelPath ~ "/LEVEL_0.json";
-        if (exists(jsonPath)) {
-            return loadLevelFromJSON(jsonPath);
-        } else {
-            writeln("JSON file not found: ", jsonPath, ", falling back to CSV");
-        }
+LevelData loadCompleteLevel(string levelPath, bool useJson) {
+
+    switch(useJson){
+        case false: // CSV
+            return loadCompleteLevel(levelPath);
+        break;
+        case true: // JSON
+            string jsonPath = levelPath ~ "/LEVEL_0.json";
+            if (exists(jsonPath)) {
+                return loadLevelFromJSON(jsonPath);
+            } else {
+                writeln("JSON file not found: ", jsonPath, ", falling back to CSV");
+            }
+        break;
+        default:
+            writeln("Error, Defaulting to CSV");
+            // Fall back to original CSV loading
+            return loadCompleteLevel(levelPath);
+        break;
     }
-    
-    // Fall back to original CSV loading
-    return loadCompleteLevel(levelPath);
+            // Fall back to original CSV loading
+            return loadCompleteLevel(levelPath);
+}
+
+// different type of loading function for RVW
+LevelData loadCompleteLevel(string levelPath, int lvlID) {    
+    return LoadRVW(cast(const(char *))levelPath, lvlID); //defaults to 0
+}
+
+// different type of loading function for RVW
+LevelData loadCompleteLevel(int lvlID) {    
+    return LoadRVW("levels.rvw", lvlID); //defaults to 0
 }

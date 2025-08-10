@@ -48,8 +48,9 @@ class LevelTestScreen : IScreen {
     // Current level selection
     private string[] availableLevels;
     private int currentLevelIndex = 0;
-    private bool useJSONLoading = false; // Toggle between CSV and JSON loading
-    
+    //private bool useJSONLoading = false; // Toggle between CSV and JSON loading
+    private int levelLoadingType = 0; // 0 = CSV, 1 = JSON, 2 = RVW
+
     // Entity management
     private EntityManager entityManager;
     
@@ -165,12 +166,26 @@ class LevelTestScreen : IScreen {
     void loadLevel(string levelPath) {
         try {
             // Use JSON loading if enabled, otherwise fall back to CSV
-            if (useJSONLoading) {
-                currentLevel = loadCompleteLevel(levelPath, true);
-                writeln("Loading level using JSON format");
-            } else {
+            switch(levelLoadingType) {
+            case 0: // CSV
                 currentLevel = loadCompleteLevel(levelPath);
                 writeln("Loading level using CSV format");
+                break;
+            case 1: // JSON
+                currentLevel = loadCompleteLevel(levelPath, true);
+                writeln("Loading level using JSON format");
+                break;
+            case 2: // RVW 
+                //currentLevel = loadCompleteLevel(0);
+                //writeln("Loading level 0 using RVW format");
+
+                currentLevel = loadCompleteLevel(levelPath);
+                writeln("Loading level using placeholder CSV format");
+            break;
+            default: // Default to CSV
+                currentLevel = loadCompleteLevel(levelPath);
+                writeln("Loading level using placeholder CSV format");
+            break;
             }
             
             levelLoaded = true;
@@ -184,7 +199,7 @@ class LevelTestScreen : IScreen {
             
             writefln("Level loaded: %s (%dx%d) using %s format", 
                      currentLevel.levelName, currentLevel.width, currentLevel.height,
-                     useJSONLoading ? "JSON" : "CSV");
+                     levelLoadingType == 0 ? "CSV" : (levelLoadingType == 1 ? "JSON" : "RVW" ));
             
             // Clear existing entities and load new ones from level
             entityManager.clearAllEntities();
@@ -335,8 +350,8 @@ class LevelTestScreen : IScreen {
         
         // Toggle between JSON and CSV loading
         if (IsKeyPressed(KeyboardKey.KEY_J)) {
-            useJSONLoading = !useJSONLoading;
-            writeln("Switched to ", useJSONLoading ? "JSON" : "CSV", " loading mode");
+            levelLoadingType = (levelLoadingType + 1) % 3; // Cycle through 0, 1, 2
+            writeln("Switched to ", levelLoadingType == 0 ? "CSV" : (levelLoadingType == 1 ? "JSON" : "RVW" ), " loading mode");
             
             // Reload current level with new format
             if (levelLoaded && availableLevels.length > 0) {
@@ -570,7 +585,7 @@ class LevelTestScreen : IScreen {
             DrawText(format("Tilesets loaded: %d", tilesets.length).toStringz, 10, y, 16, Colors.LIGHTGRAY);
             y += lineHeight;
             
-            DrawText(format("Loading mode: %s", useJSONLoading ? "JSON" : "CSV").toStringz, 10, y, 16, Colors.LIGHTGRAY);
+            DrawText(format("Loading mode: %s", levelLoadingType == 0 ? "CSV" : (levelLoadingType == 1 ? "JSON" : "RVW" )).toStringz, 10, y, 16, Colors.LIGHTGRAY);
             y += lineHeight;
             
             DrawText(format("Entities: %d", entityManager.getEntityCount()).toStringz, 10, y, 16, Colors.LIGHTGRAY);
