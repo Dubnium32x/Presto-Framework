@@ -17,6 +17,83 @@ string LevelConverts = "build/levels/";
 string TempLevel = "temp.rvw";
 string baseLevelPath = "resources/data/levels/";
 
+struct uncompressedLevelData{
+    string levelName;
+    int width;
+    int height;
+    
+    // Multiple tile layers
+    //Tile[][] groundLayer1;
+        int[][] tileIdGroundLayer1;
+        bool[][] isSolidGroundLayer1 = false;
+        bool[][] isPlatformGroundLayer1 = false;
+        bool[][] isHazardGroundLayer1 = false;
+        int[][] heightProfileGroundLayer1 = 0;
+        ubyte[][] flipFlagsGroundLayer1 = 0;
+    //Tile[][] groundLayer2;
+        int[][] tileIdGroundLayer2;
+        bool[][] isSolidGroundLayer2 = false;
+        bool[][] isPlatformGroundLayer2 = false;
+        bool[][] isHazardGroundLayer2 = false;
+        int[][] heightProfileGroundLayer2 = 0;
+        ubyte[][] flipFlagsGroundLayer2 = 0;
+    //Tile[][] groundLayer3;
+        int[][] tileIdGroundLayer3;
+        bool[][] isSolidGroundLayer3 = false;
+        bool[][] isPlatformGroundLayer3 = false;
+        bool[][] isHazardGroundLayer3 = false;
+        int[][] heightProfileGroundLayer3 = 0;
+        ubyte[][] flipFlagsGroundLayer3 = 0;
+    //Tile[][] semiSolidLayer1;
+        int[][] tileIdSemiSolidLayer1;
+        bool[][] isSolidSemiSolidLayer1 = false;
+        bool[][] isPlatformSemiSolidLayer1 = false;
+        bool[][] isHazardSemiSolidLayer1 = false;
+        int[][] heightProfileSemiSolidLayer1 = 0;
+        ubyte[][] flipFlagsSemiSolidLayer1 = 0;
+    //Tile[][] semiSolidLayer2;
+        int[][] tileIdSemiSolidLayer2;
+        bool[][] isSolidSemiSolidLayer2 = false;
+        bool[][] isPlatformSemiSolidLayer2 = false;
+        bool[][] isHazardSemiSolidLayer2 = false;
+        int[][] heightProfileSemiSolidLayer2 = 0;
+        ubyte[][] flipFlagsSemiSolidLayer2 = 0;
+    //Tile[][] semiSolidLayer3;
+        int[][] tileIdSemiSolidLayer3;
+        bool[][] isSolidSemiSolidLayer3 = false;
+        bool[][] isPlatformSemiSolidLayer3 = false;
+        bool[][] isHazardSemiSolidLayer3 = false;
+        int[][] heightProfileSemiSolidLayer3 = 0;
+        ubyte[][] flipFlagsSemiSolidLayer3 = 0;
+    //Tile[][] collisionLayer;
+        int[][] tileIdCollisionLayer;
+        bool[][] isSolidCollisionLayer = false;
+        bool[][] isPlatformCollisionLayer = false;
+        bool[][] isHazardCollisionLayer = false;
+        int[][] heightProfileCollisionLayer = 0;
+        ubyte[][] flipFlagsCollisionLayer = 0;
+    //Tile[][] hazardLayer;
+        int[][] tileIdHazardLayer;
+        bool[][] isSolidHazardLayer = false;
+        bool[][] isPlatformHazardLayer = false;
+        bool[][] isHazardHazardLayer = false;
+        int[][] heightProfileHazardLayer = 0;
+        ubyte[][] flipFlagsHazardLayer = 0;
+
+    // Object data (separate from tiles)
+        //LevelObject[] objects;
+        int[] objectId;
+        float[] x, y;
+        int[] objectType; // Enemy, item, trigger, etc.
+        string[][] properties; // Additional properties as strings
+
+    // Level metadata
+        Vector2 playerSpawnPoint;
+        string tilesetName;
+        Color backgroundColor;
+        int timeLimit; // In seconds, 0 = no limit
+
+}
 // fileName is where we will save the converted level, 
 // position kind of works like an index(mulitple levels can be stored in one file),
 // lvlName is the name of the level we are converting
