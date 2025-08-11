@@ -48,9 +48,15 @@ class SpriteManager {
     }
 
     Rectangle getRectangleByFrameIndex(int frameIndex) {
-        // Placeholder logic: Return a dummy rectangle for now
-        // Replace with actual logic to fetch the rectangle for the frame index
-        return Rectangle(0, 0, 32, 32); // Example: 32x32 frame size
+        // For an 11x11 grid of 64x64 frames
+        int framesPerRow = 11;
+        int frameWidth = 64;
+        int frameHeight = 64;
+        int column = frameIndex % framesPerRow;
+        int row = frameIndex / framesPerRow;
+        float x = column * frameWidth;
+        float y = row * frameHeight;
+        return Rectangle(x, y, frameWidth, frameHeight);
     }
 
     Texture2D getTextureByAnimation(string animationName) {
@@ -60,5 +66,31 @@ class SpriteManager {
             return sprites[0].texture; // Example: Return the first sprite's texture
         }
         return Texture2D(); // Return an empty texture if no sprites are available
+    }
+
+    void loadSprite(string name, string filePath, int frameWidth, int frameHeight) {
+        import std.string : toStringz;
+        Texture2D texture = LoadTexture(filePath.toStringz);
+        SpriteObject sprite = SpriteObject(texture, Vector2(0, 0), cast(int)sprites.length, name, SpriteObjectType.PLAYER);
+        sprite.setFrameSize(frameWidth, frameHeight);
+        addSprite(sprite);
+    }
+
+    void unloadAll() {
+        foreach (sprite; sprites) {
+            if (sprite.texture.id != 0) {
+                UnloadTexture(sprite.texture);
+            }
+        }
+        sprites = [];
+    }
+
+    SpriteObject getSprite(string name) {
+        foreach (sprite; sprites) {
+            if (sprite.name == name) {
+                return sprite;
+            }
+        }
+        throw new Exception("Sprite not found: " ~ name);
     }
 }

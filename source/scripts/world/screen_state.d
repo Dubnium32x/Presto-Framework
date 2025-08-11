@@ -9,7 +9,8 @@ enum ScreenState {
     SETTINGS,
     CREDITS,
     LEVEL_TEST,
-    PALETTE_SWAP_TEST
+    PALETTE_SWAP_TEST,
+    ANIMATION_TEST
 }
 
 enum GameplayState {

@@ -1,4 +1,3 @@
-
 module screens.palette_swap_test_screen;
 
 import raylib;
@@ -11,6 +10,7 @@ import world.input_manager;
 import sprite.sprite_manager;
 import entity.sprite_object;
 import palette.palette_manager;
+import screens.animation_test; // Import the animation test screen
 
 class PaletteSwapTestScreen : IScreen {
     private static PaletteSwapTestScreen _instance;
@@ -119,6 +119,24 @@ class PaletteSwapTestScreen : IScreen {
             ScreenManager.getInstance().changeState(ScreenState.LEVEL_TEST);
             return;
         }
+
+        // Check for palette swap test screen switch
+        if (IsKeyPressed(KeyboardKey.KEY_P)) {
+            ScreenManager.getInstance().changeState(ScreenState.PALETTE_SWAP_TEST);
+            return;
+        }
+
+        // Check for animation test screen access
+        if (IsKeyPressed(KeyboardKey.KEY_A)) {
+            runAnimationTest(); // Call the animation test function
+            return;
+        }
+
+        // Check for U key press to switch to ANIMATION_TEST screen
+        if (IsKeyPressed(KeyboardKey.KEY_U)) {
+            ScreenManager.getInstance().changeState(ScreenState.ANIMATION_TEST);
+            return;
+        }
         
         if (changed) {
             if (currentColumn == 0) {
@@ -172,5 +190,10 @@ class PaletteSwapTestScreen : IScreen {
             UnloadTexture(swappedSprite.texture);
         }
         initialized = false;
+    }
+
+    // Add a method to access this screen from other screens
+    void switchToPaletteSwapTestScreen() {
+        ScreenManager.getInstance().changeState(ScreenState.PALETTE_SWAP_TEST);
     }
 }

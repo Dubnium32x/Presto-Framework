@@ -143,4 +143,27 @@ struct Animator {
                 break;
         }
     }
+
+    void addAnimation(string name, Texture2D texture, int[] frameIndices, float frameDuration) {
+        AnimationFrame[] frames;
+        foreach (index; frameIndices) {
+            frames ~= AnimationFrame(index, frameDuration);
+        }
+        sequence = AnimationSequence(name, AnimationSequenceType.LOOP, frames);
+    }
+
+    void play(string name) {
+        // Assuming only one sequence for simplicity
+        if (sequence.name == name) {
+            setAnimationState(sequence);
+        }
+    }
+
+    Rectangle getCurrentFrameRectangle() {
+        return SpriteManager.getInstance().getRectangleByFrameIndex(currentFrame.frameIndex);
+    }
+
+    Texture2D getCurrentTexture() {
+        return SpriteManager.getInstance().getTextureByAnimation(sequence.name);
+    }
 }

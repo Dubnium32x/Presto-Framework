@@ -12,6 +12,7 @@ import world.screen_settings;
 import world.screen_state;
 import screens.palette_swap_test_screen;
 import screens.level_test_screen;
+import screens.animation_test; // Import AnimationTestScreen
 import world.transition_manager; // Import TransitionType
 import world.transition_manager : TransitionType;
 
@@ -72,6 +73,7 @@ class ScreenManager : IScreen {
         // For now, we are testing Palette Swap.
         registerScreen(ScreenState.PALETTE_SWAP_TEST, PaletteSwapTestScreen.getInstance());
         registerScreen(ScreenState.LEVEL_TEST, LevelTestScreen.getInstance());
+        registerScreen(ScreenState.ANIMATION_TEST, AnimationTestScreen.getInstance());
 
         // Start with the LEVEL_TEST state to show the new level test screen
         changeState(ScreenState.LEVEL_TEST);

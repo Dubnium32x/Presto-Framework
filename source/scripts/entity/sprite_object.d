@@ -137,4 +137,8 @@ struct SpriteObject {
         currentFrame = 0;
         frameTimer = 0.0f;
     }
+    
+    void setFrameSize(int width, int height) {
+        // Placeholder for setting frame size logic
+    }
 }
