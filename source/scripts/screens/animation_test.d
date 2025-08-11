@@ -14,6 +14,7 @@ import sprite.animator;
 import entity.entity_manager;
 import entity.sprite_object;
 import world.screen_manager; // Import IScreen interface
+import entity.player.animations; // Import PlayerAnimations
 
 // Define missing constants
 enum RAYWHITE = Color(245, 245, 245, 255);
@@ -26,6 +27,7 @@ class AnimationTestScreen : IScreen {
     private SpriteObject sonicSprite;
     private bool initialized = false;
     private float frameDuration = 0.1f; // Animation speed (seconds per frame)
+    private PlayerAnimations playerAnimations; // Add PlayerAnimations instance
 
     static AnimationTestScreen getInstance() {
         if (_instance is null) {
@@ -37,12 +39,11 @@ class AnimationTestScreen : IScreen {
     void initialize() {
         if (initialized) return;
         spriteManager = SpriteManager.getInstance();
-        animator = Animator();
-        string spritePath = "resources/image/spritesheet/Sonic_spritemap.png";
-        spriteManager.loadSprite("sonic", spritePath, 64, 64);
+        spriteManager.loadSprite("sonic", "resources/image/spritesheet/Sonic_spritemap.png", 64, 64);
         sonicSprite = spriteManager.getSprite("sonic");
-        addRunAnimation();
-        animator.play("run");
+        playerAnimations = new PlayerAnimations(); // Initialize PlayerAnimations
+        playerAnimations.setTexture(sonicSprite.texture); // Set the texture for animations
+        playerAnimations.setPlayerAnimationState(PlayerAnimationState.IDLE); // Set default animation
         initialized = true;
     }
 
@@ -54,33 +55,27 @@ class AnimationTestScreen : IScreen {
         // Adjust animation speed with UP/DOWN keys
         if (IsKeyPressed(KeyboardKey.KEY_UP)) {
             frameDuration = max(0.01f, frameDuration - 0.01f); // Faster, min 0.01s
-            addRunAnimation();
-            animator.play("run");
         }
         if (IsKeyPressed(KeyboardKey.KEY_DOWN)) {
             frameDuration = min(1.0f, frameDuration + 0.01f); // Slower, max 1s
-            addRunAnimation();
-            animator.play("run");
         }
-        animator.update(deltaTime);
+
+        // Switch animation states with LEFT/RIGHT keys
+        if (IsKeyPressed(KeyboardKey.KEY_LEFT)) {
+            playerAnimations.setPlayerAnimationState(PlayerAnimationState.FANSPIN); // Example state
+        }
+        if (IsKeyPressed(KeyboardKey.KEY_RIGHT)) {
+            playerAnimations.setPlayerAnimationState(PlayerAnimationState.DIE); // Example state
+        }
+
+        playerAnimations.update(deltaTime); // Update PlayerAnimations
     }
 
     void draw() {
         ClearBackground(RAYWHITE);
-        float scale = 4.0f;
-        Rectangle frameRect = animator.getCurrentFrameRectangle();
-        Texture2D texture = animator.getCurrentTexture();
-        Vector2 drawPos = Vector2(400, 300); // Center of the screen
-        Vector2 origin = Vector2(frameRect.width / 2, frameRect.height / 2); // Unscaled origin
-        DrawTexturePro(
-            texture,
-            frameRect,
-            Rectangle(drawPos.x - origin.x * scale, drawPos.y - origin.y * scale, frameRect.width * scale, frameRect.height * scale),
-            Vector2(0, 0),
-            0.0f,
-            WHITE
-        );
-        DrawText(("Frame Duration: " ~ frameDuration.to!string ~ "s (UP/DOWN to change)").toStringz, 10, 40, 20, Color(0,0,0,255));
+        Vector2 drawPos = Vector2(200, 112); // Center of the screen (half of 400,300 for 800x448)
+        playerAnimations.render(drawPos); // Use render method to draw animation
+        DrawText(("Frame Duration: " ~ frameDuration.to!string ~ "s (UP/DOWN to change)").toStringz, 5, 20, 10, Color(0,0,0,255));
     }
 
     void unload() {

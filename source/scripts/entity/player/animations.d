@@ -6,6 +6,7 @@ import std.stdio;
 import std.string;
 import std.array;
 import std.math;
+import std.algorithm : map;
 
 import sprite.animator;
 import sprite.animation_manager;
@@ -20,11 +21,15 @@ enum PlayerAnimationState {
     TAUNT, CELEBRATE, SURPRISED
 }
 
+
 class PlayerAnimations {
     private Animator* animator = new Animator();
     private AnimationManager animationManager = new AnimationManager();
 
-    this() {
+    this() {}
+
+    void setTexture(Texture2D texture) {
+        animationManager.setTexture(texture);
     }
 
     void setAnimationState(AnimationSequence newSequence) {
@@ -34,6 +39,7 @@ class PlayerAnimations {
 
     void update(float deltaTime) {
         animationManager.update(deltaTime);
+        animator.update(deltaTime); // Advance animation frames
     }
 
     void setFrameTime(float time) {
@@ -46,6 +52,10 @@ class PlayerAnimations {
 
     void setPlayerAnimationState(PlayerAnimationState state) {
         AnimationSequence sequence;
+        writeln("Switching to animation state: ", state);
+
+        // Reset animation manager state
+        animationManager.setAnimation(0); // Always reset to first animation in list
 
         switch (state) {
             case PlayerAnimationState.IDLE:
@@ -316,18 +326,21 @@ class PlayerAnimations {
                 return;
         }
 
-        setAnimationState(sequence);
+    writeln("Setting animation sequence: ", sequence.name, " with frames: ", sequence.frames.map!(f => f.frameIndex).array);
+    setAnimationState(sequence);
     }
 
     void render(Vector2 position) {
         // Assuming the Animator provides a way to get the current frame index
         int frameIndex = animator.currentFrame.frameIndex;
 
-        // Assuming the AnimationManager or Animator has a method to get the texture and frame rectangle
+        // Get the texture and frame rectangle from AnimationManager
         Texture2D texture = animationManager.getTexture();
         Rectangle frameRect = animationManager.getFrameRectangle(frameIndex);
 
-        // Draw the current frame at the specified position
-        DrawTextureRec(texture, frameRect, position, Colors.WHITE);
+        // Only draw if a valid animation and frame are set
+        if (texture.id != 0 && frameRect.width > 0 && frameRect.height > 0) {
+            DrawTextureRec(texture, frameRect, position, Colors.WHITE);
+        }
     }
 }

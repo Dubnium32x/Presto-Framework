@@ -34,15 +34,16 @@ class PaletteSwapTestScreen : IScreen {
         import std.string : toStringz;
         // Load Sonic sprite (original)
         Texture2D sonicTex = LoadTexture("resources/image/spritesheet/Sonic.png".toStringz);
-        originalSprite = SpriteObject(sonicTex, Vector2(400, 180), 0, "Sonic", SpriteObjectType.PLAYER);
-        originalSprite.setScale(4.0f);
-        originalSprite.setPosition(Vector2(400, 180));
+        // Centered for 800x448, but use half the previous positions and scale
+        originalSprite = SpriteObject(sonicTex, Vector2(200, 90), 0, "Sonic", SpriteObjectType.PLAYER);
+        originalSprite.setScale(2.0f); // Half previous scale
+        originalSprite.setPosition(Vector2(200, 90));
         originalSprite.setVisible(true);
 
         // Create a swapped sprite (copy of original)
-        swappedSprite = SpriteObject(sonicTex, Vector2(400, 180), 1, "SonicSwapped", SpriteObjectType.PLAYER);
-        swappedSprite.setScale(4.0f);
-        swappedSprite.setPosition(Vector2(400, 180));
+        swappedSprite = SpriteObject(sonicTex, Vector2(200, 90), 1, "SonicSwapped", SpriteObjectType.PLAYER);
+        swappedSprite.setScale(2.0f);
+        swappedSprite.setPosition(Vector2(200, 90));
         swappedSprite.setVisible(true);
 
         // Load palette image for display
@@ -154,18 +155,19 @@ class PaletteSwapTestScreen : IScreen {
 
     void draw() {
         ClearBackground(Color(30,30,30,255));
-        DrawText("Palette Swap Test", 10, 10, 24, Colors.WHITE);
-        DrawText("Press number keys 0-9 to select palette column", 10, 40, 16, Colors.LIGHTGRAY);
-        DrawText("Or use LEFT/A and RIGHT/D to navigate", 10, 60, 16, Colors.LIGHTGRAY);
-        DrawText("Press L to switch to Level Test Screen", 10, 80, 16, Colors.LIGHTGRAY);
-        DrawText(("Current Palette Column: " ~ currentColumn.to!string ~ " / " ~ (numColumns-1).to!string).toStringz, 10, 110, 16, Colors.YELLOW);
+        // Halve all positions and font sizes for 800x448
+        DrawText("Palette Swap Test", 5, 5, 12, Colors.WHITE);
+        DrawText("Press number keys 0-9 to select palette column", 5, 20, 8, Colors.LIGHTGRAY);
+        DrawText("Or use LEFT/A and RIGHT/D to navigate", 5, 30, 8, Colors.LIGHTGRAY);
+        DrawText("Press L to switch to Level Test Screen", 5, 40, 8, Colors.LIGHTGRAY);
+        DrawText(("Current Palette Column: " ~ currentColumn.to!string ~ " / " ~ (numColumns-1).to!string).toStringz, 5, 55, 8, Colors.YELLOW);
 
         // Draw palette image with highlight for active column
-        DrawText("Palette Image:", 10, 140, 16, Colors.LIGHTGRAY);
-        DrawTextureEx(paletteTexture, Vector2(10, 160), 0.0f, 4.0f, Colors.WHITE);
-        // Draw highlight box around active column (1px per column, 4x scale)
-        int highlightX = 10 + currentColumn * 4; // 1px per column, 4x scale
-        DrawRectangleLines(highlightX, 160, 4, paletteTexture.height * 4, Colors.YELLOW);
+        DrawText("Palette Image:", 5, 70, 8, Colors.LIGHTGRAY);
+        DrawTextureEx(paletteTexture, Vector2(5, 80), 0.0f, 2.0f, Colors.WHITE);
+        // Draw highlight box around active column (1px per column, 2x scale)
+        int highlightX = 5 + currentColumn * 2; // 1px per column, 2x scale
+        DrawRectangleLines(highlightX, 80, 2, paletteTexture.height * 2, Colors.YELLOW);
 
         // Draw Sonic sprite (original or palette swapped)
         if (currentColumn == 0) {
@@ -175,7 +177,7 @@ class PaletteSwapTestScreen : IScreen {
         }
 
         // Draw info
-        DrawText("Number Keys 0-9: Direct Column | Left/Right: Navigate | 0 = Original", 10, 400, 18, Colors.LIGHTGRAY);
+        DrawText("Number Keys 0-9: Direct Column | Left/Right: Navigate | 0 = Original", 5, 400, 9, Colors.LIGHTGRAY);
     }
 
     void unload() {

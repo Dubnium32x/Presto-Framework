@@ -566,95 +566,95 @@ class LevelTestScreen : IScreen {
     void drawUI() {
         if (!showDebugInfo) return;
         
-        int y = 10;
-        int lineHeight = 20;
+        int y = 5;
+        int lineHeight = 10;
         
-        DrawText("LEVEL TEST SCREEN", 10, y, 20, Colors.WHITE);
-        y += lineHeight + 5;
+        DrawText("LEVEL TEST SCREEN", 5, y, 10, Colors.WHITE);
+        y += lineHeight + 3;
         
         if (levelLoaded) {
-            DrawText(("Level: " ~ currentLevel.levelName).toStringz, 10, y, 16, Colors.LIGHTGRAY);
+            DrawText(("Level: " ~ currentLevel.levelName).toStringz, 5, y, 8, Colors.LIGHTGRAY);
             y += lineHeight;
             
-            DrawText(format("Size: %dx%d", currentLevel.width, currentLevel.height).toStringz, 10, y, 16, Colors.LIGHTGRAY);
+            DrawText(format("Size: %dx%d", currentLevel.width, currentLevel.height).toStringz, 5, y, 8, Colors.LIGHTGRAY);
             y += lineHeight;
             
-            DrawText(format("Objects: %d", currentLevel.objects.length).toStringz, 10, y, 16, Colors.LIGHTGRAY);
+            DrawText(format("Objects: %d", currentLevel.objects.length).toStringz, 5, y, 8, Colors.LIGHTGRAY);
             y += lineHeight;
             
-            DrawText(format("Tilesets loaded: %d", tilesets.length).toStringz, 10, y, 16, Colors.LIGHTGRAY);
+            DrawText(format("Tilesets loaded: %d", tilesets.length).toStringz, 5, y, 8, Colors.LIGHTGRAY);
             y += lineHeight;
             
-            DrawText(format("Loading mode: %s", levelLoadingType == 0 ? "CSV" : (levelLoadingType == 1 ? "JSON" : "RVW" )).toStringz, 10, y, 16, Colors.LIGHTGRAY);
+            DrawText(format("Loading mode: %s", levelLoadingType == 0 ? "CSV" : (levelLoadingType == 1 ? "JSON" : "RVW" )).toStringz, 5, y, 8, Colors.LIGHTGRAY);
             y += lineHeight;
             
-            DrawText(format("Entities: %d", entityManager.getEntityCount()).toStringz, 10, y, 16, Colors.LIGHTGRAY);
+            DrawText(format("Entities: %d", entityManager.getEntityCount()).toStringz, 5, y, 8, Colors.LIGHTGRAY);
             y += lineHeight;
         }
         
-        y += 10;
-        DrawText("CONTROLS:", 10, y, 16, Colors.YELLOW);
+        y += 5;
+        DrawText("CONTROLS:", 5, y, 8, Colors.YELLOW);
         y += lineHeight;
-        DrawText("WASD/Arrows: Move camera", 10, y, 14, Colors.LIGHTGRAY);
-        y += lineHeight - 2;
-        DrawText("Mouse wheel: Zoom", 10, y, 14, Colors.LIGHTGRAY);
-        y += lineHeight - 2;
-        DrawText("R: Reset camera", 10, y, 14, Colors.LIGHTGRAY);
-        y += lineHeight - 2;
-        DrawText("N/B: Next/Previous level", 10, y, 14, Colors.LIGHTGRAY);
-        y += lineHeight - 2;
-        DrawText("1-9: Toggle layers", 10, y, 14, Colors.LIGHTGRAY);
-        y += lineHeight - 2;
-        DrawText("0: Toggle grid", 10, y, 14, Colors.LIGHTGRAY);
-        y += lineHeight - 2;
-        DrawText("I: Toggle debug info", 10, y, 14, Colors.LIGHTGRAY);
-        y += lineHeight - 2;
-        DrawText("T: Reload tilesets", 10, y, 14, Colors.LIGHTGRAY);
-        y += lineHeight - 2;
-        DrawText("J: Toggle JSON/CSV loading", 10, y, 14, Colors.LIGHTGRAY);
-        y += lineHeight - 2;
-        DrawText("E: Add test entities", 10, y, 14, Colors.LIGHTGRAY);
-        y += lineHeight - 2;
-        DrawText("C: Clear all entities", 10, y, 14, Colors.LIGHTGRAY);
-        y += lineHeight - 2;
-        DrawText("G: Debug entity info", 10, y, 14, Colors.LIGHTGRAY);
-        y += lineHeight - 2;
-        DrawText("P: Back to Palette Test", 10, y, 14, Colors.LIGHTGRAY);
+        DrawText("WASD/Arrows: Move camera", 5, y, 7, Colors.LIGHTGRAY);
+        y += lineHeight - 1;
+        DrawText("Mouse wheel: Zoom", 5, y, 7, Colors.LIGHTGRAY);
+        y += lineHeight - 1;
+        DrawText("R: Reset camera", 5, y, 7, Colors.LIGHTGRAY);
+        y += lineHeight - 1;
+        DrawText("N/B: Next/Previous level", 5, y, 7, Colors.LIGHTGRAY);
+        y += lineHeight - 1;
+        DrawText("1-9: Toggle layers", 5, y, 7, Colors.LIGHTGRAY);
+        y += lineHeight - 1;
+        DrawText("0: Toggle grid", 5, y, 7, Colors.LIGHTGRAY);
+        y += lineHeight - 1;
+        DrawText("I: Toggle debug info", 5, y, 7, Colors.LIGHTGRAY);
+        y += lineHeight - 1;
+        DrawText("T: Reload tilesets", 5, y, 7, Colors.LIGHTGRAY);
+        y += lineHeight - 1;
+        DrawText("J: Toggle JSON/CSV loading", 5, y, 7, Colors.LIGHTGRAY);
+        y += lineHeight - 1;
+        DrawText("E: Add test entities", 5, y, 7, Colors.LIGHTGRAY);
+        y += lineHeight - 1;
+        DrawText("C: Clear all entities", 5, y, 7, Colors.LIGHTGRAY);
+        y += lineHeight - 1;
+        DrawText("G: Debug entity info", 5, y, 7, Colors.LIGHTGRAY);
+        y += lineHeight - 1;
+        DrawText("P: Back to Palette Test", 5, y, 7, Colors.LIGHTGRAY);
         
         // Layer visibility status
-        y += 20;
-        DrawText("LAYERS:", 10, y, 16, Colors.YELLOW);
+        y += 10;
+        DrawText("LAYERS:", 5, y, 8, Colors.YELLOW);
         y += lineHeight;
-        drawLayerStatus("1: Ground 1", showGroundLayer1, 10, y); y += lineHeight - 2;
-        drawLayerStatus("2: Ground 2", showGroundLayer2, 10, y); y += lineHeight - 2;
-        drawLayerStatus("3: Ground 3", showGroundLayer3, 10, y); y += lineHeight - 2;
-        drawLayerStatus("4: SemiSolid 1", showSemiSolid1, 10, y); y += lineHeight - 2;
-        drawLayerStatus("5: SemiSolid 2", showSemiSolid2, 10, y); y += lineHeight - 2;
-        drawLayerStatus("6: SemiSolid 3", showSemiSolid3, 10, y); y += lineHeight - 2;
-        drawLayerStatus("7: Collision", showCollisionLayer, 10, y); y += lineHeight - 2;
-        drawLayerStatus("8: Hazards", showHazardLayer, 10, y); y += lineHeight - 2;
-        drawLayerStatus("9: Objects", showObjects, 10, y); y += lineHeight - 2;
+        drawLayerStatus("1: Ground 1", showGroundLayer1, 5, y); y += lineHeight - 1;
+        drawLayerStatus("2: Ground 2", showGroundLayer2, 5, y); y += lineHeight - 1;
+        drawLayerStatus("3: Ground 3", showGroundLayer3, 5, y); y += lineHeight - 1;
+        drawLayerStatus("4: SemiSolid 1", showSemiSolid1, 5, y); y += lineHeight - 1;
+        drawLayerStatus("5: SemiSolid 2", showSemiSolid2, 5, y); y += lineHeight - 1;
+        drawLayerStatus("6: SemiSolid 3", showSemiSolid3, 5, y); y += lineHeight - 1;
+        drawLayerStatus("7: Collision", showCollisionLayer, 5, y); y += lineHeight - 1;
+        drawLayerStatus("8: Hazards", showHazardLayer, 5, y); y += lineHeight - 1;
+        drawLayerStatus("9: Objects", showObjects, 5, y); y += lineHeight - 1;
         
         // Tileset status
         if (tilesets.length > 0) {
-            y += 10;
-            DrawText("LOADED TILESETS:", 10, y, 16, Colors.YELLOW);
+            y += 5;
+            DrawText("LOADED TILESETS:", 5, y, 8, Colors.YELLOW);
             y += lineHeight;
             foreach (layerName, texture; tilesets) {
-                DrawText(format("%s: %dx%d", layerName, texture.width, texture.height).toStringz, 10, y, 14, Colors.GREEN);
-                y += lineHeight - 2;
+                DrawText(format("%s: %dx%d", layerName, texture.width, texture.height).toStringz, 5, y, 7, Colors.GREEN);
+                y += lineHeight - 1;
             }
         }
         
         // Camera info
-        y += 10;
-        DrawText(format("Camera: (%.1f, %.1f) Zoom: %.2f", camera.target.x, camera.target.y, camera.zoom).toStringz, 10, y, 14, Colors.DARKGRAY);
+        y += 5;
+        DrawText(format("Camera: (%.1f, %.1f) Zoom: %.2f", camera.target.x, camera.target.y, camera.zoom).toStringz, 5, y, 7, Colors.DARKGRAY);
     }
     
     void drawLayerStatus(string label, bool visible, int x, int y) {
         Color color = visible ? Colors.GREEN : Colors.RED;
         string status = visible ? " [ON]" : " [OFF]";
-        DrawText((label ~ status).toStringz, x, y, 14, color);
+        DrawText((label ~ status).toStringz, x, y, 7, color);
     }
 
     void unload() {

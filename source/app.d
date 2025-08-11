@@ -22,8 +22,8 @@ import screens.palette_swap_test_screen;
 // Define the world settings
 public const int SCREEN_WIDTH = 800;
 public const int SCREEN_HEIGHT = 448;
-public int VIRTUAL_SCREEN_WIDTH = 800;
-public int VIRTUAL_SCREEN_HEIGHT = 448;
+public int VIRTUAL_SCREEN_WIDTH = 400;
+public int VIRTUAL_SCREEN_HEIGHT = 224;
 
 // Function to get mouse position in virtual screen coordinates
 Vector2 GetMousePositionVirtual() {
