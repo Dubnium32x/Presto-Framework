@@ -14,7 +14,7 @@ import utils.level_loader;
 string LevelConverts = "build/levels/";
 
 // "Really Versitile World" file ".rvw" just say it out loud and it kind of sounds like "level"
-string TempLevel = "temp.rvw";
+string TempLevel = "resources/data/levels/temp.rvw";
 string baseLevelPath = "resources/data/levels/";
 
 struct uncompressedLevelData{

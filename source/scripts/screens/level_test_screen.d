@@ -165,46 +165,43 @@ class LevelTestScreen : IScreen {
     
     void loadLevel(string levelPath) {
         try {
-            // Use JSON loading if enabled, otherwise fall back to CSV
             switch(levelLoadingType) {
-            case 0: // CSV
-                currentLevel = loadCompleteLevel(levelPath);
-                writeln("Loading level using CSV format");
-                break;
-            case 1: // JSON
-                currentLevel = loadCompleteLevel(levelPath, true);
-                writeln("Loading level using JSON format");
-                break;
-            case 2: // RVW 
-                //currentLevel = loadCompleteLevel(0);
-                //writeln("Loading level 0 using RVW format");
-
-                currentLevel = loadCompleteLevel(levelPath);
-                writeln("Loading level using placeholder CSV format");
-            break;
-            default: // Default to CSV
-                currentLevel = loadCompleteLevel(levelPath);
-                writeln("Loading level using placeholder CSV format");
-            break;
+                case 0: // CSV
+                    currentLevel = loadCompleteLevel(levelPath);
+                    writeln("Loading level using CSV format");
+                    break;
+                case 1: // JSON
+                    currentLevel = loadCompleteLevel(levelPath, true);
+                    writeln("Loading level using JSON format");
+                    break;
+                case 2: // RVW
+                    // Always load from resources/data/levels/levels.rvw, index 0 for now
+                    currentLevel = loadCompleteLevel("resources/data/levels/levels.rvw", 0);
+                    writeln("Loading level 0 using RVW format");
+                    break;
+                default:
+                    currentLevel = loadCompleteLevel(levelPath);
+                    writeln("Loading level using placeholder CSV format");
+                    break;
             }
-            
+
             levelLoaded = true;
-            
+
             // Center camera on level
             cameraTarget = Vector2(
                 (currentLevel.width * tileSize * renderScale) / 2.0f,
                 (currentLevel.height * tileSize * renderScale) / 2.0f
             );
             camera.target = cameraTarget;
-            
+
             writefln("Level loaded: %s (%dx%d) using %s format", 
                      currentLevel.levelName, currentLevel.width, currentLevel.height,
                      levelLoadingType == 0 ? "CSV" : (levelLoadingType == 1 ? "JSON" : "RVW" ));
-            
+
             // Clear existing entities and load new ones from level
             entityManager.clearAllEntities();
             entityManager.loadEntitiesFromLevel(currentLevel);
-            
+
             // Add some test entities if no entities were loaded from the level
             if (entityManager.getEntityCount() == 0) {
                 writeln("No entities found in level data, adding test entities");

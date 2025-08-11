@@ -277,12 +277,12 @@ class PlayerAnimations {
                 break;
             case PlayerAnimationState.FANSPIN:
                 sequence = AnimationSequence("FanSpin", AnimationSequenceType.LOOP, [
-                    AnimationFrame(78, 0.2),
-                    AnimationFrame(79, 0.2),
-                    AnimationFrame(80, 0.2),
-                    AnimationFrame(81, 0.2),
-                    AnimationFrame(82, 0.2),
-                    AnimationFrame(83, 0.2)
+                    AnimationFrame(78, 0.005),
+                    AnimationFrame(79, 0.005),
+                    AnimationFrame(80, 0.005),
+                    AnimationFrame(81, 0.005),
+                    AnimationFrame(82, 0.005),
+                    AnimationFrame(83, 0.005)
                 ]);
                 break;
             case PlayerAnimationState.MONKEYBARS:

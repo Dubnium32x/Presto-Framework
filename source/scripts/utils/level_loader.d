@@ -452,7 +452,17 @@ LevelData loadCompleteLevel(string levelPath, bool useJson) {
 
 // different type of loading function for RVW
 LevelData loadCompleteLevel(string levelPath, int lvlID) {    
-    return LoadRVW(cast(const(char *))levelPath, lvlID); //defaults to 0
+    import std.file : exists;
+    writeln("[RVW] Attempting to load RVW file: ", levelPath, ", index: ", lvlID);
+    if (!exists(levelPath)) {
+        writeln("[RVW] ERROR: File does not exist: ", levelPath);
+        throw new Exception("RVW file not found: " ~ levelPath);
+    }
+    auto level = LoadRVW(cast(const(char *))levelPath, lvlID); //defaults to 0
+    writeln("[RVW] Finished LoadRVW call.");
+    // Optionally print some properties to check for nulls or bad data
+    writeln("[RVW] Loaded level name: ", level.levelName, ", size: ", level.width, "x", level.height);
+    return level;
 }
 
 // different type of loading function for RVW

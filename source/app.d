@@ -8,7 +8,7 @@ import std.process;
 import std.path;
 import std.string;
 import std.algorithm;
-//import utils.rvw_converter;
+import utils.rvw_converter;
 
 import data;
 import world.screen_manager;
@@ -49,7 +49,7 @@ Vector2 GetMousePositionVirtual() {
 
 // ---- MAIN FUNCTION ----
 void main() {
-    //ConvertJSON2RVW("levels.rvw", 0, "resources/data/levels/LEVEL_0/LEVEL_0.json", "resources/data/levels/LEVEL_0/metadata.json");
+    ConvertJSON2RVW("resources/data/levels/levels.rvw", 0, "resources/data/levels/LEVEL_0/LEVEL_0.json", "resources/data/levels/LEVEL_0/metadata.json");
 
     InitAudioDevice();
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Presto Framework Pre-Alpha v 0.1.0");
