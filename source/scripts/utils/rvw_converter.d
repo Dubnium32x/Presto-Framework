@@ -7,6 +7,7 @@ import std.string;
 import core.memory;
 import core.stdc.stdlib;
 import utils.level_loader;
+import std.conv : to;
 //import std.vector;
 //import std.cstdio;
 //import std.cstdlib;
@@ -99,98 +100,79 @@ struct uncompressedLevelData{
 // lvlName is the name of the level we are converting
 bool ConvertJSON2RVW(const char *fileName, uint position, string lvlPath, string lvlMetadata)
 {
-    bool success = false;
-    int dataSize = 0;
-    uint newDataSize = 0;
-    char *fileData = cast(char *)LoadFileData(fileName, &dataSize);
-    char *newFileData = null;
-    
     LevelData value = loadLevelFromJSON(lvlPath);
-
     value.levelName = loadLevelMetadata(lvlMetadata).levelName;
-    value.backgroundColor = loadLevelMetadata(lvlMetadata).backgroundColor; // Sky blue
+    value.backgroundColor = loadLevelMetadata(lvlMetadata).backgroundColor;
     value.tilesetName = loadLevelMetadata(lvlMetadata).tilesetName;
     value.playerSpawnPoint = loadLevelMetadata(lvlMetadata).playerSpawnPoint;
 
-    if (fileData != null)
-    {
-        if (dataSize <= (position*(LevelData.sizeof)))
-        {
-            // Increase data size up to position and store value
-            newDataSize = cast(uint)(position*LevelData.sizeof);
-            newFileData = cast(char *)realloc(fileData, newDataSize);
+    // Debug output after all declarations
+    writeln("[RVW-DEBUG] Saving level:");
+    writeln("  Name: ", value.levelName);
+    writeln("  Size: ", value.width, "x", value.height);
+    writeln("  groundLayer1 rows: ", value.groundLayer1.length, ", cols: ", (value.groundLayer1.length > 0 ? value.groundLayer1[0].length : 0));
 
-            if (newFileData != null)
-            {
-                // RL_REALLOC succeded
-                LevelData *dataPtr = cast(LevelData *)newFileData;
-                dataPtr[position] = value;
-            }
-            else
-            {
-                // RL_REALLOC failed
-                //TraceLog(LOG_WARNING, "FILEIO: [%s] Failed to realloc data (%u), position in bytes (%u) bigger than actual file size", fileName, dataSize, position*GC.sizeOf(int));
+    auto f = File(to!string(fileName), "wb");
 
-                // We store the old size of the file
-                newFileData = fileData;
-                newDataSize = dataSize;
-            }
+    // Write levelName
+    auto nameBytes = cast(ubyte[])value.levelName;
+    int nameLen = cast(int)nameBytes.length;
+    f.write(nameLen);
+    f.write(nameBytes);
+
+    // Write width and height
+    f.write(value.width);
+    f.write(value.height);
+
+    // Write groundLayer1 as 2D array of ints (row-major)
+    int rows = cast(int)value.groundLayer1.length;
+    int cols = rows > 0 ? cast(int)value.groundLayer1[0].length : 0;
+    f.write(rows);
+    f.write(cols);
+    foreach (row; value.groundLayer1) {
+        foreach (tile; row) {
+            f.write(tile.tileId);
         }
-        else
-        {
-            // Store the old size of the file
-            newFileData = fileData;
-            newDataSize = dataSize;
-
-            // Replace value on selected position
-            LevelData *dataPtr = cast(LevelData *)newFileData;
-            dataPtr[position] = value;
-        }
-
-        success = SaveFileData(fileName, newFileData, newDataSize);
-        free(newFileData);
-
-        //TraceLog(LOG_INFO, "FILEIO: [%s] Saved storage value: %i", fileName, value);
-    }
-    else
-    {
-        //TraceLog(LOG_INFO, "FILEIO: [%s] File created successfully", fileName);
-
-        dataSize = cast(int)((position + 1)*(LevelData.sizeof));
-        fileData = cast(char *)malloc(dataSize);
-        LevelData *dataPtr = cast(LevelData *)fileData;
-        dataPtr[position] = value;
-
-        success = SaveFileData(fileName, fileData, dataSize);
-        UnloadFileData(cast(ubyte *)fileData);
-
-        //TraceLog(LOG_INFO, "FILEIO: [%s] Saved storage value: %i", fileName, value);
     }
 
-    return success;
+    f.close();
+    return true;
 }
 
 LevelData LoadRVW(const char *fileName, uint position)
 {
     LevelData value = LevelData();
-    int dataSize = 0;
-    char *fileData = cast(char *)LoadFileData(fileName, &dataSize);
+    auto f = File(to!string(fileName), "rb");
 
-    if (fileData != null)
-    {
-        if (dataSize >= ((int)(position*4))) /*TraceLog(LOG_WARNING, "FILEIO: [%s] Failed to find storage position: %i", fileName, position);
-        else
-        {*/
-        {
-            LevelData *dataPtr = cast(LevelData *)fileData;
-            value = dataPtr[position];
+    // Read levelName
+    int nameLen = 0;
+    f.rawRead([nameLen]);
+    ubyte[] nameBytes = new ubyte[nameLen];
+    f.rawRead(nameBytes);
+    value.levelName = cast(string)nameBytes;
+
+    // Read width and height
+    f.rawRead([value.width]);
+    f.rawRead([value.height]);
+
+    // Read groundLayer1
+    int rows = 0, cols = 0;
+    f.rawRead([rows]);
+    f.rawRead([cols]);
+    value.groundLayer1 = new Tile[][](rows, cols);
+    foreach (i; 0 .. rows) {
+        foreach (j; 0 .. cols) {
+            int tileId = 0;
+            f.rawRead([tileId]);
+            value.groundLayer1[i][j] = Tile(tileId, false, false, false, 0, 0);
         }
-        //}
-
-        UnloadFileData(cast(ubyte *)fileData);
-
-        //TraceLog(LOG_INFO, "FILEIO: [%s] Loaded storage value: %i", fileName, value);
     }
+    f.close();
 
+    // Debug output after all declarations
+    writeln("[RVW-DEBUG] Loading level from RVW:");
+    writeln("  Name: ", value.levelName);
+    writeln("  Size: ", value.width, "x", value.height);
+    writeln("  groundLayer1 rows: ", value.groundLayer1.length, ", cols: ", (value.groundLayer1.length > 0 ? value.groundLayer1[0].length : 0));
     return value;
 }
