@@ -74,9 +74,9 @@ class ScreenManager : IScreen {
         registerScreen(ScreenState.PALETTE_SWAP_TEST, PaletteSwapTestScreen.getInstance());
         registerScreen(ScreenState.LEVEL_TEST, LevelTestScreen.getInstance());
         registerScreen(ScreenState.ANIMATION_TEST, AnimationTestScreen.getInstance());
-
-        // Start with the LEVEL_TEST state to show the new level test screen
-        changeState(ScreenState.LEVEL_TEST);
+    
+        // Start with the INIT state to show the new init screen
+        changeState(ScreenState.INIT);
     }
     
     // Register a screen implementation for a specific state

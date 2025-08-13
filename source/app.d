@@ -17,12 +17,21 @@ import world.memory_manager;
 import world.input_manager;
 import world.screen_settings;
 import screens.palette_swap_test_screen;
+import screens.init_screen; // Importing the missing module
 
 // Define the world settings
 public const int SCREEN_WIDTH = 800;
 public const int SCREEN_HEIGHT = 448;
 public int VIRTUAL_SCREEN_WIDTH = 400;
 public int VIRTUAL_SCREEN_HEIGHT = 224;
+
+// Fonts
+Font s1TitleFont;
+Font s1ClassicOpenCFont;
+Font sonicGameworldFont;
+
+// global variables
+__gshared Font[] fontFamily;
 
 // Function to get mouse position in virtual screen coordinates
 Vector2 GetMousePositionVirtual() {
@@ -71,9 +80,16 @@ void main() {
     auto screenManager = ScreenManager.getInstance();
     screenManager.initialize();
     
+    // Register the fonts in fontFamily
+    s1TitleFont = LoadFont("resources/font/sonic-1-title-card-fixed.ttf/sonic-1-title-card-fixed.ttf");
+    s1ClassicOpenCFont = LoadFont("resources/font/sonic-classic-open-c.ttf/sonic-classic-open-c.ttf");
+    sonicGameworldFont = LoadFont("resources/font/sonic-gameworld-ui.ttf/sonic-gameworld-ui.ttf");
+
+    fontFamily = [s1TitleFont, s1ClassicOpenCFont, sonicGameworldFont];
+
     // Register the palette swap test screen as the initial screen
-    screenManager.registerScreen(ScreenState.PALETTE_SWAP_TEST, PaletteSwapTestScreen.getInstance());
-    screenManager.changeState(ScreenState.PALETTE_SWAP_TEST);
+    screenManager.registerScreen(ScreenState.INIT, InitScreen.getInstance());
+    screenManager.changeState(ScreenState.INIT);
     
     auto screenSettings = new ScreenSettings();
     
