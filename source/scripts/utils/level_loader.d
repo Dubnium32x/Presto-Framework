@@ -11,7 +11,7 @@ import std.array : array;
 import std.algorithm : map, filter;
 
 import utils.csv_loader;
-import utils.rvw_converter;
+// ...existing code...
 import world.tile_collision;
 import world.screen_state;
 import world.screen_settings;
@@ -450,22 +450,4 @@ LevelData loadCompleteLevel(string levelPath, bool useJson) {
             return loadCompleteLevel(levelPath);
 }
 
-// different type of loading function for RVW
-LevelData loadCompleteLevel(string levelPath, int lvlID) {    
-    import std.file : exists;
-    writeln("[RVW] Attempting to load RVW file: ", levelPath, ", index: ", lvlID);
-    if (!exists(levelPath)) {
-        writeln("[RVW] ERROR: File does not exist: ", levelPath);
-        throw new Exception("RVW file not found: " ~ levelPath);
-    }
-    auto level = LoadRVW(cast(const(char *))levelPath, lvlID); //defaults to 0
-    writeln("[RVW] Finished LoadRVW call.");
-    // Optionally print some properties to check for nulls or bad data
-    writeln("[RVW] Loaded level name: ", level.levelName, ", size: ", level.width, "x", level.height);
-    return level;
-}
-
-// different type of loading function for RVW
-LevelData loadCompleteLevel(int lvlID) {    
-    return LoadRVW("levels.rvw", lvlID); //defaults to 0
-}
+// ...existing code... (RVW loading functions removed)
