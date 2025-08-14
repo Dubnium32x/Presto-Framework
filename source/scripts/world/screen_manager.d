@@ -13,6 +13,8 @@ import world.screen_state;
 import screens.palette_swap_test_screen;
 import screens.level_test_screen;
 import screens.animation_test; // Import AnimationTestScreen
+import screens.title_screen; // Import TitleScreen
+import screens.options_screen; // Import OptionsScreen
 import world.transition_manager; // Import TransitionType
 import world.transition_manager : TransitionType;
 
@@ -74,6 +76,8 @@ class ScreenManager : IScreen {
         registerScreen(ScreenState.PALETTE_SWAP_TEST, PaletteSwapTestScreen.getInstance());
         registerScreen(ScreenState.LEVEL_TEST, LevelTestScreen.getInstance());
         registerScreen(ScreenState.ANIMATION_TEST, AnimationTestScreen.getInstance());
+        registerScreen(ScreenState.TITLE, new TitleScreen);
+        registerScreen(ScreenState.SETTINGS, new OptionsScreen);
     
         // Start with the INIT state to show the new init screen
         changeState(ScreenState.INIT);

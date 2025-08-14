@@ -9,6 +9,7 @@ import std.range;
 
 import world.screen_manager;
 import world.audio_manager;
+import world.screen_state;
 import app;
 import app : VIRTUAL_SCREEN_HEIGHT, VIRTUAL_SCREEN_WIDTH;
 
@@ -167,6 +168,9 @@ class InitScreen : IScreen {
                     initState = InitScreenState.DONE;
                 }
             }
+        }
+        if (initPhase == InitScreenPhase.DONE) {
+            ScreenManager.getInstance().changeState(ScreenState.TITLE);
         }
     }
 

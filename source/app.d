@@ -63,7 +63,7 @@ void main() {
     InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Presto Framework Pre-Alpha v 0.1.0");
     SetTargetFPS(60);
 
-    SetExitKey(KeyboardKey.KEY_ESCAPE);
+    SetExitKey(KeyboardKey.KEY_NULL);
 
     auto virtualScreen = LoadRenderTexture(VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT);
     SetTextureFilter(virtualScreen.texture, TextureFilter.TEXTURE_FILTER_POINT);
