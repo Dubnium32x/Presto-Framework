@@ -72,6 +72,14 @@ class TitleScreen : IScreen {
         checkerScrollX = 0.0f;
         checkerScrollY = 0.0f;
         checkerScale = 32.0f;
+
+        // Reload sounds if needed
+        if (moveSound.frameCount == 0) {
+            moveSound = LoadSound("resources/sound/sfx/Sonic World Sounds/004.wav");
+        }
+        if (acceptSound.frameCount == 0) {
+            acceptSound = LoadSound("resources/sound/sfx/Sonic World Sounds/022.wav");
+        }
     }
 
     void update(float deltaTime) {
@@ -126,7 +134,8 @@ class TitleScreen : IScreen {
                 }
                 // Accept: S key
                 if (IsKeyPressed(KeyboardKey.KEY_S)) {
-                    PlaySound(acceptSound);
+                    import world.audio_manager;
+                    AudioManager.getInstance().playSFX("resources/sound/sfx/Sonic World Sounds/022.wav");
                     if (menuItems[selectedMenu] == "Options") {
                         import world.screen_manager;
                         import world.screen_state;
@@ -198,7 +207,13 @@ class TitleScreen : IScreen {
 
     void unload() {
         // Only unload on actual exit
-        UnloadSound(moveSound);
-        UnloadSound(acceptSound);
+        if (moveSound.frameCount != 0) {
+            UnloadSound(moveSound);
+            moveSound = Sound.init;
+        }
+        if (acceptSound.frameCount != 0) {
+            UnloadSound(acceptSound);
+            acceptSound = Sound.init;
+        }
     }
 }

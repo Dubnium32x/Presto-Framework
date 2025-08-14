@@ -69,6 +69,7 @@ class OptionsScreen : IScreen {
     }
 
     void update(float deltaTime) {
+        import world.audio_manager;
         if (IsKeyPressed(KeyboardKey.KEY_DOWN)) {
             selectedOption = cast(int)((selectedOption + 1) % options.length);
             if (selectedOption - cameraOffset >= visibleOptions) {
@@ -76,7 +77,7 @@ class OptionsScreen : IScreen {
             } else if (selectedOption == 0) {
                 cameraOffset = 0;
             }
-            PlaySound(moveSound);
+            AudioManager.getInstance().playSFX("resources/sound/sfx/Sonic World Sounds/004.wav");
         } else if (IsKeyPressed(KeyboardKey.KEY_UP)) {
             selectedOption = cast(int)((selectedOption - 1 + options.length) % options.length);
             if (selectedOption < cameraOffset) {
@@ -85,21 +86,23 @@ class OptionsScreen : IScreen {
                 cameraOffset = cast(int)(options.length - visibleOptions);
                 if (cameraOffset < 0) cameraOffset = 0;
             }
-            PlaySound(moveSound);
+            AudioManager.getInstance().playSFX("resources/sound/sfx/Sonic World Sounds/004.wav");
         }
         // Toggle boolean option with left/right
         if (IsKeyPressed(KeyboardKey.KEY_LEFT) || IsKeyPressed(KeyboardKey.KEY_RIGHT)) {
             options[selectedOption].toggle();
+            AudioManager.getInstance().playSFX("resources/sound/sfx/Sonic World Sounds/004.wav");
         }
         // Accept: S key (save changes)
         if (IsKeyPressed(KeyboardKey.KEY_S)) {
             saveOptions();
-            PlaySound(acceptSound);
+            AudioManager.getInstance().playSFX("resources/sound/sfx/Sonic World Sounds/022.wav");
         }
         // Back: A key
         if (IsKeyPressed(KeyboardKey.KEY_A)) {
             import world.screen_manager;
             import world.screen_state;
+            AudioManager.getInstance().playSFX("resources/sound/sfx/Sonic World Sounds/002.wav");
             ScreenManager.getInstance().changeState(ScreenState.TITLE);
         }
     }
@@ -149,8 +152,14 @@ class OptionsScreen : IScreen {
     }
 
     void unload() {
-        UnloadSound(moveSound);
-        UnloadSound(acceptSound);
+        if (moveSound.frameCount != 0) {
+            UnloadSound(moveSound);
+            moveSound = Sound.init;
+        }
+        if (acceptSound.frameCount != 0) {
+            UnloadSound(acceptSound);
+            acceptSound = Sound.init;
+        }
     }
 }
 
