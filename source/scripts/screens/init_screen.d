@@ -31,7 +31,8 @@ float timer = 0.0f;
 float disclaimerTimer = 0.0f;
 float disclaimerDuration = 5.0f; // Duration to show the disclaimer
 float fadeOutDuration = 1.0f; // Duration to fade out the disclaimer
-float logoDisplayTime = 2.5f; // Duration to show the logo
+float logoAnimateInTime = 1.0f; // Duration for logo scale-up animation
+float logoDisplayTime = 4.5f; // Duration to show the logo
 
 enum InitScreenPhase {
     DISCLAIMER_FADEIN,
@@ -84,12 +85,13 @@ class InitScreen : IScreen {
         logoPosition = new Vector2(VIRTUAL_SCREEN_WIDTH / 2.0f, VIRTUAL_SCREEN_HEIGHT);
         backgroundColorModifier = 0;
         // Load assets
-        segaLogo = LoadTexture("resources/image/spritesheet/sega_logo.png");
+        segaLogo = LoadTexture("resources/image/spritesheet/Sega-logo.png");
         segaJingle = LoadSound("resources/sound/sfx/jingle.ogg");
     }
 
     void update(float deltaTime) {
-        // Update disclaimer timer
+        // Print debug info
+        writeln("initState=", initState, " initPhase=", initPhase);
         if (initState == InitScreenState.UNINITIALIZED) {
             initState = InitScreenState.DISCLAIMER;
         }
@@ -111,7 +113,10 @@ class InitScreen : IScreen {
                 disclaimerAlpha -= deltaTime / fadeOutDuration;
                 if (disclaimerAlpha <= 0.0f) {
                     disclaimerAlpha = 0.0f;
+                    // Advance to logo animation phase
                     initState = InitScreenState.SPLASH;
+                    initPhase = InitScreenPhase.LOGO_ANIMATE;
+                    timer = 0.0f;
                 }
             }
             // Background fade: interpolate from black to white using disclaimerAlpha
@@ -120,27 +125,47 @@ class InitScreen : IScreen {
         if (initState == InitScreenState.SPLASH) {
             // Keep background white
             backgroundColorModifier = 255;
-            // Animate Sega logo: slide in from bottom and scale up
             float targetScale = 1.0f;
-            float animationDuration = logoDisplayTime * 0.6f;
-            float holdDuration = logoDisplayTime * 0.4f;
-            if (timer < animationDuration) {
+            float animationDuration = logoAnimateInTime;
+            float holdDuration = logoDisplayTime;
+            if (initPhase == InitScreenPhase.LOGO_ANIMATE) {
                 float t = timer / animationDuration;
+                if (t > 1.0f) t = 1.0f;
                 logoScaleX = segaLogo.width * t;
                 logoScaleY = segaLogo.height * t;
                 logoPosition.x = (VIRTUAL_SCREEN_WIDTH - logoScaleX) / 2.0f;
-                // Slide from bottom to center
                 logoPosition.y = VIRTUAL_SCREEN_HEIGHT + (VIRTUAL_SCREEN_HEIGHT/2 - segaLogo.height/2 - VIRTUAL_SCREEN_HEIGHT) * t;
-            } else {
+                timer += deltaTime;
+                if (timer >= animationDuration) {
+                    initPhase = InitScreenPhase.LOGO_DISPLAY;
+                    timer = 0.0f;
+                }
+            } else if (initPhase == InitScreenPhase.LOGO_DISPLAY) {
+                if (!jinglePlayed) {
+                    PlaySound(segaJingle);
+                    jinglePlayed = true;
+                }
                 logoScaleX = segaLogo.width * targetScale;
                 logoScaleY = segaLogo.height * targetScale;
                 logoPosition.x = (VIRTUAL_SCREEN_WIDTH - logoScaleX) / 2.0f;
                 logoPosition.y = (VIRTUAL_SCREEN_HEIGHT - logoScaleY) / 2.0f;
-            }
-            // Update splash timer
-            timer += deltaTime;
-            if (timer >= logoDisplayTime) {
-                initState = InitScreenState.DONE;
+                timer += deltaTime;
+                if (timer >= holdDuration) {
+                    initPhase = InitScreenPhase.LOGO_FADEOUT;
+                    timer = 0.0f;
+                }
+            } else if (initPhase == InitScreenPhase.LOGO_FADEOUT) {
+                float t = timer / fadeOutDuration;
+                if (t > 1.0f) t = 1.0f;
+                logoScaleX = segaLogo.width * (1.0f - t);
+                logoScaleY = segaLogo.height * (1.0f - t);
+                logoPosition.x = (VIRTUAL_SCREEN_WIDTH - logoScaleX) / 2.0f;
+                logoPosition.y = (VIRTUAL_SCREEN_HEIGHT - logoScaleY) / 2.0f;
+                timer += deltaTime;
+                if (timer >= fadeOutDuration) {
+                    initPhase = InitScreenPhase.DONE;
+                    initState = InitScreenState.DONE;
+                }
             }
         }
     }
