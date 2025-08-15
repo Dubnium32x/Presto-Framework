@@ -156,8 +156,15 @@ class TitleScreen : IScreen {
                 if (IsKeyPressed(KeyboardKey.KEY_S)) {
                     import world.audio_manager;
                     AudioManager.getInstance().playSFX("resources/sound/sfx/Sonic World Sounds/022.wav");
-                    if (menuItems[selectedMenu] == "OPTIONS") {
-                        // Start transition out
+                    if (menuItems[selectedMenu] == "START GAME") {
+                        // Fade the music out
+                        AudioManager.getInstance().fadeOutMusic(1.0f);
+                        // Fade to black and go to game screen
+                        state = TitleScreenState.TRANSITION_OUT;
+                        transitionAlpha = 0.0f;
+                        transitionTimer = 0.0f;
+                    } else if (menuItems[selectedMenu] == "OPTIONS") {
+                        // Start transition out to options
                         state = TitleScreenState.TRANSITION_OUT;
                         transitionAlpha = 0.0f;
                         transitionTimer = 0.0f;
@@ -167,7 +174,6 @@ class TitleScreen : IScreen {
                         exitAlpha = 0.0f;
                         exitTimer = 0.0f;
                     }
-                    // Add logic for other menu items as needed
                 }
                 break;
             case TitleScreenState.EXITING:
@@ -184,7 +190,11 @@ class TitleScreen : IScreen {
                 if (transitionTimer >= transitionDuration) {
                     import world.screen_manager;
                     import world.screen_state;
-                    ScreenManager.getInstance().changeState(ScreenState.SETTINGS);
+                    if (menuItems[selectedMenu] == "START GAME") {
+                        ScreenManager.getInstance().changeState(ScreenState.GAMEPLAY);
+                    } else if (menuItems[selectedMenu] == "OPTIONS") {
+                        ScreenManager.getInstance().changeState(ScreenState.SETTINGS);
+                    }
                 }
                 break;
                 // Back: A key

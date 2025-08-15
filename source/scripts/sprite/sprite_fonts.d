@@ -10,6 +10,7 @@ import std.algorithm;
 import std.conv;
 
 import sprite.sprite_manager;
+import sprite.presto_numbersB_font;
 
 struct DiscoveryGlyph {
     Texture2D texture;
@@ -71,6 +72,9 @@ void initSpriteFonts() {
         '*', '.', ':', '-', '=', '!', '?'
     ]);
     initDiscoveryFont();
+    import sprite.presto_numbersA_font;
+    initPrestoNumbersAFont();
+    initPrestoNumbersBFont();
 }
 
 void drawSpriteText(SpriteFont font, string text, int x, int y, Color color) {

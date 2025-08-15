@@ -17,6 +17,7 @@ import screens.title_screen; // Import TitleScreen
 import screens.options_screen; // Import OptionsScreen
 import world.transition_manager; // Import TransitionType
 import world.transition_manager : TransitionType;
+import screens.game_screen; // Import GameScreen
 
 // ---- SCREEN INTERFACE ----
 interface IScreen {
@@ -78,6 +79,7 @@ class ScreenManager : IScreen {
         registerScreen(ScreenState.ANIMATION_TEST, AnimationTestScreen.getInstance());
         registerScreen(ScreenState.TITLE, new TitleScreen);
         registerScreen(ScreenState.SETTINGS, new OptionsScreen);
+        registerScreen(ScreenState.GAMEPLAY, new GameScreen); // or GameScreen.getInstance() if singleton
     
         // Start with the INIT state to show the new init screen
         changeState(ScreenState.INIT);
