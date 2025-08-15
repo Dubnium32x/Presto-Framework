@@ -54,8 +54,7 @@ class PlayerAnimations {
         AnimationSequence sequence;
         writeln("Switching to animation state: ", state);
 
-        // Reset animation manager state
-        animationManager.setAnimation(0); // Always reset to first animation in list
+    // Reset animation manager state will be done after we add the new sequence
 
         switch (state) {
             case PlayerAnimationState.IDLE:
@@ -328,9 +327,14 @@ class PlayerAnimations {
 
     writeln("Setting animation sequence: ", sequence.name, " with frames: ", sequence.frames.map!(f => f.frameIndex).array);
     setAnimationState(sequence);
+    // We just added the new animation name to the manager; select it as the current animation
+    animationManager.setAnimation(0);
     }
 
-    void render(Vector2 position) {
+    // Render the current animation frame at the given world position.
+    // "position" is the center point where the sprite should be drawn.
+    // "scale" scales the frame (1.0 = native frame size)
+    void render(Vector2 position, float scale = 1.0f) {
         // Assuming the Animator provides a way to get the current frame index
         int frameIndex = animator.currentFrame.frameIndex;
 
@@ -340,7 +344,22 @@ class PlayerAnimations {
 
         // Only draw if a valid animation and frame are set
         if (texture.id != 0 && frameRect.width > 0 && frameRect.height > 0) {
-            DrawTextureRec(texture, frameRect, position, Colors.WHITE);
+            float destW = frameRect.width * scale;
+            float destH = frameRect.height * scale;
+            // Destination rectangle must be top-left, so offset by half to center at position
+            Rectangle dest = Rectangle(position.x - destW / 2.0f, position.y - destH / 2.0f, destW, destH);
+            // Draw with DrawTexturePro so we can scale and keep crisp sampling
+            DrawTexturePro(texture, frameRect, dest, Vector2(0, 0), 0.0f, Colors.WHITE);
+        } else {
+            // Nothing to draw (fallback) - emit debug information to help track why
+            writeln("[ANIM DBG] render: texture.id=", texture.id, " frameIndex=", frameIndex, " frameRect=", frameRect);
+            writeln("[ANIM DBG] current animation=", animationManager.getCurrentAnimation());
+            // Draw a visible fallback rectangle so player isn't invisible
+            float fallbackW = 32.0f * scale;
+            float fallbackH = 32.0f * scale;
+            Rectangle fallback = Rectangle(position.x - fallbackW/2.0f, position.y - fallbackH/2.0f, fallbackW, fallbackH);
+            DrawRectangleRec(fallback, Colors.MAGENTA);
+            DrawText("NOFRAME".toStringz, cast(int)(position.x - fallbackW/2.0f), cast(int)(position.y - fallbackH/2.0f), 8, Colors.BLACK);
+        }
         }
     }
-}

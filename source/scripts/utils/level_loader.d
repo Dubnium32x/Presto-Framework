@@ -11,8 +11,8 @@ import std.array : array;
 import std.algorithm : map, filter;
 
 import utils.csv_loader;
-// ...existing code...
 import world.tile_collision;
+import world.tileset_map;
 import world.screen_state;
 import world.screen_settings;
 import world.screen_manager;
@@ -53,6 +53,10 @@ struct LevelData {
     string tilesetName;
     Color backgroundColor;
     int timeLimit; // In seconds, 0 = no limit
+    // Tilesets parsed from Tiled JSON (basename or source and firstgid)
+    world.tileset_map.TilesetInfo[] tilesets;
+    // Precomputed tile profiles keyed by "<rawTileId>::<layerName>" for fast lookup
+    world.tile_collision.TileHeightProfile[string] tileProfiles;
 }
 
 // Structure for level objects (enemies, items, etc.)
@@ -66,39 +70,125 @@ struct LevelObject {
 // Load a complete level with all layers and objects
 LevelData loadCompleteLevel(string levelPath) {
     LevelData level;
-    
-    // Try to load level metadata first
-    string metadataPath = levelPath ~ "/metadata.json";
-    if (exists(metadataPath)) {
-        level = loadLevelMetadata(metadataPath);
-    } else {
-        // Set defaults
-        level.levelName = "Unnamed Level";
-        level.backgroundColor = Color(135, 206, 235, 255); // Sky blue
-        level.tilesetName = "default";
-        level.playerSpawnPoint = Vector2(100, 100);
+
+    // Try to load level from JSON file
+    string jsonFilePath = levelPath ~ "/LEVEL_0.json";
+    if (exists(jsonFilePath)) {
+        try {
+            string jsonContent = readText(jsonFilePath);
+            JSONValue json = parseJSON(jsonContent);
+
+            // Parse metadata with default values for missing keys
+            level.levelName = "Unnamed Level";
+            if ("levelName" in json) {
+                level.levelName = json["levelName"].str;
+            }
+
+            level.tilesetName = "default";
+            if ("tilesetName" in json) {
+                level.tilesetName = json["tilesetName"].str;
+            }
+
+            level.timeLimit = 0;
+            if ("timeLimit" in json) {
+                level.timeLimit = cast(int)json["timeLimit"].integer;
+            }
+
+            level.playerSpawnPoint = Vector2(100, 100);
+            if ("playerSpawn" in json) {
+                auto spawn = json["playerSpawn"];
+                level.playerSpawnPoint = Vector2(
+                    cast(float)spawn["x"].floating,
+                    cast(float)spawn["y"].floating
+                );
+            }
+
+            level.backgroundColor = Color(135, 206, 235, 255); // Default sky blue
+            if ("backgroundColor" in json) {
+                auto bg = json["backgroundColor"];
+                level.backgroundColor = Color(
+                    cast(ubyte)bg["r"].integer,
+                    cast(ubyte)bg["g"].integer,
+                    cast(ubyte)bg["b"].integer,
+                    cast(ubyte)bg["a"].integer
+                );
+            }
+
+            // Parse layers
+            foreach (layer; json["layers"].array) {
+                string layerName = layer["name"].str;
+
+                // Debug: Log layer name and type
+                string layerType = layer["type"].str;
+                writeln("[DEBUG] Processing layer: ", layerName, " (Type: ", layerType, ")");
+
+                // Skip non-tile layers
+                if (layerType != "tilelayer") {
+                    writeln("[WARNING] Skipping non-tile layer: ", layerName);
+                    continue;
+                }
+
+                // Parse tile layers
+                Tile[][] parsedLayer = parseTileLayer(layer["data"].array, cast(int)layer["width"].integer);
+
+                if (layerName == "Ground_1") {
+                    level.groundLayer1 = parsedLayer;
+                } else if (layerName == "Ground_2") {
+                    level.groundLayer2 = parsedLayer;
+                } else if (layerName == "Ground_3") {
+                    level.groundLayer3 = parsedLayer;
+                } else if (layerName == "SemiSolid_1" || layerName == "SemiSolids_1") {
+                    level.semiSolidLayer1 = parsedLayer;
+                } else if (layerName == "SemiSolid_2" || layerName == "SemiSolids_2") {
+                    level.semiSolidLayer2 = parsedLayer;
+                } else if (layerName == "SemiSolid_3" || layerName == "SemiSolids_3") {
+                    level.semiSolidLayer3 = parsedLayer;
+                } else if (layerName == "Ground_1_Collision" || layerName == "Ground_2_Collision" || layerName == "Ground_3_Collision") {
+                    level.collisionLayer = parsedLayer;
+                } else if (layerName == "SemiSolids_1_Collision" || layerName == "SemiSolids_2_Collision" || layerName == "SemiSolids_3_Collision") {
+                    level.hazardLayer = parsedLayer;
+                } else {
+                    writeln("[WARNING] Unhandled layer: ", layerName);
+                }
+            }
+
+            // Calculate level dimensions
+            calculateLevelDimensions(level);
+
+            writeln("Loaded level from JSON: ", level.levelName, " (", level.width, "x", level.height, ")");
+            return level;
+        } catch (Exception e) {
+            writeln("[ERROR] Failed to load level from JSON: ", e.msg);
+        }
     }
-    
-    // Load all tile layers
-    level.groundLayer1 = loadTileLayer(levelPath ~ "/LEVEL_0_Ground_1.csv");
-    level.groundLayer2 = loadTileLayer(levelPath ~ "/LEVEL_0_Ground_2.csv");
-    level.groundLayer3 = loadTileLayer(levelPath ~ "/Ground_3.csv"); // Fallback name
-    level.semiSolidLayer1 = loadTileLayer(levelPath ~ "/LEVEL_0_SemiSolid_1.csv");
-    level.semiSolidLayer2 = loadTileLayer(levelPath ~ "/LEVEL_0_SemiSolid_2.csv");
-    level.semiSolidLayer3 = loadTileLayer(levelPath ~ "/SemiSolid_3.csv"); // Fallback name
-    level.collisionLayer = loadTileLayer(levelPath ~ "/LEVEL_0_Collision.csv");
-    level.hazardLayer = loadTileLayer(levelPath ~ "/Hazards.csv"); // Fallback name
-    
-    // Calculate level dimensions from largest layer
-    calculateLevelDimensions(level);
-    
-    // Load objects
-    level.objects = loadLevelObjects(levelPath ~ "/LEVEL_0_Objects_1.csv");
-    
-    writeln("Loaded level: ", level.levelName, " (", level.width, "x", level.height, ")");
-    writeln("  Objects: ", level.objects.length);
-    
+
+    // Fallback to CSV loading
+    writeln("[WARNING] JSON file not found or failed to load. Falling back to CSV loading.");
+    level = loadLevelFromCSV(levelPath);
     return level;
+}
+
+Tile[][] parseTileLayer(JSONValue[] data, int width) {
+    Tile[][] layer;
+    Tile[] row;
+
+    foreach (i, tileId; data) {
+        Tile tile;
+        tile.tileId = cast(int)tileId.integer;
+
+        if (tile.tileId > 0) {
+            tile.isSolid = true; // Example property
+        }
+
+        row ~= tile;
+
+        if ((i + 1) % width == 0) {
+            layer ~= row;
+            row = [];
+        }
+    }
+
+    return layer;
 }
 
 // Load level metadata from JSON file
@@ -353,6 +443,45 @@ LevelData loadLevelFromJSON(string jsonPath) {
         level.collisionLayer = initializeLayer(level.width, level.height);
         level.hazardLayer = initializeLayer(level.width, level.height);
         
+        // Parse tilesets (if present) so runtime can resolve global gids
+        if ("tilesets" in json) {
+            foreach (ts; json["tilesets"].array) {
+                int firstgid = cast(int)ts["firstgid"].integer;
+                string source = ts["source"].isNull ? "" : ts["source"].str;
+                string image = ts["image"].isNull ? "" : ts["image"].str;
+                string name = ts["name"].isNull ? "" : ts["name"].str;
+
+                world.tileset_map.TilesetInfo info;
+                info.firstgid = firstgid;
+
+                // Collect candidate names and normalize them
+                if (source.length > 0) info.nameCandidates ~= world.tileset_map.normalizeTilesetName(source);
+                if (image.length > 0) info.nameCandidates ~= world.tileset_map.normalizeTilesetName(image);
+                if (name.length > 0) info.nameCandidates ~= world.tileset_map.normalizeTilesetName(name);
+
+                // Also store plain basename of source if available
+                if (source.length > 0) {
+                    import std.path : baseName;
+                    string base = baseName(source);
+                    info.nameCandidates ~= world.tileset_map.normalizeTilesetName(base);
+                }
+
+                // De-duplicate candidates using a simple seen map
+                string[] uniq;
+                bool[string] seen;
+                foreach (c; info.nameCandidates) {
+                    if (c.length == 0) continue;
+                    if (!seen.get(c, false)) {
+                        seen[c] = true;
+                        uniq ~= c;
+                    }
+                }
+                info.nameCandidates = uniq;
+
+                level.tilesets ~= info;
+            }
+        }
+
         // Process each layer from JSON
         foreach (layerJson; json["layers"].array) {
             string layerName = layerJson["name"].str;
@@ -368,12 +497,65 @@ LevelData loadLevelFromJSON(string jsonPath) {
         }
         
         writeln("JSON level loaded successfully!");
+    // Precompute tile profiles for fast runtime lookup
+    precomputeTileProfiles(level);
         
     } catch (Exception e) {
         writeln("Error loading JSON level: ", e.msg);
     }
     
     return level;
+}
+
+// Build a map of precomputed TileHeightProfile for all tiles referenced in the level.
+// Key format: "<rawTileId>::<layerName>".
+void precomputeTileProfiles(ref LevelData level) {
+    import std.conv : to;
+    import std.format : format;
+
+    if (level.tilesets is null) return;
+
+    // Iterate layers and collect unique rawTileIds per layer
+    struct LayerRef { Tile[][]* layer; string name; }
+    LayerRef[] layers = [
+        LayerRef(&level.groundLayer1, "Ground_1"),
+        LayerRef(&level.groundLayer2, "Ground_2"),
+        LayerRef(&level.groundLayer3, "Ground_3"),
+        LayerRef(&level.semiSolidLayer1, "SemiSolid_1"),
+        LayerRef(&level.semiSolidLayer2, "SemiSolid_2"),
+        LayerRef(&level.semiSolidLayer3, "SemiSolid_3"),
+        LayerRef(&level.collisionLayer, "Collision"),
+        LayerRef(&level.hazardLayer, "Hazard")
+    ];
+
+    // For each layer, iterate tiles and precompute profiles
+    foreach (lr; layers) {
+        Tile[][] layer = *lr.layer;
+        if (layer.length == 0) continue;
+
+        foreach (y, row; layer) {
+            foreach (x, tile; row) {
+                int raw = tile.tileId;
+                string key = format("%s::%s", raw, lr.name);
+                if (key in level.tileProfiles) continue;
+
+                // Use the existing TileCollision API (will use generated tables when available)
+                auto profile = world.tile_collision.TileCollision.getTileHeightProfile(raw, lr.name, level.tilesets);
+                level.tileProfiles[key] = profile;
+            }
+        }
+    }
+}
+
+// Accessor for precomputed profile. Returns true if found and fills out profile. Otherwise returns false.
+bool getPrecomputedTileProfile(const LevelData level, int rawTileId, string layerName, out world.tile_collision.TileHeightProfile profile) {
+    import std.format : format;
+    string key = format("%s::%s", rawTileId, layerName);
+    if (key in level.tileProfiles) {
+        profile = level.tileProfiles[key];
+        return true;
+    }
+    return false;
 }
 
 // Helper to get layer reference by name
@@ -449,5 +631,3 @@ LevelData loadCompleteLevel(string levelPath, bool useJson) {
             // Fall back to original CSV loading
             return loadCompleteLevel(levelPath);
 }
-
-// ...existing code... (RVW loading functions removed)

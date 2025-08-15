@@ -14,6 +14,8 @@ import std.math : abs;
 
 import entity.sprite_object;
 import entity.player.var;
+import utils.level_loader; // for LevelData and helpers
+import world.tile_collision; // for TileHeightProfile and angle helper
 import entity.player.animations;
 import sprite.sprite_manager;
 import sprite.animation_manager;
@@ -49,6 +51,8 @@ struct Player {
     PlayerState state;
     PlayerVariables vars;  // All the physics variables from var.d
     PlayerAnimations animations;
+    // Optional pointer to the loaded level so player can query precomputed tile profiles
+    LevelData* level = null;
 
     // Constructor
     static Player create(float x, float y) {
@@ -60,6 +64,11 @@ struct Player {
         return player;
     }
 
+    // Attach the level so collision queries can prefer precomputed profiles
+    void setLevel(LevelData* lvl) {
+        this.level = lvl;
+    }
+
     // Initialize the player
     void initialize(float x, float y) {
         vars = PlayerVariables();
@@ -68,13 +77,21 @@ struct Player {
         // Initialize sprite positioning and sizing
         sprite.x = x;
         sprite.y = y;
-        sprite.width = cast(int)(vars.widthRadius * 2);
-        sprite.height = cast(int)(vars.heightRadius * 2);
-        sprite.setScale(8.0f); // Double the default scale for better visibility
+    sprite.width = cast(int)(vars.widthRadius * 2);
+    sprite.height = cast(int)(vars.heightRadius * 2);
+    sprite.setScale(1.0f); // Use native scale; animation rendering will scale explicitly
 
-        // Initialize animations
-        animations = new PlayerAnimations();
-        animations.setPlayerAnimationState(PlayerAnimationState.IDLE);
+    // Initialize animations
+    animations = new PlayerAnimations();
+    // Load the default player sprite sheet and provide it to the animations
+    import std.string : toStringz;
+    // Use the multi-frame sprite atlas so AnimationManager can map frame indices correctly
+    Texture2D playerTex = LoadTexture("resources/image/spritesheet/Sonic_spritemap.png".toStringz);
+    animations.setTexture(playerTex);
+    // Also register a SpriteObject in SpriteManager so fallback lookups work
+    import sprite.sprite_manager;
+    SpriteManager.getInstance().loadSprite("Sonic", "resources/image/spritesheet/Sonic_spritemap.png", 64, 64);
+    animations.setPlayerAnimationState(PlayerAnimationState.IDLE);
 
         writeln("Player initialized at position: (", x, ", ", y, ")");
     }
@@ -336,7 +353,8 @@ struct Player {
 
     // Draw the player
     void draw() {
-        animations.render(Vector2(vars.xPosition, vars.yPosition));
+        // Render at player position using native 1:1 scale; SpriteObject.scale is preserved for legacy draws
+        animations.render(Vector2(vars.xPosition, vars.yPosition), 1.0f);
     }
 
     // Debug functions
@@ -348,35 +366,119 @@ struct Player {
 
     // Collision detection placeholder
     bool checkGroundCollision() {
-        // TODO: Implement ground collision with level data
-        // For now, simple ground at y=400
-        if (vars.yPosition >= 400) {
-            vars.yPosition = 400;
+    import std.math : floor;
+    import std.algorithm : max, min;
 
-            // Only update groundSpeed if we just landed (transition from air to ground)
-            if (!vars.isGrounded) {
-                vars.isGrounded = true;
-
-                // SIMPLE RULE: If landing with very little horizontal movement, set groundSpeed to 0
-                // This prevents any unwanted drift when landing idle
-                if (abs(vars.xSpeed) < 1.0f) {
-                    vars.groundSpeed = 0;
-                } else {
-                    // Only preserve horizontal momentum if there's significant movement
-                    vars.groundSpeed = vars.xSpeed;
+        // If we don't have level data, fall back to previous simple ground at y=400
+        if (level is null) {
+            if (vars.yPosition >= 400) {
+                vars.yPosition = 400;
+                if (!vars.isGrounded) {
+                    vars.isGrounded = true;
+                    if (abs(vars.xSpeed) < 1.0f) {
+                        vars.groundSpeed = 0;
+                    } else {
+                        vars.groundSpeed = vars.xSpeed;
+                    }
+                    writeln("LANDING (fallback): xSpeed=", vars.xSpeed, " -> groundSpeed=", vars.groundSpeed);
+                    return true;
                 }
+                vars.isGrounded = true;
+                return false;
+            } else {
+                vars.isGrounded = false;
+                return false;
+            }
+        }
 
-                writeln("LANDING: xSpeed=", vars.xSpeed, " -> groundSpeed=", vars.groundSpeed);
-                return true;
+        // Compute bottom point in world coordinates
+        float bottom = vars.yPosition + vars.heightRadius;
+        int tileSize = 16;
+        int tileX = cast(int)floor(vars.xPosition / tileSize);
+        int tileY = cast(int)floor(bottom / tileSize);
+
+        // Helper to compute local X inside tile (0..15)
+        int localXInTile(float worldX, int tx) {
+            int lx = cast(int)floor(worldX) - tx * tileSize;
+            if (lx < 0) lx = 0;
+            if (lx > 15) lx = 15;
+            return lx;
+        }
+
+        // Layers to check in priority order
+        struct LayerCheck { Tile[][]* layer; string name; bool isSemi; }
+        LayerCheck[7] checks = [
+            LayerCheck(&level.collisionLayer, "Collision", false),
+            LayerCheck(&level.groundLayer1, "Ground_1", false),
+            LayerCheck(&level.groundLayer2, "Ground_2", false),
+            LayerCheck(&level.groundLayer3, "Ground_3", false),
+            LayerCheck(&level.semiSolidLayer1, "SemiSolid_1", true),
+            LayerCheck(&level.semiSolidLayer2, "SemiSolid_2", true),
+            LayerCheck(&level.semiSolidLayer3, "SemiSolid_3", true)
+        ];
+
+        foreach (ch; checks) {
+            Tile[][] layer = *ch.layer;
+            if (layer.length == 0) continue;
+
+            // Get tile at candidate position
+            Tile tile = utils.level_loader.getTileAtPosition(layer, tileX, tileY);
+            if (tile.tileId <= 0) continue;
+
+            // Attempt to use precomputed profile (preferred)
+            world.tile_collision.TileHeightProfile profile;
+            bool hadProfile = utils.level_loader.getPrecomputedTileProfile(*level, tile.tileId, ch.name, profile);
+
+            if (!hadProfile) {
+                // Fallback: ask runtime TileCollision for a profile (this will consult generated tables as available)
+                profile = world.tile_collision.TileCollision.getTileHeightProfile(tile.tileId, ch.name, level.tilesets);
             }
 
-            // Already grounded, don't update groundSpeed
-            vars.isGrounded = true;
-            return false; // Not a new landing
-        } else {
-            // Not touching ground
-            vars.isGrounded = false;
+            // Determine local column within tile from player's X
+            int localX = localXInTile(vars.xPosition, tileX);
+            int h = profile.groundHeights[localX]; // 0..16
+
+            // Calculate surface Y (top of solid pixels in tile). If h==0 => surface is tile bottom
+            float tileTopY = cast(float)(tileY * tileSize);
+            float surfaceY = tileTopY + (tileSize - cast(float)h);
+
+            // We allow landing only when moving downward (or stationary) to avoid catching upward movement
+            if (vars.ySpeed >= 0 && (bottom >= surfaceY)) {
+                // New landing only if previously airborne
+                if (!vars.isGrounded) {
+                    vars.isGrounded = true;
+                    // Transfer horizontal speed into groundSpeed on landing similarly to previous simple rule
+                    if (abs(vars.xSpeed) < 1.0f) {
+                        vars.groundSpeed = 0;
+                    } else {
+                        vars.groundSpeed = vars.xSpeed;
+                    }
+
+                    // Snap player to surface
+                    vars.yPosition = surfaceY - vars.heightRadius;
+
+                    // Update ground angle from generated tables when available
+                    float ang = world.tile_collision.TileCollision.getTileGroundAngle(tile.tileId, ch.name, level.tilesets);
+                    // Only assign if the angle is a finite number; some tiles may not have a defined angle
+                    import std.math : isNaN;
+                    if (!isNaN(ang)) {
+                        vars.groundAngle = ang;
+                    } else {
+                        // Fallback to flat ground if angle is undefined
+                        vars.groundAngle = 0.0f;
+                    }
+
+                    writeln("LANDING: tile(", ch.name, ") raw=", tile.tileId, " at (", tileX, ",", tileY, ") localX=", localX, " surfaceY=", surfaceY, " -> yPosition=", vars.yPosition);
+                    return true;
+                }
+                // Already grounded: keep grounded
+                vars.isGrounded = true;
+                return false;
+            }
         }
+
+        // No tile surface detected beneath us
+        vars.isGrounded = false;
         return false;
     }
 }
