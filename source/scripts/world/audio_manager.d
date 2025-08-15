@@ -20,6 +20,13 @@ enum AudioType {
 
 // ---- CLASS ----
 class AudioManager {
+    // Public setters for SFX/music enabled flags
+    void setSFXEnabled(bool enabled) {
+        isSFXEnabled = enabled;
+    }
+    void setMusicEnabled(bool enabled) {
+        isMusicEnabled = enabled;
+    }
     // Singleton instance
     private __gshared AudioManager instance;
     
@@ -340,6 +347,13 @@ class AudioManager {
         sfxVolume = volume;
         if (sfxVolume < 0.0f) sfxVolume = 0.0f;
         if (sfxVolume > 1.0f) sfxVolume = 1.0f;
+    }
+
+    void stopMusic() {
+        if (isMusicPlaying && currentMusic.ctxData != null) {
+            StopMusicStream(currentMusic);
+            isMusicPlaying = false;
+        }
     }
 
     // Getter methods

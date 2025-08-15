@@ -10,6 +10,7 @@ import std.range;
 import world.screen_manager;
 import world.audio_manager;
 import world.screen_state;
+import sprite.sprite_fonts;
 import app;
 import app : VIRTUAL_SCREEN_HEIGHT, VIRTUAL_SCREEN_WIDTH;
 
@@ -71,23 +72,24 @@ class InitScreen : IScreen {
     }
 
     void initialize() {
-        // Update init states
-        initState = InitScreenState.UNINITIALIZED;
-        initPhase = InitScreenPhase.DISCLAIMER_FADEIN;
+    // Update init states
+    initState = InitScreenState.UNINITIALIZED;
+    initPhase = InitScreenPhase.DISCLAIMER_FADEIN;
 
-        disclaimerPlayer = false;
-        jinglePlayed = false;
-        timer = 0.0f;
-        disclaimerTimer = 0.0f;
+    disclaimerPlayer = false;
+    jinglePlayed = false;
+    timer = 0.0f;
+    disclaimerTimer = 0.0f;
 
-        disclaimerAlpha = 1.0f;
-        logoScaleX = 0.0f;
-        logoScaleY = 0.0f;
-        logoPosition = new Vector2(VIRTUAL_SCREEN_WIDTH / 2.0f, VIRTUAL_SCREEN_HEIGHT);
-        backgroundColorModifier = 0;
-        // Load assets
-        segaLogo = LoadTexture("resources/image/spritesheet/Sega-logo.png");
-        segaJingle = LoadSound("resources/sound/sfx/jingle.ogg");
+    disclaimerAlpha = 1.0f;
+    logoScaleX = 0.0f;
+    logoScaleY = 0.0f;
+    logoPosition = new Vector2(VIRTUAL_SCREEN_WIDTH / 2.0f, VIRTUAL_SCREEN_HEIGHT);
+    backgroundColorModifier = 0;
+    // Load assets
+    segaLogo = LoadTexture("resources/image/spritesheet/Sega-logo.png");
+    segaJingle = LoadSound("resources/sound/sfx/jingle.ogg");
+    initSpriteFonts();
     }
 
     void update(float deltaTime) {
@@ -182,34 +184,42 @@ class InitScreen : IScreen {
 
         if (initState == InitScreenState.DISCLAIMER) {
             if (initPhase == InitScreenPhase.DISCLAIMER_FADEIN || initPhase == InitScreenPhase.DISCLAIMER_DISPLAY || initPhase == InitScreenPhase.DISCLAIMER_FADEOUT) {
-                // Split disclaimer text into multiple lines
+                import sprite.sprite_fonts;
+                string header = "DISCLAIMER";
                 string[] disclaimerLines = [
-                    "DISCLAIMER",
                     "",
-                    "This is a fan project made from the love of the community",
-                    "and the Sonic franchise. This project is not affiliated",
-                    "with Sega or Sonic Team, and should not be used as a",
-                    "commercial product."
+                    "THIS IS A FAN PROJECT MADE WITH LOVE FOR THE",
+                    "SONIC COMMUNITY.",
+                    "IT IS NOT AFFILIATED WITH SEGA OR SONIC TEAM.",
+                    "THIS PROJECT IS STRICTLY NON-COMMERCIAL.",
+                    "ALL RIGHTS BELONG TO THEIR RESPECTIVE OWNERS.",
+                    "THANK YOU FOR YOUR SUPPORT!"
                 ];
-
-                float titleFontSize = 28.0f;
-                float paragraphFontSize = 14.0f;
-                float lineHeight = 28.0f;
-                float totalHeight = disclaimerLines.length * lineHeight;
+                float lineHeight = 10.0f;
+                float totalHeight = (disclaimerLines.length + 1) * lineHeight;
                 float startY = (VIRTUAL_SCREEN_HEIGHT - totalHeight) / 2.0f;
-
-                // Fade color for text
                 Color fadeColor = Colors.WHITE;
                 fadeColor.a = cast(ubyte)(255 * disclaimerAlpha);
-
+                // Draw header with DiscoveryFont
+                int headerWidth = 0;
+                foreach (ch; header) {
+                    if (ch >= 'A' && ch <= 'Z') {
+                        int idx = ch - 'A';
+                        headerWidth += discoveryFont.glyphs[idx].width;
+                    } else if (ch == ' ') {
+                        headerWidth += 8; // Space width, adjust as needed
+                    }
+                }
+                float headerX = (VIRTUAL_SCREEN_WIDTH - headerWidth) / 2.0f;
+                float headerY = startY;
+                drawDiscoveryText(header, cast(int)headerX, cast(int)headerY, fadeColor);
+                // Draw paragraph with Sonic font
                 foreach (i, line; disclaimerLines) {
                     if (line.length > 0) {
-                        float fontSize = (i == 0) ? titleFontSize : paragraphFontSize;
-                        Font font = (i == 0) ? fontFamily[0] : fontFamily[1];
-                        float textWidth = MeasureTextEx(font, line.ptr, fontSize, 1.0f).x;
+                        int textWidth = cast(int)line.length * smallSonicFont.glyphWidth;
                         float textX = (VIRTUAL_SCREEN_WIDTH - textWidth) / 2.0f;
-                        float textY = startY + i * lineHeight;
-                        DrawTextEx(font, line.ptr, Vector2(textX, textY), fontSize, 1.0f, fadeColor);
+                        float textY = startY + (i + 1) * lineHeight;
+                        drawSpriteText(smallSonicFont, line, cast(int)textX, cast(int)textY, fadeColor);
                     }
                 }
             }

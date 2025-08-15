@@ -8,6 +8,7 @@ import std.process;
 import std.path;
 import std.string;
 import std.algorithm;
+import std.conv;
 
 import data;
 import world.screen_manager;
@@ -20,8 +21,9 @@ import screens.palette_swap_test_screen;
 import screens.init_screen; // Importing the missing module
 
 // Define the world settings
-public const int SCREEN_WIDTH = 800;
-public const int SCREEN_HEIGHT = 448;
+public int windowSize;
+public int SCREEN_WIDTH;
+public int SCREEN_HEIGHT;
 public int VIRTUAL_SCREEN_WIDTH = 400;
 public int VIRTUAL_SCREEN_HEIGHT = 224;
 
@@ -57,10 +59,56 @@ Vector2 GetMousePositionVirtual() {
 
 // ---- MAIN FUNCTION ----
 void main() {
-    // ...existing code... (RVW conversion removed)
+    writeln("Starting Presto Framework...");
+
+    if (exists("options.ini")) {
+        foreach (line; File("options.ini").byLine()) {
+            auto parts = line.idup.split("=");
+            if (parts.length == 2) {
+                string key = parts[0].strip;
+                string value = parts[1].strip;
+                if (key == "windowSize") {
+                    windowSize = to!int(value);
+                }
+            }
+        }
+    }
+    SCREEN_WIDTH = 400 * windowSize;
+    SCREEN_HEIGHT = 224 * windowSize;
+
+    SetConfigFlags(ConfigFlags.FLAG_VSYNC_HINT); // Use the correct namespace for the flag
 
     InitAudioDevice();
-    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Presto Framework Pre-Alpha v 0.1.0");
+
+    // If fullscreen is enabled, match window size to display resolution
+    bool fullscreen = false;
+    if (exists("options.ini")) {
+        foreach (line; File("options.ini").byLine()) {
+            auto parts = line.idup.split("=");
+            if (parts.length == 2) {
+                string key = parts[0].strip;
+                string value = parts[1].strip;
+                if (key == "fullscreen" && value == "true") {
+                    fullscreen = true;
+                }
+            }
+        }
+    }
+    if (fullscreen) {
+        int displayWidth = GetMonitorWidth(GetCurrentMonitor());
+        int displayHeight = GetMonitorHeight(GetCurrentMonitor());
+        SCREEN_WIDTH = displayWidth;
+        SCREEN_HEIGHT = displayHeight;
+    }
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Presto Framework Pre-Alpha v 0.1.2");
+    if (fullscreen) {
+        ToggleBorderlessWindowed();
+    } else {
+        // Ensure borderless windowed is off if not fullscreen
+        if (IsWindowFullscreen()) {
+            ToggleBorderlessWindowed();
+        }
+    }
     SetTargetFPS(60);
 
     SetExitKey(KeyboardKey.KEY_NULL);
@@ -97,6 +145,7 @@ void main() {
     writeln("Starting Presto Framework main loop...");
     
     while (!WindowShouldClose()) {
+    int lastWindowSize = windowSize;
         float deltaTime = GetFrameTime();
         
         // Update managers
@@ -110,7 +159,30 @@ void main() {
             screenManager.draw();
         EndTextureMode();
         
-        // Draw virtual screen to actual window with scaling
+        // Check options.ini for fullscreen and window size
+        string iniPath = "options.ini";
+        int newWindowSize = windowSize;
+        if (exists(iniPath)) {
+            foreach (line; File(iniPath).byLine()) {
+                auto parts = line.idup.split("=");
+                if (parts.length == 2) {
+                    string key = parts[0].strip;
+                    string value = parts[1].strip;
+                    if (key == "windowSize") {
+                        newWindowSize = to!int(value);
+                    }
+                }
+            }
+        }
+
+        // Only allow dynamic window size changes if not in fullscreen
+        if (!fullscreen && newWindowSize != lastWindowSize && newWindowSize > 0) {
+            windowSize = newWindowSize;
+            SCREEN_WIDTH = 400 * windowSize;
+            SCREEN_HEIGHT = 224 * windowSize;
+            SetWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT);
+            lastWindowSize = windowSize;
+        }
         BeginDrawing();
             ClearBackground(Colors.BLACK);
             

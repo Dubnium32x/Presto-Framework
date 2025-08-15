@@ -12,6 +12,7 @@ import std.algorithm;
 import world.screen_manager;
 import world.screen_state;
 import world.audio_manager;
+import sprite.sprite_fonts;
 import app;
 import app : VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT;
 
@@ -19,7 +20,10 @@ import app : VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT;
 enum TitleScreenState {
     LOGO_FALLING,
     LOGO_BOUNCING,
-    MENU_ACTIVE
+    LOGO_BOUNCE_DELAY,
+    MENU_ACTIVE,
+    TRANSITION_OUT,
+    EXITING
 }
 
 class TitleScreen : IScreen {
@@ -30,8 +34,10 @@ class TitleScreen : IScreen {
     TitleScreenState state;
     int bounceCount = 0;
     int maxBounces = 3;
+    float bounceDelayTimer = 0.0f;
+    float bounceDelayDuration = 1.0f;
 
-    string[] menuItems = ["Start Game", "Options", "Exit Game"];
+    string[] menuItems = ["START GAME", "OPTIONS", "EXIT GAME"];
     int selectedMenu = 0;
 
     Sound bounceSound;
@@ -40,6 +46,12 @@ class TitleScreen : IScreen {
 
     float menuAnimProgress = 0.0f;
     float menuAnimDuration = 0.5f;
+    float transitionAlpha = 0.0f;
+    float transitionDuration = 1.2f;
+    float transitionTimer = 0.0f;
+    float exitAlpha = 0.0f;
+    float exitDuration = 1.2f;
+    float exitTimer = 0.0f;
 
     // Checkerboard background variables
     float checkerFade = 0.0f;
@@ -80,6 +92,7 @@ class TitleScreen : IScreen {
         if (acceptSound.frameCount == 0) {
             acceptSound = LoadSound("resources/sound/sfx/Sonic World Sounds/022.wav");
         }
+
     }
 
     void update(float deltaTime) {
@@ -106,8 +119,15 @@ class TitleScreen : IScreen {
                     PlaySound(bounceSound);
                     if (bounceCount >= maxBounces) {
                         logoVelocity.y = 0;
-                        state = TitleScreenState.MENU_ACTIVE;
+                        bounceDelayTimer = 0.0f;
+                        state = TitleScreenState.LOGO_BOUNCE_DELAY;
                     }
+                }
+                break;
+            case TitleScreenState.LOGO_BOUNCE_DELAY:
+                bounceDelayTimer += deltaTime;
+                if (bounceDelayTimer >= bounceDelayDuration) {
+                    state = TitleScreenState.MENU_ACTIVE;
                 }
                 break;
             case TitleScreenState.MENU_ACTIVE:
@@ -136,13 +156,37 @@ class TitleScreen : IScreen {
                 if (IsKeyPressed(KeyboardKey.KEY_S)) {
                     import world.audio_manager;
                     AudioManager.getInstance().playSFX("resources/sound/sfx/Sonic World Sounds/022.wav");
-                    if (menuItems[selectedMenu] == "Options") {
-                        import world.screen_manager;
-                        import world.screen_state;
-                        ScreenManager.getInstance().changeState(ScreenState.SETTINGS);
+                    if (menuItems[selectedMenu] == "OPTIONS") {
+                        // Start transition out
+                        state = TitleScreenState.TRANSITION_OUT;
+                        transitionAlpha = 0.0f;
+                        transitionTimer = 0.0f;
+                    } else if (menuItems[selectedMenu] == "EXIT GAME") {
+                        // Start fade to black and exit
+                        state = TitleScreenState.EXITING;
+                        exitAlpha = 0.0f;
+                        exitTimer = 0.0f;
                     }
                     // Add logic for other menu items as needed
                 }
+                break;
+            case TitleScreenState.EXITING:
+                exitTimer += deltaTime;
+                exitAlpha = min(exitTimer / exitDuration, 1.0f) * 255.0f;
+                if (exitTimer >= exitDuration) {
+                    CloseWindow();
+                }
+                break;
+                break;
+            case TitleScreenState.TRANSITION_OUT:
+                transitionTimer += deltaTime;
+                transitionAlpha = min(transitionTimer / transitionDuration, 1.0f) * 255.0f;
+                if (transitionTimer >= transitionDuration) {
+                    import world.screen_manager;
+                    import world.screen_state;
+                    ScreenManager.getInstance().changeState(ScreenState.SETTINGS);
+                }
+                break;
                 // Back: A key
                 if (IsKeyPressed(KeyboardKey.KEY_A)) {
                     // For now, do nothing or add logic to exit or go back
@@ -152,6 +196,14 @@ class TitleScreen : IScreen {
                 // Handle unexpected states
                 writeln("ERROR: Unexpected TitleScreenState: ", state);
                 break;
+        }
+
+        if (state == TitleScreenState.MENU_ACTIVE) {
+            writeln("Menu active, selected item: ", menuItems[selectedMenu]);
+            // Play menu music
+            if (!AudioManager.getInstance().isMusicPlayingNow) {
+                AudioManager.getInstance().playMusic("resources/sound/music/04. Digital Manual.mp3", 0.8f, true);
+            }
         }
     }
 
@@ -173,8 +225,8 @@ class TitleScreen : IScreen {
     void draw() {
         // White background
         ClearBackground(Colors.WHITE);
-        // Draw checkerboard after logo stops bouncing
-        if (state == TitleScreenState.MENU_ACTIVE) {
+        // Draw checkerboard after logo stops bouncing or during transition
+        if (state == TitleScreenState.MENU_ACTIVE || state == TitleScreenState.TRANSITION_OUT) {
             drawCheckerboard();
         }
         // Draw logo on the right
@@ -198,10 +250,30 @@ class TitleScreen : IScreen {
             DrawTriangle(a, b, d, highlightColor);
             DrawTriangle(b, c, d, highlightColor);
         }
+        import sprite.sprite_fonts;
         foreach (i, item; menuItems) {
-            Color color = (i == selectedMenu) ? Colors.BLUE : Colors.BLACK;
-            float textWidth = MeasureTextEx(fontFamily[2], item.toStringz(), 16, 1.0f).x;
-            DrawTextEx(fontFamily[2], item.toStringz(), Vector2(menuX, menuY + i * 24), 16, 1.0f, color);
+            Color color = (i == selectedMenu) ? Colors.WHITE : Colors.BLACK;
+            // Calculate width using DiscoveryFont glyphs
+            int itemWidth = 0;
+            foreach (ch; item) {
+                if (ch >= 'A' && ch <= 'Z') {
+                    int idx = ch - 'A';
+                    itemWidth += discoveryFont.glyphs[idx].width;
+                } else if (ch == ' ') {
+                    itemWidth += 8; // Space width
+                }
+            }
+            float itemX = menuX - 20; // Start items just off-screen to the left
+            float itemY = menuY + i * 24;
+            drawDiscoveryText(item, cast(int)itemX, cast(int)itemY, color);
+        }
+        // Draw Saturn-style white fade transition
+        if (state == TitleScreenState.TRANSITION_OUT) {
+            DrawRectangle(0, 0, VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT, Color(255, 255, 255, cast(ubyte)transitionAlpha));
+        }
+        // Draw fade-to-black exit effect
+        if (state == TitleScreenState.EXITING) {
+            DrawRectangle(0, 0, VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT, Color(0, 0, 0, cast(ubyte)exitAlpha));
         }
     }
 
