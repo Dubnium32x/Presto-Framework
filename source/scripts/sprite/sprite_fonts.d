@@ -77,7 +77,7 @@ void drawSpriteText(SpriteFont font, string text, int x, int y, Color color) {
     foreach (i, ch; text) {
     auto glyphIndex = font.glyphs.countUntil(ch);
         if (glyphIndex == -1) continue; // skip missing glyphs
-        int tx = (glyphIndex % (font.texture.width / font.glyphWidth)) * font.glyphWidth;
+        int tx = cast(int)((glyphIndex % (font.texture.width / font.glyphWidth)) * font.glyphWidth);
     auto ty = (glyphIndex / (font.texture.width / font.glyphWidth)) * font.glyphHeight;
         Rectangle src = Rectangle(tx, ty, font.glyphWidth, font.glyphHeight);
         Vector2 pos = Vector2(x + i * font.glyphWidth, y);
@@ -89,7 +89,7 @@ void drawDiscoverySonicFont() {
     foreach (size_t i, ch; "ABCDEFGHIJKLMNOPQRSTUVWXYZ") {
         auto glyphIndex = smallSonicFont.glyphs.countUntil(ch);
         if (glyphIndex == -1) continue; // skip missing glyphs
-        int tx = (glyphIndex % (smallSonicFont.texture.width / smallSonicFont.glyphWidth)) * smallSonicFont.glyphWidth;
+        int tx = cast(int)((glyphIndex % (smallSonicFont.texture.width / smallSonicFont.glyphWidth)) * smallSonicFont.glyphWidth);
     auto ty = (glyphIndex / (smallSonicFont.texture.width / smallSonicFont.glyphWidth)) * smallSonicFont.glyphHeight;
         Rectangle src = Rectangle(tx, ty, smallSonicFont.glyphWidth, smallSonicFont.glyphHeight);
         Vector2 pos = Vector2(0, 0);
