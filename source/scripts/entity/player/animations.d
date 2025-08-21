@@ -361,5 +361,12 @@ class PlayerAnimations {
             DrawRectangleRec(fallback, Colors.MAGENTA);
             DrawText("NOFRAME".toStringz, cast(int)(position.x - fallbackW/2.0f), cast(int)(position.y - fallbackH/2.0f), 8, Colors.BLACK);
         }
-        }
     }
+
+    // Return the current frame rectangle (width/height) so callers can align sprites to physics.
+    Rectangle getCurrentFrameRectangle() {
+        int frameIndex = animator.currentFrame.frameIndex;
+        return animationManager.getFrameRectangle(frameIndex);
+    }
+
+}

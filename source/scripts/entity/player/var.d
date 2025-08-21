@@ -20,8 +20,11 @@ struct PlayerVariables {
     float groundAngle = 0.0f;        // Player's ground angle (0-255, where 0=right, 64=down, 128=left, 192=up)
     
     // Size variables
-    float widthRadius = 18.0f;       // Width from center point (left and right) - doubled for better visibility
-    float heightRadius = 38.0f;      // Height from center point (up and down) - doubled for better visibility
+    // Reduce radii to better match sprite and avoid overly large collision boxes.
+    // These were previously doubled for visibility; halve them so collision extents are tighter.
+    // Tighter collision radii so player can fit through narrow gaps; can be tuned further.
+    float widthRadius = 6.0f;        // Width from center point (left and right)
+    float heightRadius = 16.0f;      // Height from center point (up and down)
     
     // State flags
     bool isGrounded = false;         // Whether player is on the ground

@@ -69,8 +69,10 @@ class LevelTestScreen : IScreen {
         entityManager = EntityManager.getInstance();
         
         // Initialize camera
-        camera.target = Vector2(0, 0);
-        camera.offset = Vector2(GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f);
+    camera.target = Vector2(0, 0);
+    // Use virtual screen center so test camera matches the virtual render target used by the main loop
+    import app : VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT;
+    camera.offset = Vector2(VIRTUAL_SCREEN_WIDTH / 2.0f, VIRTUAL_SCREEN_HEIGHT / 2.0f);
         camera.rotation = 0.0f;
         camera.zoom = 1.0f;
         cameraTarget = camera.target;

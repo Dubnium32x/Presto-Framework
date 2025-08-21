@@ -23,6 +23,7 @@ import utils.level_loader;
 
 import game.hud;
 import game.title_card;
+import app : VIRTUAL_SCREEN_HEIGHT, VIRTUAL_SCREEN_WIDTH;
 
 GameState currentState;
 
@@ -100,9 +101,16 @@ class GameScreen : IScreen {
     // Start camera target at player spawn
     debugCamera.target = currentLevel.playerSpawnPoint;
     // Use actual screen center for offset so centering works on any resolution
-    debugCamera.offset = Vector2(GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f);
+    // Use virtual screen center so the Camera2D offset lines up with the game's render target
+    debugCamera.offset = Vector2(VIRTUAL_SCREEN_WIDTH / 2.0f, VIRTUAL_SCREEN_HEIGHT / 2.0f);
         debugCamera.rotation = 0.0f;
         debugCamera.zoom = 1.0f;
+
+    // Ensure desired camera target starts at the current camera target (player spawn)
+    // This prevents cameraTarget from being (0,0) which could cause the camera to
+    // lerp toward the world origin on the first update.
+    cameraTarget = debugCamera.target;
+
 
     // Initialize player at spawn point (do not modify collision internals here)
     player = Player.create(currentLevel.playerSpawnPoint.x, currentLevel.playerSpawnPoint.y);
@@ -111,6 +119,9 @@ class GameScreen : IScreen {
     player.setLevel(&currentLevel);
     // Restore normal start state (title card sequence)
     currentState = GameState.TITLECARDMOVEIN;
+    // Initialize debug tracking positions to the player's start so initial logs are correct
+    dbgLastPlayerPos = Vector2(player.vars.xPosition, player.vars.yPosition);
+    dbgLastCameraTarget = debugCamera.target;
     }
 
     void update(float deltaTime) {

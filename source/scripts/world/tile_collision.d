@@ -5,6 +5,7 @@ import std.array : array;
 import std.conv : to;
 import std.string : startsWith;
 import std.math : atan, PI;
+import std.stdio : writeln, writefln;
 import world.generated_heightmaps : TILESET_HEIGHTMAPS, TILESET_NAMES, TILESET_GROUND_ANGLES, TILESET_HEIGHTMAPS_VARIANTS, TILESET_GROUND_ANGLES_VARIANTS;
 import world.tileset_map;
 
@@ -225,6 +226,7 @@ struct TileCollision {
     // Angle is computed by fitting a line to column heights (y per x) using
     // least-squares and returning atan(slope) in degrees. Results are cached per rawTileId.
     private static float[int] groundAngleCache;
+    enum bool DEBUG_TILE_ANGLE = true; // set true to enable verbose tile-angle debug prints
 
     static float getTileGroundAngle(int rawTileId, string layerName = "", world.tileset_map.TilesetInfo[] tilesets = null) {
         // Use rawTileId as cache key (includes flip bits so flipped variants are cached separately)
@@ -244,7 +246,7 @@ struct TileCollision {
                         string genNorm = world.tileset_map.normalizeTilesetName(n);
                         if (genNorm == candNorm) { idx = cast(int)i; break; }
                     }
-                    if (idx != -1) {
+                            if (idx != -1) {
                         // If rawTileId includes flips, try the variant angle table first
                         bool hadHFlip = (rawTileId & TileCollision.FLIPPED_HORIZONTALLY_FLAG) != 0;
                         bool hadVFlip = (rawTileId & TileCollision.FLIPPED_VERTICALLY_FLAG) != 0;
@@ -260,6 +262,7 @@ struct TileCollision {
                                 auto angList = varAngBlock[variantIdx];
                                 if (localIndex >= 0 && localIndex < angList.length) {
                                     float angleF = cast(float)angList[localIndex];
+                                    if (DEBUG_TILE_ANGLE) writeln("TileAngleDbg: variant table hit -> tilesetIdx=", idx, " variant=", variantIdx, " localIndex=", localIndex, " raw=", rawTileId, " angle=", angleF);
                                     groundAngleCache[rawTileId] = angleF;
                                     return angleF;
                                 }
@@ -271,6 +274,7 @@ struct TileCollision {
                             auto angBlock = TILESET_GROUND_ANGLES[idx];
                             if (localIndex >= 0 && localIndex < angBlock.length) {
                                 float angleF = cast(float)angBlock[localIndex];
+                                if (DEBUG_TILE_ANGLE) writeln("TileAngleDbg: base table hit -> tilesetIdx=", idx, " localIndex=", localIndex, " raw=", rawTileId, " angle=", angleF);
                                 groundAngleCache[rawTileId] = angleF;
                                 return angleF;
                             }
@@ -283,6 +287,7 @@ struct TileCollision {
         auto profile = getTileHeightProfile(rawTileId, layerName, tilesets);
         // Empty or fully solid or platform tiles -> angle 0
         if (profile.isPlatform || profile.isFullySolidBlock) {
+            if (DEBUG_TILE_ANGLE) writeln("TileAngleDbg: profile isPlatform=", profile.isPlatform, " isFullySolid=", profile.isFullySolidBlock, " raw=", rawTileId);
             groundAngleCache[rawTileId] = 0.0f;
             return 0.0f;
         }
@@ -305,6 +310,11 @@ struct TileCollision {
     double angleRad = atan(slope);
     double angleDeg = angleRad * 180.0 / PI;
     float angleF = cast(float)angleDeg;
+        if (DEBUG_TILE_ANGLE) {
+            writeln("TileAngleDbg: computed angle -> raw=", rawTileId, " slope=", slope, " deg=", angleF, " heights=[", profile.groundHeights[0], ",", profile.groundHeights[1], ",", profile.groundHeights[2], ",...]");
+            // print full heights for deeper inspection
+            writefln("TileAngleDbg heights full: %s", profile.groundHeights[]);
+        }
     groundAngleCache[rawTileId] = angleF;
     return angleF;
     }

@@ -13,6 +13,7 @@ import std.algorithm : map, filter;
 import utils.csv_loader;
 import world.tile_collision;
 import world.tileset_map;
+import world.generated_heightmaps : TILESET_NAMES;
 import world.screen_state;
 import world.screen_settings;
 import world.screen_manager;
@@ -514,6 +515,25 @@ void precomputeTileProfiles(ref LevelData level) {
     import std.format : format;
 
     if (level.tilesets is null) return;
+
+    // Diagnostic: compare normalized candidate names against generated TILESET_NAMES
+    writeln("TileProfileDbg: Checking tileset candidate name matches against generated TILESET_NAMES");
+    foreach (i, ts; level.tilesets) {
+        bool anyMatch = false;
+        foreach (c; ts.nameCandidates) {
+            foreach (j, n; TILESET_NAMES) {
+                string genNorm = world.tileset_map.normalizeTilesetName(n);
+                if (genNorm == c) {
+                    writeln("TileProfileDbg: Tileset ", i, " candidate '", c, "' matches generated name index ", j, " ('", n, "')");
+                    anyMatch = true;
+                    break;
+                }
+            }
+        }
+        if (!anyMatch) {
+            writeln("TileProfileDbg: Tileset ", i, " no candidates matched generated names. Candidates: ", ts.nameCandidates);
+        }
+    }
 
     // Iterate layers and collect unique rawTileIds per layer
     struct LayerRef { Tile[][]* layer; string name; }
