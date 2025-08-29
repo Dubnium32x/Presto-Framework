@@ -561,6 +561,15 @@ struct Player {
         if (level is null) return;
         import utils.level_loader : isSolidAtPosition;
 
+        // Prevent rapid consecutive wall collisions
+        static int wallCollisionCooldown = 0;
+        if (wallCollisionCooldown > 0) {
+            wallCollisionCooldown--;
+            // Allow near-normal movement during cooldown to support slope climbing
+            vars.xPosition = oldX + (targetX - oldX) * 0.8f; // Increased from 0.3f to 0.8f
+            return;
+        }
+
         // Number of steps equals distance in pixels (ceiled). We'll step 1px at a time.
         float dx = targetX - oldX;
         int steps = cast(int)ceil(abs(dx));
@@ -611,16 +620,12 @@ struct Player {
                 // Choose the tile row that is currently under the player's bottom
                 int sampleTileY = cast(int)floor((vars.yPosition + vars.heightRadius) / tileSize);
 
-                // Layers to check in priority order (match ground collision checks)
-                struct LayerCheck { Tile[][]* layer; string name; bool isSemi; }
-                LayerCheck[7] checks = [
-                    LayerCheck(&level.collisionLayer, "Collision", false),
-                    LayerCheck(&level.groundLayer1, "Ground_1", false),
-                    LayerCheck(&level.groundLayer2, "Ground_2", false),
-                    LayerCheck(&level.groundLayer3, "Ground_3", false),
-                    LayerCheck(&level.semiSolidLayer1, "SemiSolid_1", true),
-                    LayerCheck(&level.semiSolidLayer2, "SemiSolid_2", true),
-                    LayerCheck(&level.semiSolidLayer3, "SemiSolid_3", true)
+                // Layers to check in priority order (SOLID layers only - exclude semisolids for horizontal collision)
+                struct LayerCheck { Tile[][]* layer; string name; }
+                LayerCheck[3] checks = [
+                    LayerCheck(&level.collisionLayer, "Collision"),
+                    LayerCheck(&level.groundLayer1, "Ground_1"),
+                    LayerCheck(&level.groundLayer2, "Ground_2")
                 ];
 
                 foreach (ch; checks) {
@@ -683,10 +688,44 @@ struct Player {
         for (int i = 1; i <= steps; ++i) {
             float candidateX = oldX + stepDir * cast(float)i;
             if (overlapsAtCenter(candidateX)) {
-                // stop at last safe position before overlap
-                vars.xPosition = lastSafeX;
-                // zero horizontal speed to avoid repeated collisions
-                vars.xSpeed = 0;
+                // Hit a wall - gentle push to prevent sticking while allowing slope climbing
+                float pushDirection = (stepDir > 0) ? -1.0f : 1.0f; // Push away from wall
+                float pushAmount = 4.0f; // Gentle push to prevent sticking but allow slope movement
+
+                vars.xPosition = candidateX + (pushDirection * pushAmount);
+
+                // Context-aware bounce: gentler for grounded movement, stronger for high-speed impacts
+                float currentSpeed = vars.isGrounded ? abs(vars.groundSpeed) : abs(vars.xSpeed);
+                float bounceMultiplier = 0.4f; // Reduced from 0.3f for gentler bounce
+
+                // Minimum bounce speed to prevent complete sticking
+                float minBounceSpeed = 0.5f;
+
+                if (vars.isGrounded) {
+                    // Grounded: consider ground angle for slope-aware response
+                    float angleRad = vars.groundAngle * (3.14159f / 180.0f);
+                    float slopeFactor = abs(angleRad) > 0.1f ? 0.7f : 1.0f; // Reduce bounce on slopes
+
+                    if (abs(vars.groundSpeed) < minBounceSpeed) {
+                        vars.groundSpeed = pushDirection * minBounceSpeed;
+                    } else {
+                        vars.groundSpeed = -vars.groundSpeed * bounceMultiplier * slopeFactor;
+                    }
+                    vars.xSpeed = vars.groundSpeed;
+                } else {
+                    // Air: standard bounce
+                    if (abs(vars.xSpeed) < minBounceSpeed) {
+                        vars.xSpeed = pushDirection * minBounceSpeed;
+                    } else {
+                        vars.xSpeed = -vars.xSpeed * bounceMultiplier;
+                    }
+                }
+
+                // Shorter cooldown to allow responsive slope climbing
+                wallCollisionCooldown = 2; // Reduced from 5 frames
+
+                writeln("WALL PUSH: direction=", pushDirection, " pushAmount=", pushAmount, " newX=", vars.xPosition, " xSpeed=", vars.xSpeed, " groundAngle=", vars.groundAngle);
+
                 dbgCandidateValid = false;
                 return;
             } else {
@@ -703,7 +742,11 @@ struct Player {
                     int tx = cast(int)floor((candidateX + (vars.groundSpeed >= 0 ? vars.widthRadius : -vars.widthRadius)) / tileSize);
                     int ty = cast(int)floor((vars.yPosition + vars.heightRadius) / tileSize);
                     struct LayerCheck2 { Tile[][]* layer; string name; }
-                    LayerCheck2[4] layerChecks = [LayerCheck2(&level.groundLayer1, "Ground_1"), LayerCheck2(&level.groundLayer2, "Ground_2"), LayerCheck2(&level.groundLayer3, "Ground_3"), LayerCheck2(&level.collisionLayer, "Collision")];
+                    LayerCheck2[3] layerChecks = [
+                        LayerCheck2(&level.groundLayer1, "Ground_1"), 
+                        LayerCheck2(&level.groundLayer2, "Ground_2"), 
+                        LayerCheck2(&level.collisionLayer, "Collision")
+                    ];
                     foreach (lc; layerChecks) {
                         Tile[][] layer = *lc.layer;
                         if (layer.length == 0) continue;

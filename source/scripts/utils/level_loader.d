@@ -348,7 +348,7 @@ Tile getTileAtPosition(const Tile[][] layer, int x, int y) {
     return Tile(0); // Empty tile
 }
 
-// Check if position has solid collision (checks multiple layers)
+// Check if position has solid collision (checks multiple layers) - EXCLUDES SEMISOLIDS
 bool isSolidAtPosition(const LevelData level, float worldX, float worldY, int tileSize = 16) {
     int tileX = cast(int)(worldX / tileSize);
     int tileY = cast(int)(worldY / tileSize);
@@ -356,20 +356,54 @@ bool isSolidAtPosition(const LevelData level, float worldX, float worldY, int ti
     // Check collision layer first
     if (level.collisionLayer.length > 0) {
         Tile collisionTile = getTileAtPosition(level.collisionLayer, tileX, tileY);
-        if (collisionTile.isSolid) return true;
+        if (collisionTile.tileId > 0) {
+            // Check if this position within the tile is solid using height profile
+            return isTileSolidAtLocalPosition(collisionTile.tileId, worldX, worldY, tileX, tileY, tileSize, "Collision", level);
+        }
     }
     
     // Check ground layers
-    Tile groundTile1 = getTileAtPosition(level.groundLayer1, tileX, tileY);
-    if (groundTile1.isSolid) return true;
+    if (level.groundLayer1.length > 0) {
+        Tile groundTile1 = getTileAtPosition(level.groundLayer1, tileX, tileY);
+        if (groundTile1.tileId > 0) {
+            return isTileSolidAtLocalPosition(groundTile1.tileId, worldX, worldY, tileX, tileY, tileSize, "Ground_1", level);
+        }
+    }
     
-    Tile groundTile2 = getTileAtPosition(level.groundLayer2, tileX, tileY);
-    if (groundTile2.isSolid) return true;
+    if (level.groundLayer2.length > 0) {
+        Tile groundTile2 = getTileAtPosition(level.groundLayer2, tileX, tileY);
+        if (groundTile2.tileId > 0) {
+            return isTileSolidAtLocalPosition(groundTile2.tileId, worldX, worldY, tileX, tileY, tileSize, "Ground_2", level);
+        }
+    }
     
-    Tile groundTile3 = getTileAtPosition(level.groundLayer3, tileX, tileY);
-    if (groundTile3.isSolid) return true;
+    if (level.groundLayer3.length > 0) {
+        Tile groundTile3 = getTileAtPosition(level.groundLayer3, tileX, tileY);
+        if (groundTile3.tileId > 0) {
+            return isTileSolidAtLocalPosition(groundTile3.tileId, worldX, worldY, tileX, tileY, tileSize, "Ground_3", level);
+        }
+    }
     
     return false;
+}
+
+// Check if a specific tile position is solid at the given world coordinates
+bool isTileSolidAtLocalPosition(int tileId, float worldX, float worldY, int tileX, int tileY, int tileSize, string layerName, const LevelData level) {
+    // Get the local position within the tile (0-15)
+    int localX = cast(int)(worldX - tileX * tileSize);
+    if (localX < 0) localX = 0;
+    if (localX >= tileSize) localX = tileSize - 1;
+    
+    // Get tile height profile
+    world.tile_collision.TileHeightProfile profile;
+    bool hadProfile = getPrecomputedTileProfile(level, tileId, layerName, profile);
+    if (!hadProfile) {
+        // Cast away const to pass to the function
+        profile = world.tile_collision.TileCollision.getTileHeightProfile(tileId, layerName, cast(world.tileset_map.TilesetInfo[])level.tilesets);
+    }
+    
+    // If the height at this local X position is greater than 0, it's solid
+    return profile.groundHeights[localX] > 0;
 }
 
 // Helper functions for tile creation
