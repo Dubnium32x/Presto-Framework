@@ -161,6 +161,9 @@ struct Player {
     // Resolve horizontal movement along the path from oldX -> targetX
     checkHorizontalCollision(oldX, targetX);
 
+    // After horizontal movement, check if we're stuck in a wall and escape if needed
+    escapeFromWalls();
+
     // After horizontal movement (possibly adjusted), apply vertical movement
     vars.yPosition += vars.ySpeed;
 
@@ -612,6 +615,32 @@ struct Player {
             // Allow small step-ups when moving horizontally (e.g., stepHeight in pixels)
             float maxStepUp = 6.0f;
 
+            // More robust collision check - sample both edges AND center column
+            int solidHits = 0;
+            for (int i = 0; i < samples; ++i) {
+                float sy = topY + dy * i;
+                dbgSideSamples ~= Vector2(leftEdgeX, sy);
+                dbgSideSamples ~= Vector2(rightEdgeX, sy);
+                dbgSideSamples ~= Vector2(centerX, sy); // Also check center
+                
+                if (isSolidAtPosition(*level, leftEdgeX, sy)) solidHits++;
+                if (isSolidAtPosition(*level, rightEdgeX, sy)) solidHits++;
+                if (isSolidAtPosition(*level, centerX, sy)) solidHits++;
+            }
+
+            // Stricter collision detection for horizontal movement:
+            // If we're moving horizontally into a wall (not climbing), require minimal solid overlap
+            float horizontalSpeed = vars.isGrounded ? vars.groundSpeed : vars.xSpeed;
+            bool movingIntoWall = (stepDir > 0 && horizontalSpeed > 0) || (stepDir < 0 && horizontalSpeed < 0);
+            
+            if (movingIntoWall && solidHits > 0) {
+                // Moving straight into wall - block even minimal overlap
+                return true;
+            } else if (solidHits >= 3) {
+                // Significant overlap regardless of direction - block
+                return true;
+            }
+
             // Helper to get surface Y at an X world coordinate (using precomputed profiles if available)
             float getSurfaceYAtX(float worldX) {
                 if (level is null) return 1e9;
@@ -652,79 +681,70 @@ struct Player {
                 return 1e9; // no tile found
             }
 
-            // Compute the surface at the forward edge and compare against player's bottom
-            float forwardX = centerX + (vars.groundSpeed >= 0 ? vars.widthRadius : -vars.widthRadius);
-            float surfaceY = getSurfaceYAtX(forwardX);
-            float playerBottom = vars.yPosition + vars.heightRadius;
-            if (surfaceY < 1e8) {
-                // stepUp: positive when the forward surface is higher (smaller Y)
-                float stepUp = playerBottom - surfaceY;
-                if (stepUp > 0.0f) {
-                    // If the forward surface is higher than current bottom
-                    if (stepUp <= maxStepUp) {
-                        // Allow stepping up: snap candidate centerY to surface
-                        // We'll not treat this as a blocking overlap
-                        // But also update dbgGroundSamples for visualization
-                        dbgGroundSamples ~= Vector2(forwardX, surfaceY);
-                        return false; // not overlapping because we can step up
-                    } else {
-                        // Too high to step up -> blocking
-                        return true;
+            // Only allow step-ups if not moving directly into a wall
+            if (!movingIntoWall) {
+                // Compute the surface at the forward edge and compare against player's bottom
+                float forwardX = centerX + (vars.groundSpeed >= 0 ? vars.widthRadius : -vars.widthRadius);
+                float surfaceY = getSurfaceYAtX(forwardX);
+                float playerBottom = vars.yPosition + vars.heightRadius;
+                if (surfaceY < 1e8) {
+                    // stepUp: positive when the forward surface is higher (smaller Y)
+                    float stepUp = playerBottom - surfaceY;
+                    if (stepUp > 0.0f) {
+                        // If the forward surface is higher than current bottom
+                        if (stepUp <= maxStepUp) {
+                            // Allow stepping up: snap candidate centerY to surface
+                            // We'll not treat this as a blocking overlap
+                            // But also update dbgGroundSamples for visualization
+                            dbgGroundSamples ~= Vector2(forwardX, surfaceY);
+                            return false; // not overlapping because we can step up
+                        } else {
+                            // Too high to step up -> blocking
+                            return true;
+                        }
                     }
+                    // If stepUp <= 0, forward surface is below or equal to bottom -> no block
                 }
-                // If stepUp <= 0, forward surface is below or equal to bottom -> no block
             }
 
-            for (int i = 0; i < samples; ++i) {
-                float sy = topY + dy * i;
-                dbgSideSamples ~= Vector2(leftEdgeX, sy);
-                dbgSideSamples ~= Vector2(rightEdgeX, sy);
-                if (isSolidAtPosition(*level, leftEdgeX, sy) || isSolidAtPosition(*level, rightEdgeX, sy)) return true;
-            }
-            return false;
+            return false; // No blocking overlap detected
         }
 
         // Step along the path and record the last safe X
         for (int i = 1; i <= steps; ++i) {
             float candidateX = oldX + stepDir * cast(float)i;
             if (overlapsAtCenter(candidateX)) {
-                // Hit a wall - gentle push to prevent sticking while allowing slope climbing
+                // Hit a wall - push player out to the nearest safe position without bouncing
                 float pushDirection = (stepDir > 0) ? -1.0f : 1.0f; // Push away from wall
-                float pushAmount = 4.0f; // Gentle push to prevent sticking but allow slope movement
-
-                vars.xPosition = candidateX + (pushDirection * pushAmount);
-
-                // Context-aware bounce: gentler for grounded movement, stronger for high-speed impacts
-                float currentSpeed = vars.isGrounded ? abs(vars.groundSpeed) : abs(vars.xSpeed);
-                float bounceMultiplier = 0.4f; // Reduced from 0.3f for gentler bounce
-
-                // Minimum bounce speed to prevent complete sticking
-                float minBounceSpeed = 0.5f;
-
+                
+                // Find the nearest safe position by pushing away from the wall
+                float safeX = candidateX;
+                float pushDistance = 1.0f;
+                const float maxPush = 16.0f; // Maximum distance to search for safe position
+                
+                // Incrementally push away until we find a safe position
+                while (pushDistance <= maxPush) {
+                    safeX = candidateX + (pushDirection * pushDistance);
+                    if (!overlapsAtCenter(safeX)) {
+                        break;
+                    }
+                    pushDistance += 1.0f;
+                }
+                
+                vars.xPosition = safeX;
+                
+                // Stop horizontal movement when hitting a wall (no bounce)
                 if (vars.isGrounded) {
-                    // Grounded: consider ground angle for slope-aware response
-                    float angleRad = vars.groundAngle * (3.14159f / 180.0f);
-                    float slopeFactor = abs(angleRad) > 0.1f ? 0.7f : 1.0f; // Reduce bounce on slopes
-
-                    if (abs(vars.groundSpeed) < minBounceSpeed) {
-                        vars.groundSpeed = pushDirection * minBounceSpeed;
-                    } else {
-                        vars.groundSpeed = -vars.groundSpeed * bounceMultiplier * slopeFactor;
-                    }
-                    vars.xSpeed = vars.groundSpeed;
+                    vars.groundSpeed = 0;
+                    vars.xSpeed = 0;
                 } else {
-                    // Air: standard bounce
-                    if (abs(vars.xSpeed) < minBounceSpeed) {
-                        vars.xSpeed = pushDirection * minBounceSpeed;
-                    } else {
-                        vars.xSpeed = -vars.xSpeed * bounceMultiplier;
-                    }
+                    vars.xSpeed = 0;
                 }
 
-                // Shorter cooldown to allow responsive slope climbing
-                wallCollisionCooldown = 2; // Reduced from 5 frames
+                // No cooldown needed since we're not bouncing
+                wallCollisionCooldown = 0;
 
-                writeln("WALL PUSH: direction=", pushDirection, " pushAmount=", pushAmount, " newX=", vars.xPosition, " xSpeed=", vars.xSpeed, " groundAngle=", vars.groundAngle);
+                writeln("WALL CLIP-OUT: pushed to safeX=", safeX, " stopped movement");
 
                 dbgCandidateValid = false;
                 return;
@@ -769,5 +789,124 @@ struct Player {
         vars.xPosition = targetX;
         dbgCandidatePos = Vector2(vars.xPosition, vars.yPosition);
         dbgCandidateValid = true;
+    }
+
+    // Continuous wall escape system - checks if player is stuck in a wall and pushes them out
+    void escapeFromWalls() {
+        if (level is null) return;
+        import utils.level_loader : isSolidAtPosition;
+
+        // Check if we're currently overlapping with any solid tiles
+        bool isStuckInWall() {
+            float leftEdgeX = vars.xPosition - vars.widthRadius + 1.0f;
+            float rightEdgeX = vars.xPosition + vars.widthRadius - 1.0f;
+            float sideSampleInset = 6.0f;
+            float topY = vars.yPosition - vars.heightRadius + 1.0f;
+            float bottomY = vars.yPosition + vars.heightRadius - 1.0f - sideSampleInset;
+            
+            int samples = 7; // More samples for better detection
+            float dy = (bottomY - topY) / cast(float)(samples - 1);
+            
+            int solidCount = 0;
+            for (int i = 0; i < samples; ++i) {
+                float sy = topY + dy * i;
+                if (isSolidAtPosition(*level, leftEdgeX, sy) || 
+                    isSolidAtPosition(*level, rightEdgeX, sy) ||
+                    isSolidAtPosition(*level, vars.xPosition, sy)) { // Also check center
+                    solidCount++;
+                }
+            }
+            
+            // Only consider "stuck" if multiple samples are overlapping (not just touching)
+            // This prevents interference with normal wall sliding in air
+            return solidCount >= 3;
+        }
+
+        // Additional check: only escape if movement is severely restricted
+        // This prevents escape system from activating during normal air movement against walls
+        bool isMovementBlocked() {
+            if (vars.isGrounded) {
+                // On ground: escape if we have input but no movement for several frames
+                static int stuckFrames = 0;
+                bool hasHorizontalInput = vars.keyLeft || vars.keyRight;
+                bool hasMinimalSpeed = abs(vars.groundSpeed) < 0.1f && abs(vars.xSpeed) < 0.1f;
+                
+                if (hasHorizontalInput && hasMinimalSpeed) {
+                    stuckFrames++;
+                    return stuckFrames > 10; // Allow 10 frames of being stuck before escaping
+                } else {
+                    stuckFrames = 0;
+                    return false;
+                }
+            } else {
+                // In air: only escape if we're truly embedded, not just wall-sliding
+                // Check if we're moving vertically - if falling normally, don't escape
+                return abs(vars.ySpeed) < 1.0f; // Only escape if vertical movement is also blocked
+            }
+        }
+
+        if (!isStuckInWall() || !isMovementBlocked()) return;
+
+        // We're truly stuck - find the best escape direction
+        float[] escapeDirections = [-1.0f, 1.0f]; // Left first, then right
+        float maxEscapeDistance = 32.0f; // Increased escape range
+        bool escaped = false;
+
+        foreach (direction; escapeDirections) {
+            for (float distance = 1.0f; distance <= maxEscapeDistance; distance += 1.0f) {
+                float testX = vars.xPosition + (direction * distance);
+                
+                // Temporarily move to test position and check if we're clear
+                float originalX = vars.xPosition;
+                vars.xPosition = testX;
+                
+                if (!isStuckInWall()) {
+                    // Found a safe position - stop horizontal movement to prevent re-collision
+                    if (vars.isGrounded) {
+                        vars.groundSpeed = 0;
+                        vars.xSpeed = 0;
+                    } else {
+                        vars.xSpeed = 0;
+                    }
+                    
+                    writeln("WALL ESCAPE: moved from ", originalX, " to ", testX, " (distance: ", distance, ")");
+                    escaped = true;
+                    break;
+                } else {
+                    // Restore position for next test
+                    vars.xPosition = originalX;
+                }
+            }
+            if (escaped) break;
+        }
+
+        // If we couldn't escape horizontally, try moving up slightly
+        if (!escaped) {
+            for (float upDistance = 1.0f; upDistance <= 16.0f; upDistance += 1.0f) {
+                float originalY = vars.yPosition;
+                vars.yPosition = originalY - upDistance;
+                
+                if (!isStuckInWall()) {
+                    // Stop movement and escape upward
+                    if (vars.isGrounded) {
+                        vars.groundSpeed = 0;
+                        vars.xSpeed = 0;
+                    } else {
+                        vars.xSpeed = 0;
+                    }
+                    vars.ySpeed = -2.0f; // Small upward velocity to help escape
+                    
+                    writeln("WALL ESCAPE: moved up by ", upDistance, " pixels");
+                    escaped = true;
+                    break;
+                } else {
+                    vars.yPosition = originalY;
+                }
+            }
+        }
+
+        if (!escaped) {
+            writeln("WALL ESCAPE: Failed to find escape route - player may be deeply embedded");
+        }
     }
 }

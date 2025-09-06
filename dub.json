@@ -9,7 +9,8 @@
 	},
 	"description": "A brand new Sonic 2D framework developed in D and Raylib.",
 	"lflags-linux": [
-		"-rpath=$$ORIGIN"
+		"-rpath=$$ORIGIN",
+		"-lz"
 	],
 	"lflags-osx": [
 		"-rpath",
@@ -26,13 +27,10 @@
 		"opengl32",
 		"user32",
 		"shell32",
-		"advapi32",
-		"legacy_stdio_definitions"
+		"advapi32"
 	],
-	"libs": [
-		"raylib"
-	],
-	"preBuildCommands": ["dub run raylib-d:install -- -q -u=no"],
-	"license": "proprietary",
+	"libs": [ "raylib" ],
+	"libs-linux": [ "raylib", "z" ],
+	"license": "MIT",
 	"name": "presto-framework"
 }
