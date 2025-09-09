@@ -229,9 +229,16 @@ struct TileCollision {
     enum bool DEBUG_TILE_ANGLE = true; // set true to enable verbose tile-angle debug prints
 
     static float getTileGroundAngle(int rawTileId, string layerName = "", world.tileset_map.TilesetInfo[] tilesets = null) {
+        // Debug specific tiles that cause problems
+        bool debugThis = (rawTileId == 221);
+        if (debugThis) writeln("[DEBUG 221] getTileGroundAngle called for rawTileId=", rawTileId);
+        
         // Use rawTileId as cache key (includes flip bits so flipped variants are cached separately)
         float cached;
-        if (groundAngleCache.get(rawTileId, cached)) return cached;
+        if (groundAngleCache.get(rawTileId, cached)) {
+            if (debugThis) writeln("[DEBUG 221] Cache hit, returning=", cached);
+            return cached;
+        }
 
         // If tilesets provided and the tile has no flip bits, prefer precomputed angle
         int actualTileId = getActualTileId(rawTileId);
@@ -293,10 +300,13 @@ struct TileCollision {
         }
 
         // Prepare x, y data: x = 0..15, y = heights (use double for precision)
+        if (debugThis) writeln("[DEBUG 221] Computing angle from height profile");
+        
         double sx = 0.0, sy = 0.0, sxx = 0.0, sxy = 0.0;
         foreach (i; 0 .. 16) {
             double x = cast(double)i;
             double y = cast(double)profile.groundHeights[i];
+            if (debugThis && i < 4) writeln("[DEBUG 221] Height[", i, "]=", y);
             sx += x;
             sy += y;
             sxx += x * x;
@@ -306,10 +316,33 @@ struct TileCollision {
         double denom = (n * sxx - sx * sx);
         double slope = 0.0;
         if (denom != 0.0) slope = (n * sxy - sx * sy) / denom;
+        
+        if (debugThis) {
+            writeln("[DEBUG 221] sx=", sx, " sy=", sy, " sxx=", sxx, " sxy=", sxy);
+            writeln("[DEBUG 221] denom=", denom, " slope=", slope);
+        }
 
     double angleRad = atan(slope);
     double angleDeg = angleRad * 180.0 / PI;
     float angleF = cast(float)angleDeg;
+    
+    if (debugThis) {
+        writeln("[DEBUG 221] angleRad=", angleRad, " angleDeg=", angleDeg, " angleF=", angleF);
+    }
+    
+    // Safety check: ensure we never return NaN
+    import std.math : isNaN;
+    if (isNaN(angleF) || isNaN(slope)) {
+        writeln("[ERROR] TileAngle: NaN detected! rawTileId=", rawTileId, " slope=", slope, " angleF=", angleF);
+        writeln("[ERROR] Heights: ", profile.groundHeights[]);
+        writeln("[ERROR] Stats: sx=", sx, " sy=", sy, " sxx=", sxx, " sxy=", sxy, " denom=", denom);
+        angleF = 0.0f; // Safe fallback
+    }
+    
+    if (debugThis) {
+        writeln("[DEBUG 221] Final angle after safety check=", angleF);
+    }
+    
         if (DEBUG_TILE_ANGLE) {
             writeln("TileAngleDbg: computed angle -> raw=", rawTileId, " slope=", slope, " deg=", angleF, " heights=[", profile.groundHeights[0], ",", profile.groundHeights[1], ",", profile.groundHeights[2], ",...]");
             // print full heights for deeper inspection

@@ -165,7 +165,33 @@ LevelData loadCompleteLevel(string levelPath) {
 
     // Fallback to CSV loading
     writeln("[WARNING] JSON file not found or failed to load. Falling back to CSV loading.");
-    level = loadLevelFromCSV(levelPath);
+    // Load each expected layer from its own CSV file
+    level.groundLayer1 = loadTileLayer(levelPath ~ "/LEVEL_0_Ground_1.csv");
+    level.groundLayer2 = loadTileLayer(levelPath ~ "/LEVEL_0_Ground_2.csv");
+    level.groundLayer3 = loadTileLayer(levelPath ~ "/LEVEL_0_Ground_3.csv");
+    level.semiSolidLayer1 = loadTileLayer(levelPath ~ "/LEVEL_0_SemiSolid_1.csv");
+    level.semiSolidLayer2 = loadTileLayer(levelPath ~ "/LEVEL_0_SemiSolid_2.csv");
+    level.semiSolidLayer3 = loadTileLayer(levelPath ~ "/LEVEL_0_SemiSolid_3.csv");
+    level.collisionLayer = loadTileLayer(levelPath ~ "/LEVEL_0_Collision.csv");
+    level.hazardLayer = loadTileLayer(levelPath ~ "/LEVEL_0_Hazard.csv");
+    // Optionally load objects if needed
+    // level.objects = loadLevelObjects(levelPath ~ "/LEVEL_0_Objects_1.csv");
+
+    // Populate tileset info so TileCollision can resolve gids to generated heightmaps.
+    // For CSV fallback we assume the CSV uses global gids and provide a single TilesetInfo
+    // that contains normalized candidate names from the generated heightmaps. This lets
+    // the TileCollision resolver find the correct tileset index and local tile index.
+    import world.generated_heightmaps : TILESET_NAMES;
+    world.tileset_map.TilesetInfo tsInfo;
+    tsInfo.firstgid = 1; // assume firstgid starts at 1 for CSV gids
+    foreach (n; TILESET_NAMES) {
+        tsInfo.nameCandidates ~= world.tileset_map.normalizeTilesetName(n);
+    }
+    level.tilesets ~= tsInfo;
+
+    // Compute level dimensions and precompute tile profiles for fast lookup
+    calculateLevelDimensions(level);
+    precomputeTileProfiles(level);
     return level;
 }
 

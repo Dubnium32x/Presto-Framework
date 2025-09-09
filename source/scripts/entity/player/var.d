@@ -17,7 +17,7 @@ struct PlayerVariables {
     float groundSpeed = 0.0f;        // Speed along the ground (independent of angle)
     
     // Angle variables
-    float groundAngle = 0.0f;        // Player's ground angle (0-255, where 0=right, 64=down, 128=left, 192=up)
+    float groundAngle = 0.0f;        // Player's ground angle in degrees (0 = flat, positive = slope rising left->right)
     
     // Size variables
     // Reduce radii to better match sprite and avoid overly large collision boxes.
@@ -113,6 +113,7 @@ struct PlayerVariables {
         xSpeed = 0.0f;
         ySpeed = 0.0f;
         groundSpeed = 0.0f;
+        writeln("[DEBUG GROUND ANGLE] resetPosition - groundAngle: ", groundAngle, " -> 0");
         groundAngle = 0.0f;
         isGrounded = false;
         controlLockTimer = 0;
@@ -122,17 +123,31 @@ struct PlayerVariables {
         facing = (direction < 0) ? -1 : 1;
     }
     
-    // Convert ground angle to radians for trigonometric functions
+    // Convert ground angle (degrees) to radians for trigonometric functions
     float groundAngleRadians() {
-        return (groundAngle / 128.0f) * 3.14159265358979323846f; // Convert 0-255 to 0-2π
+        // Safety check for bad angle values
+        if (isNaN(groundAngle) || groundAngle < -180.0f || groundAngle > 180.0f) {
+            writeln("[DEBUG GROUND ANGLE] Bad groundAngle detected: ", groundAngle, " - resetting to 0");
+            groundAngle = 0.0f;
+        }
+        float radians = groundAngle * (3.14159265358979323846f / 180.0f);
+        if (isNaN(radians)) {
+            writeln("[DEBUG GROUND ANGLE] Radians calculation resulted in NaN! groundAngle=", groundAngle);
+            radians = 0.0f;
+        }
+        return radians;
     }
     
     // Update X/Y speeds based on ground speed and angle (for grounded movement)
     void updateSpeedsFromGroundSpeed() {
         if (isGrounded) {
             float angleRad = groundAngleRadians();
+            // Project groundSpeed onto X/Y using the ground angle.
+            // Use negative sin because screen Y axis points downwards;
+            // a positive groundAngle means the surface rises to the right,
+            // so moving right should produce an upward (negative) ySpeed.
             xSpeed = groundSpeed * cos(angleRad);
-            ySpeed = groundSpeed * -sin(angleRad);
+            ySpeed = -groundSpeed * sin(angleRad);
         }
     }
     
@@ -143,17 +158,16 @@ struct PlayerVariables {
             groundSpeed = 0;
             return;
         }
-        
-        // Use xSpeed if moving primarily horizontally
-        if (abs(xSpeed) > abs(ySpeed)) {
-            groundSpeed = xSpeed;
-        } else {
-            // Use ySpeed when falling/moving vertically (with angle consideration)
-            groundSpeed = ySpeed * 0.5f * -((sin(groundAngleRadians()) >= 0) ? 1 : -1);
-        }
-        
-        // Clamp very small groundSpeeds to zero on flat surfaces
-        if (groundAngle == 0 && abs(groundSpeed) < 0.25f) {
+        // Recompute groundSpeed by projecting the current velocity onto
+        // the ground unit vector (cos, sin). This keeps sign and magnitude
+        // consistent across slopes of any angle.
+        float angleRad = groundAngleRadians();
+    // Project the velocity vector onto the ground unit vector (cos, -sin)
+    // so groundSpeed retains the correct sign when on slopes.
+    groundSpeed = xSpeed * cos(angleRad) - ySpeed * sin(angleRad);
+
+        // Clamp very small groundSpeeds to zero on (near-)flat surfaces
+        if ((groundAngle == 0 || abs(sin(angleRad)) < 0.001f) && abs(groundSpeed) < 0.25f) {
             groundSpeed = 0;
         }
     }
@@ -161,9 +175,11 @@ struct PlayerVariables {
     // Check if player should slip on current slope
     bool shouldSlipOnSlope() {
         if (!isGrounded || controlLockTimer > 0) return false;
-        
-        return (abs(groundSpeed) < SLIP_THRESHOLD && 
-                (groundAngle > SLIP_ANGLE_START && groundAngle < SLIP_ANGLE_END));
+        // Tile angles are computed as atan(height_slope) and thus lie in [-90,90].
+        // The SPG slip ranges were expressed for 0..360 hex angles; here we
+        // simply check the absolute angle magnitude to decide slipping on steep
+        // slopes (equivalent to SPG's exclusion of shallow angles around 0).
+        return (abs(groundSpeed) < SLIP_THRESHOLD && abs(groundAngle) > SLIP_ANGLE_START);
     }
     
     // Apply slope factor to ground speed
@@ -178,7 +194,12 @@ struct PlayerVariables {
         if (isRolling) {
             // Check if rolling uphill or downhill
             float groundSpeedSign = (groundSpeed >= 0) ? 1 : -1;
-            float slopeSign = (sin(groundAngleRadians()) >= 0) ? 1 : -1;
+            float angleRad = groundAngleRadians();
+            if (isNaN(angleRad)) {
+                writeln("[WARN] groundAngleRadians returned NaN in applySlopeFactor");
+                angleRad = 0.0f;
+            }
+            float slopeSign = (sin(angleRad) >= 0) ? 1 : -1;
             
             if (groundSpeedSign == slopeSign) {
                 slopeFactor = SLOPE_FACTOR_ROLLUP;    // Rolling uphill
@@ -187,7 +208,51 @@ struct PlayerVariables {
             }
         }
         
-        groundSpeed -= slopeFactor * sin(groundAngleRadians());
+        float angleRad = groundAngleRadians();
+        if (isNaN(angleRad)) {
+            writeln("[WARN] groundAngleRadians returned NaN in slope application");
+            angleRad = 0.0f;
+        }
+        float sinAngle = sin(angleRad);
+        if (isNaN(sinAngle)) {
+            writeln("[WARN] sin(angle) returned NaN, angleRad=", angleRad);
+            sinAngle = 0.0f;
+        }
+        
+        float oldGroundSpeed = groundSpeed;
+        groundSpeed -= slopeFactor * sinAngle;
+        
+        if (isNaN(groundSpeed)) {
+            writeln("[ERROR] groundSpeed became NaN! old=", oldGroundSpeed, " slopeFactor=", slopeFactor, " sinAngle=", sinAngle);
+            groundSpeed = oldGroundSpeed; // Revert to old value
+        }
+    }
+    
+    // Get slope-dependent movement modifier for acceleration/deceleration/friction
+    float getSlopeMovementModifier() {
+        if (!isGrounded || abs(groundAngle) < 1.0f) {
+            return 1.0f; // No modifier on flat ground or when airborne
+        }
+        
+        // Determine if we're trying to move uphill or downhill
+        float angleRad = groundAngleRadians();
+        float slopeSign = sin(angleRad); // Positive = upward slope to the right, negative = downward slope to the right
+        float movementSign = (groundSpeed >= 0) ? 1 : -1; // Direction we're moving
+        
+        // Calculate if we're going uphill or downhill
+        // If signs are the same, we're going uphill; if different, downhill
+        bool goingUphill = (slopeSign * movementSign > 0);
+        
+        // Base modifier ranges from 0.5 (uphill, harder) to 1.5 (downhill, easier)
+        float slopeIntensity = abs(sin(angleRad)); // 0 to 1 based on slope steepness
+        
+        if (goingUphill) {
+            // Going uphill: reduce acceleration/friction (0.5 to 1.0)
+            return 1.0f - (slopeIntensity * 0.5f);
+        } else {
+            // Going downhill: increase acceleration/friction (1.0 to 1.5)
+            return 1.0f + (slopeIntensity * 0.5f);
+        }
     }
     
     // Debug output

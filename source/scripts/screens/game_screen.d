@@ -8,6 +8,7 @@ import std.array;
 import std.conv;
 import std.math;
 import std.string;
+import std.file;
 
 import world.audio_manager;
 import world.screen_manager;
@@ -20,9 +21,11 @@ import entity.player.player;
 import sprite.sprite_fonts;
 import world.level_list;
 import utils.level_loader;
+import data;
 
 import game.hud;
 import game.title_card;
+import game.camera;
 import app : VIRTUAL_SCREEN_HEIGHT, VIRTUAL_SCREEN_WIDTH;
 
 GameState currentState;
@@ -56,15 +59,43 @@ class GameScreen : IScreen {
     LevelData currentLevel;
     Player player;
 
-    Camera2D debugCamera;
-    // Debugging fields: throttle terminal logging and track last positions
-    int dbgLogInterval = 30; // frames between forced logs
-    int dbgFrameCounter = 0;
-    Vector2 dbgLastPlayerPos = Vector2(-9999, -9999);
-    Vector2 dbgLastCameraTarget = Vector2(-9999, -9999);
-    // Camera smoothing state
-    Vector2 cameraTarget = Vector2(0,0);
-    float cameraLerpSpeed = 8.0f; // how quickly camera follows target
+    GameCamera gameCamera;
+    Camera2D renderCamera; // For raylib rendering
+    
+    // Load camera type from options.ini
+    CameraType loadCameraTypeFromOptions() {
+        writeln("[DEBUG] Loading camera type from options.ini...");
+        if (exists("options.ini")) {
+            foreach (line; File("options.ini").byLine()) {
+                auto parts = line.idup.split("=");
+                if (parts.length == 2) {
+                    string key = parts[0].strip;
+                    string value = parts[1].strip;
+                    writeln("[DEBUG] Found option: ", key, " = ", value);
+                    if (key == "cameraType") {
+                        string lowerValue = value.toLower();
+                        writeln("[DEBUG] Camera type value: '", value, "' -> '", lowerValue, "'");
+                        switch (lowerValue) {
+                            case "genesis": 
+                                writeln("[DEBUG] Selected GENESIS camera");
+                                return CameraType.GENESIS;
+                            case "cd": 
+                                writeln("[DEBUG] Selected CD camera");
+                                return CameraType.CD;
+                            case "pocket": 
+                                writeln("[DEBUG] Selected POCKET camera");
+                                return CameraType.POCKET;
+                            default: 
+                                writeln("[DEBUG] Unknown camera type '", lowerValue, "', defaulting to POCKET");
+                                return CameraType.POCKET; // Default fallback
+                        }
+                    }
+                }
+            }
+        }
+        writeln("[DEBUG] No camera type found, defaulting to POCKET");
+        return CameraType.POCKET; // Default if not found
+    }
 
     void initialize() {
         // Load tileset textures for visual layers
@@ -97,19 +128,19 @@ class GameScreen : IScreen {
         writeln("[DEBUG] Collision Layer size: ", currentLevel.collisionLayer.length, "x", (currentLevel.collisionLayer.length > 0 ? currentLevel.collisionLayer[0].length : 0));
         writeln("[DEBUG] Hazard Layer size: ", currentLevel.hazardLayer.length, "x", (currentLevel.hazardLayer.length > 0 ? currentLevel.hazardLayer[0].length : 0));
 
-    debugCamera = Camera2D();
-    // Start camera target at player spawn
-    debugCamera.target = currentLevel.playerSpawnPoint;
-    // Use actual screen center for offset so centering works on any resolution
-    // Use virtual screen center so the Camera2D offset lines up with the game's render target
-    debugCamera.offset = Vector2(VIRTUAL_SCREEN_WIDTH / 2.0f, VIRTUAL_SCREEN_HEIGHT / 2.0f);
-        debugCamera.rotation = 0.0f;
-        debugCamera.zoom = 1.0f;
-
-    // Ensure desired camera target starts at the current camera target (player spawn)
-    // This prevents cameraTarget from being (0,0) which could cause the camera to
-    // lerp toward the world origin on the first update.
-    cameraTarget = debugCamera.target;
+    // Initialize the new GameCamera system
+    CameraType cameraType = loadCameraTypeFromOptions();
+    gameCamera = GameCamera(cameraType);
+    
+    // For SPG cameras, position represents camera world position, target represents what we're looking at
+    // Initially, set the camera to look at the player spawn point
+    gameCamera.target = currentLevel.playerSpawnPoint;    
+    // Set up render camera for raylib
+    renderCamera = gameCamera.toCamera2D();
+    
+    writeln("[DEBUG] Initialized camera type: ", cameraType);
+    writeln("[DEBUG] Player spawn point: ", currentLevel.playerSpawnPoint);
+    writeln("[DEBUG] Initial camera target: ", gameCamera.target);
 
 
     // Initialize player at spawn point (do not modify collision internals here)
@@ -119,9 +150,6 @@ class GameScreen : IScreen {
     player.setLevel(&currentLevel);
     // Restore normal start state (title card sequence)
     currentState = GameState.TITLECARDMOVEIN;
-    // Initialize debug tracking positions to the player's start so initial logs are correct
-    dbgLastPlayerPos = Vector2(player.vars.xPosition, player.vars.yPosition);
-    dbgLastCameraTarget = debugCamera.target;
     }
 
     void update(float deltaTime) {
@@ -152,73 +180,32 @@ class GameScreen : IScreen {
             }
         }
 
-        // Debug camera manual pan when not following
-        float cameraSpeed = 10.0f;
-        if (IsKeyDown(KeyboardKey.KEY_LEFT) || IsKeyDown(KeyboardKey.KEY_A)) {
-            debugCamera.target.x -= cameraSpeed;
-        }
-        if (IsKeyDown(KeyboardKey.KEY_RIGHT) || IsKeyDown(KeyboardKey.KEY_D)) {
-            debugCamera.target.x += cameraSpeed;
-        }
-        if (IsKeyDown(KeyboardKey.KEY_UP) || IsKeyDown(KeyboardKey.KEY_W)) {
-            debugCamera.target.y -= cameraSpeed;
-        }
-        if (IsKeyDown(KeyboardKey.KEY_DOWN) || IsKeyDown(KeyboardKey.KEY_S)) {
-            debugCamera.target.y += cameraSpeed;
-        }
-        // Zoom controls
-        if (IsKeyDown(KeyboardKey.KEY_Q) || IsKeyDown(KeyboardKey.KEY_KP_ADD)) {
-            debugCamera.zoom += 0.05f;
-        }
-        if (IsKeyDown(KeyboardKey.KEY_E) || IsKeyDown(KeyboardKey.KEY_KP_SUBTRACT)) {
-            debugCamera.zoom -= 0.05f;
-            if (debugCamera.zoom < 0.1f) debugCamera.zoom = 0.1f;
-        }
-
         // Update player and camera when playing
-            if (currentState == GameState.PLAYING) {
-                // Update the player (input, physics, animation)
-                player.update(deltaTime);
+        if (currentState == GameState.PLAYING) {
+            // Update the player (input, physics, animation)
+            player.update(deltaTime);
 
-                // Update desired camera target (world space)
-                import std.math : isNaN;
-                float px = player.vars.xPosition;
-                float py = player.vars.yPosition;
-                if (isNaN(px) || isNaN(py)) {
-                    writeln("[WARN] Player position is NaN; skipping camera target update");
-                } else {
-                    cameraTarget = Vector2(px, py);
-                }
+            // Get player input for camera look up/down
+            bool inputUp = player.vars.keyUp;
+            bool inputDown = player.vars.keyDown;
 
-                // Smoothly move actual camera target toward cameraTarget
-                debugCamera.target.x += (cameraTarget.x - debugCamera.target.x) * cameraLerpSpeed * deltaTime;
-                debugCamera.target.y += (cameraTarget.y - debugCamera.target.y) * cameraLerpSpeed * deltaTime;
-            // Debug logging: print when player/camera move noticeably or every interval
-            dbgFrameCounter++;
-            float playerDX = debugCamera.target.x - dbgLastPlayerPos.x;
-            float playerDY = debugCamera.target.y - dbgLastPlayerPos.y;
-            float camDX = debugCamera.target.x - dbgLastCameraTarget.x;
-            float camDY = debugCamera.target.y - dbgLastCameraTarget.y;
-            if (dbgFrameCounter >= dbgLogInterval || abs(playerDX) > 1.0f || abs(playerDY) > 1.0f || abs(camDX) > 1.0f || abs(camDY) > 1.0f) {
-                dbgFrameCounter = 0;
-                dbgLastPlayerPos = Vector2(player.vars.xPosition, player.vars.yPosition);
-                dbgLastCameraTarget = debugCamera.target;
-                writeln("[DBG] PlayerPos=", dbgLastPlayerPos, " CameraTarget=", dbgLastCameraTarget, " Zoom=", debugCamera.zoom);
-            }
-
-            // Additional runtime diagnostics: log the tile under the player's bottom point
-            import std.math : floor;
-            int tileSize = 16;
-            float bottom = player.vars.yPosition + player.vars.heightRadius;
-            int tx = cast(int)floor(player.vars.xPosition / tileSize);
-            int ty = cast(int)floor(bottom / tileSize);
-            // Try each ground/semi layer and print the tile id found
-            Tile t0 = utils.level_loader.getTileAtPosition(currentLevel.groundLayer1, tx, ty);
-            Tile t1 = utils.level_loader.getTileAtPosition(currentLevel.groundLayer2, tx, ty);
-            Tile t2 = utils.level_loader.getTileAtPosition(currentLevel.groundLayer3, tx, ty);
-            Tile s1 = utils.level_loader.getTileAtPosition(currentLevel.semiSolidLayer1, tx, ty);
-            if (dbgFrameCounter == 0) {
-                writeln("[TILE DBG] player bottom -> tile (", tx, ",", ty, ") ground1=", t0.tileId, " ground2=", t1.tileId, " ground3=", t2.tileId, " semis1=", s1.tileId);
+            // Update camera using SPG-compliant system
+            Vector2 playerPos = Vector2(player.vars.xPosition, player.vars.yPosition);
+            gameCamera.update(playerPos, player.vars.groundSpeed, player.vars.isGrounded, 
+                              inputUp, inputDown, deltaTime);
+            
+            // Update render camera for raylib
+            renderCamera = gameCamera.toCamera2D();
+            
+            // Debug output every 60 frames
+            static int debugFrameCounter = 0;
+            debugFrameCounter++;
+            if (debugFrameCounter >= 60) {
+                debugFrameCounter = 0;
+                writeln("[CAM DEBUG] PlayerPos: ", playerPos);
+                writeln("[CAM DEBUG] GameCamera target: ", gameCamera.target);
+                writeln("[CAM DEBUG] RenderCamera target: ", renderCamera.target);
+                writeln("[CAM DEBUG] RenderCamera offset: ", renderCamera.offset);
             }
         }
 
@@ -256,7 +243,7 @@ class GameScreen : IScreen {
     }
 
     void draw() {
-        BeginMode2D(debugCamera);
+        BeginMode2D(renderCamera);
 
         // Clear background
         ClearBackground(Colors.DARKGRAY);
@@ -268,20 +255,19 @@ class GameScreen : IScreen {
     drawLayerIfNotEmpty(currentLevel.semiSolidLayer1, semiSolid1Tileset, "SemiSolids_1");
     drawLayerIfNotEmpty(currentLevel.semiSolidLayer2, semiSolid2Tileset, "SemiSolids_2");
     drawLayerIfNotEmpty(currentLevel.semiSolidLayer3, semiSolid3Tileset, "SemiSolids_3");
+    // Optionally draw collision/hazard layers for debug only
+    // drawLayerIfNotEmpty(currentLevel.collisionLayer, ground1Tileset, "CollisionLayer");
+    // drawLayerIfNotEmpty(currentLevel.hazardLayer, ground1Tileset, "HazardLayer");
 
-        // Optionally draw collision/hazard layers for debug only
-        // drawLayerIfNotEmpty(currentLevel.collisionLayer, Colors.MAROON, "CollisionLayer");
-        // drawLayerIfNotEmpty(currentLevel.hazardLayer, Colors.ORANGE, "HazardLayer");
+        // Draw player (in world space so camera affects it)
+        player.draw();
 
-    // Draw player (in world space so camera affects it)
-    player.draw();
-
-    // Debug: always draw a simple magenta marker at the player's world position
-    // so we can tell whether the player is on-screen even if animation fails.
-    DrawCircleV(Vector2(player.vars.xPosition, player.vars.yPosition), 8, Colors.MAGENTA);
-    // Debug: draw a small cross at the camera target
-    DrawLineV(debugCamera.target - Vector2(6,0), debugCamera.target + Vector2(6,0), Colors.SKYBLUE);
-    DrawLineV(debugCamera.target - Vector2(0,6), debugCamera.target + Vector2(0,6), Colors.SKYBLUE);
+        // Debug: always draw a simple magenta marker at the player's world position
+        // so we can tell whether the player is on-screen even if animation fails.
+        DrawCircleV(Vector2(player.vars.xPosition, player.vars.yPosition), 8, Colors.MAGENTA);
+        // Debug: draw a small cross at the camera target
+        DrawLineV(renderCamera.target - Vector2(6,0), renderCamera.target + Vector2(6,0), Colors.SKYBLUE);
+        DrawLineV(renderCamera.target - Vector2(0,6), renderCamera.target + Vector2(0,6), Colors.SKYBLUE);
 
     // Debug overlay: visualize the TileHeightProfile for the tile under the player
     // This helps diagnose missing collision / invisible player issues by drawing
@@ -344,7 +330,7 @@ class GameScreen : IScreen {
     string dbgText = "TID:" ~ to!string(tile.tileId) ~ " L:" ~ ch.name ~ " precomp:" ~ (hadProfile ? "Y" : "N") ~ " ang:" ~ to!string(angle);
         DrawText(dbgText.toStringz, cast(int)textWorldX, cast(int)textWorldY, 10, Colors.WHITE);
 
-        drewDbg = true;
+        drewDbg = false;
         break; // only draw the first matching layer
     }
 
@@ -359,15 +345,15 @@ class GameScreen : IScreen {
     // Debug: show player and camera positions in screen space for quick inspection
     import std.conv : to;
     string posText = "Player: (" ~ to!string(player.vars.xPosition) ~ "," ~ to!string(player.vars.yPosition) ~ ")  ";
-    posText ~= "Camera: (" ~ to!string(debugCamera.target.x) ~ "," ~ to!string(debugCamera.target.y) ~ ") Zoom:" ~ to!string(debugCamera.zoom);
+    posText ~= "Camera: (" ~ to!string(renderCamera.target.x) ~ "," ~ to!string(renderCamera.target.y) ~ ") Zoom:" ~ to!string(renderCamera.zoom);
     DrawText(posText.toStringz, 10, GetScreenHeight() - 28, 12, Colors.LIGHTGRAY);
 
     // Additional check: map player's world position to screen space using the camera
     // and draw a screen-space marker so we can see whether the camera transform is correct
-    Vector2 playerScreen = GetWorldToScreen2D(Vector2(player.vars.xPosition, player.vars.yPosition), debugCamera);
+    Vector2 playerScreen = GetWorldToScreen2D(Vector2(player.vars.xPosition, player.vars.yPosition), renderCamera);
     DrawCircleV(playerScreen, 6, Colors.LIME);
     // Also show camera offset to validate centering behaviour
-    string offsetText = "CamOffset: (" ~ to!string(debugCamera.offset.x) ~ "," ~ to!string(debugCamera.offset.y) ~ ")";
+    string offsetText = "CamOffset: (" ~ to!string(renderCamera.offset.x) ~ "," ~ to!string(renderCamera.offset.y) ~ ")";
     DrawText(offsetText.toStringz, 10, GetScreenHeight() - 44, 10, Colors.LIGHTGRAY);
 
     // Draw HUD

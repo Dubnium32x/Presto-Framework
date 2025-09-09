@@ -10,7 +10,7 @@ import std.traits : EnumMembers;
 import std.array;
 import std.conv : to;
 import std.exception;
-import std.math : abs, ceil, floor;
+import std.math;
 
 import entity.sprite_object;
 import entity.player.var;
@@ -28,6 +28,7 @@ enum PlayerState {
     WALKING,
     RUNNING,
     DASHING,
+    PUSHING,
     JUMPING,
     FALLING,
     ROLLING,
@@ -46,6 +47,14 @@ enum PlayerState {
     DEAD
 }
 
+enum GroundCollisionMode {
+    NONE,
+    FLOOR,
+    LEFT_WALL,
+    RIGHT_WALL,
+    CEILING
+}
+
 struct Player {
     // Core components
     SpriteObject sprite;
@@ -54,12 +63,17 @@ struct Player {
     PlayerAnimations animations;
     // Optional pointer to the loaded level so player can query precomputed tile profiles
     LevelData* level = null;
+    bool dbgSlopeDebug = false; // toggleable runtime slope debug
     // Debug visualization for collision samples
     Vector2[] dbgGroundSamples;
     Vector2[] dbgSideSamples;
     Vector2 dbgCandidatePos;
     bool dbgCandidateValid = false;
     bool dbgDrawCollisions = true; // toggleable while tuning
+    
+    // Push state tracking
+    bool hitWallThisFrame = false;
+    int pushTimer = 0; // frames spent pushing
 
     // Constructor
     static Player create(float x, float y) {
@@ -120,6 +134,8 @@ struct Player {
         // Detect edge events
         vars.keyJumpPressed = vars.keyJump && !prevJump;
         vars.keyJumpReleased = !vars.keyJump && prevJump;
+        // Toggle slope debug with P
+        if (IsKeyPressed(KeyboardKey.KEY_P)) dbgSlopeDebug = !dbgSlopeDebug;
     }
 
     // Main update function
@@ -135,6 +151,9 @@ struct Player {
 
     // Update physics based on SPG
     void updatePhysics(float deltaTime) {
+        // Clear wall collision flag from previous frame
+        hitWallThisFrame = false;
+        
         // Handle control lock timer
         if (vars.controlLockTimer > 0) {
             vars.controlLockTimer--;
@@ -154,20 +173,80 @@ struct Player {
             }
         }
 
-    // Update position (horizontal then vertical) using a swept horizontal resolver.
-    // This prevents high-speed tunneling and reduces aggressive overshoot corrections.
-    float oldX = vars.xPosition;
-    float targetX = oldX + vars.xSpeed;
-    // Resolve horizontal movement along the path from oldX -> targetX
-    checkHorizontalCollision(oldX, targetX);
+        // Update position (horizontal then vertical) using a swept horizontal resolver.
+        // This prevents high-speed tunneling and reduces aggressive overshoot corrections.
+        float oldX = vars.xPosition;
+        float targetX = oldX + vars.xSpeed;
+        
+        // Safety check for NaN values
+        if (isNaN(oldX) || isNaN(targetX) || isNaN(vars.xSpeed)) {
+            writeln("[ERROR] NaN detected in horizontal movement! Resetting position.");
+            vars.xPosition = 100.0f; // Safe fallback position
+            vars.xSpeed = 0.0f;
+            oldX = vars.xPosition;
+            targetX = vars.xPosition;
+        }
+        
+        // Always check wall collision first as per SPG - wall checks happen before floor checks
+        checkHorizontalCollision(oldX, targetX);
+        if (vars.isGrounded && abs(vars.xSpeed) < 0.2f && (vars.keyLeft || vars.keyRight)) {
+            import utils.level_loader : isSolidAtPosition;
+            // Check if there's a wall in the direction we're trying to move
+            // Use extended range to detect walls before foot sensors reach them
+            float checkDirection = vars.keyRight ? 1.0f : -1.0f;
+            float checkX = vars.xPosition + checkDirection * (vars.widthRadius + 4.0f); // Extended range
+            
+            // Sample for wall in movement direction
+            float playerTop = vars.yPosition - vars.heightRadius + 4.0f;
+            float playerBottom = vars.yPosition + vars.heightRadius - 10.0f; // Above feet
+            int samples = 4;
+            int solidHits = 0;
+            
+            for (int i = 0; i < samples; i++) {
+                float sampleY = playerTop + (playerBottom - playerTop) * cast(float)i / cast(float)(samples - 1);
+                if (isSolidAtPosition(*level, checkX, sampleY)) {
+                    solidHits++;
+                }
+            }
+            
+            if (solidHits >= 3) {
+                hitWallThisFrame = true;
+                writeln("[PUSH CHECK] Wall detected while stationary - enabling push state");
+            }
+        }
+        
+        // After horizontal movement, check if we're stuck in a wall and escape if needed
+        // ONLY when grounded - airborne players should just fall naturally
+        if (vars.isGrounded) {
+            escapeFromWalls();
+        }
 
-    // After horizontal movement, check if we're stuck in a wall and escape if needed
-    escapeFromWalls();
-
-    // After horizontal movement (possibly adjusted), apply vertical movement
-    vars.yPosition += vars.ySpeed;
-
-    // Always check ground collision after movement so we can land or fall off edges.
+        // After horizontal movement (possibly adjusted), apply vertical movement
+        if (isNaN(vars.ySpeed) || isNaN(vars.yPosition)) {
+            writeln("[ERROR] NaN detected in vertical movement! Resetting.");
+            vars.yPosition = 100.0f;
+            vars.ySpeed = 0.0f;
+        }
+        
+        // If we're grounded and moving horizontally on a slope, predict slope following
+        // BEFORE applying vertical movement to avoid temporary airborne states
+        // BUT NOT if we just hit a wall - walls should block movement
+        // AND NOT if we're in pushing state - no movement allowed
+        if (vars.isGrounded && abs(vars.xSpeed) > 0.1f && abs(vars.groundAngle) > 0.5f && !hitWallThisFrame && state != PlayerState.PUSHING) {
+            // Try to predict where we should be on the slope
+            predictSlopePosition();
+        }
+        
+        // Block vertical movement when in pushing state - BUT ONLY when grounded
+        // Airborne players should fall normally regardless of push state
+        if (state == PlayerState.PUSHING && state != PlayerState.JUMPING && vars.isGrounded) {
+            vars.ySpeed = 0;
+            writeln("[PUSH STATE] Blocking vertical movement");
+        } else {
+            vars.yPosition += vars.ySpeed;
+        }
+        
+        // Always check ground collision after movement so we can land or fall off edges.
     checkGroundCollision();
     }
 
@@ -177,12 +256,39 @@ struct Player {
         if (vars.controlLockTimer > 0) {
             return;
         }
+        
+        // If we're in pushing state, only block movement into the wall, but always allow jumping
+        if (state == PlayerState.PUSHING) {
+            // Allow jumping even in push state
+            if (vars.keyJumpPressed) {
+                // Let the jump logic below handle it
+            } else {
+                // Determine which direction the wall is in
+                bool wallOnRight = isNextToWallInDirection(true);
+                bool wallOnLeft = isNextToWallInDirection(false);
+                // If pressing into the wall, block movement
+                if ((vars.keyRight && wallOnRight && !vars.keyLeft) || (vars.keyLeft && wallOnLeft && !vars.keyRight)) {
+                    vars.groundSpeed = 0;
+                    vars.xSpeed = 0;
+                    // Do NOT touch ySpeed so jumping and gravity work
+                    writeln("[PUSH STATE] Blocking movement into wall (x only)");
+                    return;
+                }
+                // If pressing away from the wall, allow normal movement (fall through)
+            }
+        }
 
-        // Get current movement constants
-        float accel = vars.isSuperSonic ? vars.SUPER_ACCELERATION_SPEED : vars.ACCELERATION_SPEED;
-        float decel = vars.isSuperSonic ? vars.SUPER_DECELERATION_SPEED : vars.DECELERATION_SPEED;
+        // Get base movement constants
+        float baseAccel = vars.isSuperSonic ? vars.SUPER_ACCELERATION_SPEED : vars.ACCELERATION_SPEED;
+        float baseDecel = vars.isSuperSonic ? vars.SUPER_DECELERATION_SPEED : vars.DECELERATION_SPEED;
         float topSpeed = vars.isSuperSonic ? vars.SUPER_TOP_SPEED : vars.TOP_SPEED;
-        float friction = vars.FRICTION_SPEED;
+        float baseFriction = vars.FRICTION_SPEED;
+        
+        // Apply slope-dependent modifiers
+        float slopeModifier = vars.getSlopeMovementModifier();
+        float accel = baseAccel * slopeModifier;
+        float decel = baseDecel * slopeModifier;
+        float friction = baseFriction * slopeModifier;
 
         // Handle rolling physics differently
         if (vars.isRolling) {
@@ -234,7 +340,11 @@ struct Player {
         }
 
         // Apply slope physics
-        vars.applySlopeFactor();
+    // Debug: capture before/after for slope factor
+    float preSlopeGS = vars.groundSpeed;
+    float angleRad = vars.groundAngle * (3.14159265358979323846f / 180.0f);
+    vars.applySlopeFactor();
+    float postSlopeGS = vars.groundSpeed;
 
         // Check for slipping on slopes
         if (vars.shouldSlipOnSlope()) {
@@ -243,16 +353,49 @@ struct Player {
             vars.controlLockTimer = 30; // 30 frames control lock
         }
 
-        // Update X/Y speeds from ground speed
-        vars.updateSpeedsFromGroundSpeed();
+        if (dbgSlopeDebug) {
+            writeln("SlopeDbg: angle=", vars.groundAngle, " deg, angleRad=", angleRad,
+                    " slopeModifier=", slopeModifier,
+                    " preGS=", preSlopeGS, " postGS=", postSlopeGS,
+                    " xSpeed=", vars.xSpeed, " ySpeed=", vars.ySpeed);
+        }
+        
+        // Convert ground speed to X/Y speeds - simplified and safe
+        if (vars.isGrounded) {
+            float groundAngleRad = vars.groundAngleRadians();
+            if (isNaN(groundAngleRad) || abs(groundAngleRad) > 6.28f) {
+                groundAngleRad = 0.0f;
+                vars.groundAngle = 0.0f;
+            }
+            
+            if (abs(vars.groundAngle) < 1.0f) {
+                // Nearly flat - direct assignment
+                vars.xSpeed = vars.groundSpeed;
+                vars.ySpeed = 0.0f;
+            } else {
+                // Sloped - project groundSpeed
+                vars.xSpeed = vars.groundSpeed * cos(groundAngleRad);
+                vars.ySpeed = vars.groundSpeed * -sin(groundAngleRad);
+            }
+            
+            // Safety checks
+            if (isNaN(vars.xSpeed)) vars.xSpeed = 0.0f;
+            if (isNaN(vars.ySpeed)) vars.ySpeed = 0.0f;
+        }
 
         // Handle jumping
         if (vars.keyJumpPressed) {
             vars.ySpeed = vars.INITIAL_JUMP_VELOCITY;
             vars.isGrounded = false;
-            // Transfer groundSpeed to xSpeed when taking off
-            vars.xSpeed = vars.groundSpeed;
-            writeln("JUMPING: groundSpeed ", vars.groundSpeed, " transferred to xSpeed ", vars.xSpeed);
+            // Keep horizontal momentum - simple and safe
+            if (abs(vars.groundAngle) < 15.0f) {
+                // Nearly flat - use groundSpeed directly
+                vars.xSpeed = vars.groundSpeed;
+            } else {
+                // Steep slope - use current xSpeed to avoid projection errors
+                // vars.xSpeed stays as-is
+            }
+            writeln("JUMPING: xSpeed=", vars.xSpeed, " ySpeed=", vars.ySpeed);
         }
     }
 
@@ -313,7 +456,45 @@ struct Player {
 
     // Update player state
     void updateState() {
+        // Debug: Always print current state and inputs
+        writeln("[STATE DEBUG] Current state: ", state, " isGrounded: ", vars.isGrounded, " hasInput: ", (vars.keyLeft || vars.keyRight), " hitWall: ", hitWallThisFrame);
+        
         if (vars.isGrounded) {
+            // Check for push state first - overrides normal movement states
+            bool hasHorizontalInput = vars.keyLeft || vars.keyRight;
+            
+            // Enter push state if we hit a wall this frame OR if we're already pushing and still trying to move
+            if ((hitWallThisFrame && hasHorizontalInput) || 
+                (state == PlayerState.PUSHING && hasHorizontalInput && abs(vars.groundSpeed) < 0.1f)) {
+                state = PlayerState.PUSHING;
+                pushTimer++;
+                writeln("ENTERING/STAYING IN PUSH STATE - timer: ", pushTimer);
+                return;
+            } else {
+                // Reset push timer when not pushing
+                if (state == PlayerState.PUSHING) {
+                    writeln("EXITING PUSH STATE");
+                }
+                pushTimer = 0;
+            }
+            
+            // Check if we're trying to move into a wall - only check direction of movement
+            bool movingIntoWall = false;
+            if (hasHorizontalInput && abs(vars.groundSpeed) < 0.5f) {
+                bool checkingRight = vars.keyRight;
+                movingIntoWall = isNextToWallInDirection(checkingRight);
+                
+                writeln("[WALL PROXIMITY DEBUG] checkingRight: ", checkingRight, " movingIntoWall: ", movingIntoWall);
+                
+                if (movingIntoWall) {
+                    // Trying to move into wall - go to push state
+                    state = PlayerState.PUSHING;
+                    writeln("[WALL PROXIMITY] Entering push state - moving into wall");
+                    return;
+                }
+            }
+            
+            // Normal ground state logic - only blocked if moving INTO wall, not away from it
             if (vars.isRolling) {
                 state = PlayerState.ROLLING;
             } else if (abs(vars.groundSpeed) < 0.1f) {
@@ -324,6 +505,9 @@ struct Player {
                 state = PlayerState.RUNNING;
             }
         } else {
+            // Reset push timer when airborne
+            pushTimer = 0;
+            
             if (vars.ySpeed < 0) {
                 state = PlayerState.JUMPING;
             } else {
@@ -343,6 +527,9 @@ struct Player {
                 break;
             case PlayerState.RUNNING:
                 animations.setPlayerAnimationState(PlayerAnimationState.RUN);
+                break;
+            case PlayerState.PUSHING:
+                animations.setPlayerAnimationState(PlayerAnimationState.WALK); // Use walk animation for pushing
                 break;
             case PlayerState.JUMPING:
                 animations.setPlayerAnimationState(PlayerAnimationState.JUMP);
@@ -401,6 +588,83 @@ struct Player {
         }
     }
 
+    // Predict slope position to prevent temporary airborne states
+    void predictSlopePosition() {
+        if (level is null) return;
+        import std.math : floor;
+        
+        // Sample the ground directly below the player's current position
+        float bottom = vars.yPosition + vars.heightRadius;
+        int tileSize = 16;
+        
+        int sampleTileX = cast(int)floor(vars.xPosition / tileSize);
+        int sampleTileY = cast(int)floor(bottom / tileSize);
+        
+        // Check the main ground layer
+        Tile tile = utils.level_loader.getTileAtPosition(level.groundLayer1, sampleTileX, sampleTileY);
+        if (tile.tileId <= 0) return;
+        
+        // Get the height profile for this tile
+        world.tile_collision.TileHeightProfile profile;
+        bool hadProfile = utils.level_loader.getPrecomputedTileProfile(*level, tile.tileId, "Ground_1", profile);
+        if (!hadProfile) {
+            profile = world.tile_collision.TileCollision.getTileHeightProfile(tile.tileId, "Ground_1", level.tilesets);
+        }
+        
+        // Find the local column within the tile
+        int localX = cast(int)floor(vars.xPosition) - sampleTileX * tileSize;
+        if (localX < 0) localX = 0;
+        if (localX > 15) localX = 15;
+        
+        int h = profile.groundHeights[localX];
+        float tileTopY = cast(float)(sampleTileY * tileSize);
+        float predictedSurfaceY = tileTopY + (tileSize - cast(float)h);
+        
+        // If the predicted surface is close to where we should be, snap to it
+        float predictedPlayerY = predictedSurfaceY - vars.heightRadius;
+        float yDiff = abs(vars.yPosition - predictedPlayerY);
+        
+        if (yDiff <= 3.0f) { // Within 3 pixels is close enough
+            vars.yPosition = predictedPlayerY;
+            // Keep the current ground angle since we're just adjusting position
+        }
+    }
+
+    // Check if there's a wall in the direction of movement (for preventing movement states)
+    bool isNextToWallInDirection(bool checkingRight) {
+        if (level is null) return false;
+        import utils.level_loader : isSolidAtPosition;
+        
+        // Check only the direction we're moving
+        float wallCheckDistance = vars.widthRadius + 6.0f; // Further out than foot sensors
+        float checkX = vars.xPosition + (checkingRight ? wallCheckDistance : -wallCheckDistance);
+        
+        writeln("[WALL CHECK DEBUG] checkingRight: ", checkingRight, " checkX: ", checkX, " playerX: ", vars.xPosition);
+        
+        // Sample multiple points vertically (body area, not feet)
+        float topY = vars.yPosition - vars.heightRadius + 4.0f;
+        float bottomY = vars.yPosition + vars.heightRadius - 12.0f; // Well above feet
+        
+        int samples = 4;
+        int solidHits = 0;
+        
+        for (int i = 0; i < samples; i++) {
+            float sampleY = topY + (bottomY - topY) * cast(float)i / cast(float)(samples - 1);
+            if (isSolidAtPosition(*level, checkX, sampleY)) {
+                solidHits++;
+                writeln("[WALL CHECK] Sample ", i, " at (", checkX, ",", sampleY, ") = SOLID");
+            } else {
+                writeln("[WALL CHECK] Sample ", i, " at (", checkX, ",", sampleY, ") = empty");
+            }
+        }
+        
+        bool hasWall = solidHits >= 3;
+        writeln("[WALL CHECK RESULT] solidHits: ", solidHits, "/", samples, " hasWall: ", hasWall);
+        
+        // Consider wall present if 3+ samples hit solid
+        return hasWall;
+    }
+
     // Debug functions
     void debugPrint() {
         writeln("=== Player Debug ===");
@@ -412,6 +676,8 @@ struct Player {
     bool checkGroundCollision() {
     import std.math : floor;
     import std.algorithm : max, min;
+
+        writeln("[GROUND CHECK] Starting at position Y=", vars.yPosition, " bottom=", vars.yPosition + vars.heightRadius);
 
         // If we don't have level data, fall back to previous simple ground at y=400
         if (level is null) {
@@ -443,7 +709,22 @@ struct Player {
         float leftX = vars.xPosition - (vars.widthRadius - 1.0f);
         float centerX = vars.xPosition;
         float rightX = vars.xPosition + (vars.widthRadius - 1.0f);
-    float[3] sampleXs = [leftX, centerX, rightX];
+        
+        // If already grounded and moving horizontally, also look ahead for ground following
+        float[5] sampleXs;
+        int numSamples = 3;
+        sampleXs[0] = leftX;
+        sampleXs[1] = centerX; 
+        sampleXs[2] = rightX;
+        
+        if (vars.isGrounded && abs(vars.xSpeed) > 1.0f) {
+            // Look ahead in movement direction for better ground following
+            float lookaheadDistance = 4.0f; // pixels to look ahead
+            float lookAheadX = vars.xPosition + (vars.xSpeed > 0 ? lookaheadDistance : -lookaheadDistance);
+            sampleXs[3] = lookAheadX;
+            numSamples = 4;
+            writeln("[GROUND FOLLOWING] Looking ahead to x=", lookAheadX, " (speed=", vars.xSpeed, ")");
+        }
 
         // Layers to check in priority order
         struct LayerCheck { Tile[][]* layer; string name; bool isSemi; }
@@ -468,42 +749,90 @@ struct Player {
             Tile[][] layer = *ch.layer;
             if (layer.length == 0) continue;
 
-            foreach (sx; sampleXs) {
+            foreach (sx; sampleXs[0..numSamples]) {
                 int sampleTileX = cast(int)floor(sx / tileSize);
-                int sampleTileY = cast(int)floor(bottom / tileSize);
-
-                Tile tile = utils.level_loader.getTileAtPosition(layer, sampleTileX, sampleTileY);
-                if (tile.tileId <= 0) continue;
-
-                // Get profile
-                world.tile_collision.TileHeightProfile profile;
-                bool hadProfile = utils.level_loader.getPrecomputedTileProfile(*level, tile.tileId, ch.name, profile);
-                if (!hadProfile) {
-                    profile = world.tile_collision.TileCollision.getTileHeightProfile(tile.tileId, ch.name, level.tilesets);
-                }
-
-                // Compute local column for this sample within the tile
-                int localX = cast(int)floor(sx) - sampleTileX * tileSize;
-                if (localX < 0) localX = 0;
-                if (localX > 15) localX = 15;
-                int h = profile.groundHeights[localX]; // 0..16
-
-                float tileTopY = cast(float)(sampleTileY * tileSize);
-                float surfaceY = tileTopY + (tileSize - cast(float)h);
-
-                // If the bottom is at/under surface and moving downward or stationary, this sample supports the player
-                if (vars.ySpeed >= 0 && (bottom >= surfaceY)) {
-                    anySupport = true;
-                    if (surfaceY < bestSurfaceY) {
-                        bestSurfaceY = surfaceY;
-                        float ang = world.tile_collision.TileCollision.getTileGroundAngle(tile.tileId, ch.name, level.tilesets);
-                        import std.math : isNaN;
-                        if (!isNaN(ang)) bestAngle = ang; else bestAngle = 0.0f;
+                int baseSampleTileY = cast(int)floor(bottom / tileSize);
+                
+                // Check current tile row AND tile above for slope climbing
+                // BUT NOT if we just hit a wall - don't climb walls!
+                // AND NOT if we're in pushing state - no movement allowed
+                // AND NOT if we're airborne - no climbing while jumping/falling
+                int[] checkTileYs;
+                bool isAirborne = (state == PlayerState.JUMPING || state == PlayerState.FALLING || state == PlayerState.FALLING_ROLLING);
+                
+                if (hitWallThisFrame || state == PlayerState.PUSHING || isAirborne) {
+                    // Only check current row when hitting wall, pushing, or airborne
+                    checkTileYs = [baseSampleTileY];
+                    if (state == PlayerState.PUSHING) {
+                        // Only check current row when pushing - no climbing
+                    } else if (isAirborne) {
                     }
-                    // push debug sample (world position of sample point at surface)
-                    float sampleWorldX = cast(float)(sampleTileX * tileSize + localX) + 0.5f;
-                    float sampleWorldY = surfaceY;
-                    dbgGroundSamples ~= Vector2(sampleWorldX, sampleWorldY);
+                } else {
+                    // Normal slope climbing - check current and above
+                    checkTileYs = [baseSampleTileY, baseSampleTileY - 1];
+                }
+                
+                foreach (sampleTileY; checkTileYs) {
+                    // Skip if checking above ground level
+                    if (sampleTileY < 0) continue;
+                    
+                    // For grounded players, also check one tile below for small drops/gaps
+                    int[] tilesToCheck = [sampleTileY];
+                    if (vars.isGrounded && abs(vars.xSpeed) > 0.5f) {
+                        tilesToCheck ~= sampleTileY + 1; // Check tile below too
+                    }
+                    
+                    foreach (checkY; tilesToCheck) {
+                        if (checkY < 0) continue;
+
+                    Tile tile = utils.level_loader.getTileAtPosition(layer, sampleTileX, checkY);
+                    if (tile.tileId <= 0) continue;
+
+                    // Get profile
+                    world.tile_collision.TileHeightProfile profile;
+                    bool hadProfile = utils.level_loader.getPrecomputedTileProfile(*level, tile.tileId, ch.name, profile);
+                    if (!hadProfile) {
+                        profile = world.tile_collision.TileCollision.getTileHeightProfile(tile.tileId, ch.name, level.tilesets);
+                    }
+
+                    // Compute local column for this sample within the tile
+                    int localX = cast(int)floor(sx) - sampleTileX * tileSize;
+                    if (localX < 0) localX = 0;
+                    if (localX > 15) localX = 15;
+                    int h = profile.groundHeights[localX]; // 0..16
+
+                    float tileTopY = cast(float)(checkY * tileSize);
+                    float surfaceY = tileTopY + (tileSize - cast(float)h);
+
+                    // Support logic: must be moving down/stationary and at/under surface
+                    // For tiles above current row, be more lenient with the proximity check
+                    // For grounded players, be more lenient with small drops (up to 6 pixels)
+                    bool isAboveTile = (checkY < baseSampleTileY);
+                    float proximityTolerance = isAboveTile ? 8.0f : 0.0f;
+                    if (vars.isGrounded && abs(vars.xSpeed) > 0.5f) {
+                        proximityTolerance += 6.0f; // Extra tolerance for ground following
+                    }
+                    
+                    if (vars.ySpeed >= 0 && (bottom + proximityTolerance >= surfaceY)) {
+                        anySupport = true;
+                        writeln("[GROUND CHECK] Found support at surfaceY=", surfaceY, " sampleTileY=", checkY, " tileId=", tile.tileId);
+                        if (surfaceY < bestSurfaceY) {
+                            bestSurfaceY = surfaceY;
+                            float ang = world.tile_collision.TileCollision.getTileGroundAngle(tile.tileId, ch.name, level.tilesets);
+                            import std.math : isNaN;
+                            if (isNaN(ang)) {
+                                writeln("[WARN] Tile ", tile.tileId, " returned NaN angle, using 0");
+                                writeln("[DEBUG] Heights for tile ", tile.tileId, ": checking tile collision system...");
+                                ang = 0.0f;
+                            }
+                            bestAngle = ang;
+                        }
+                        // push debug sample (world position of sample point at surface)
+                        float sampleWorldX = cast(float)(sampleTileX * tileSize + localX) + 0.5f;
+                        float sampleWorldY = surfaceY;
+                        dbgGroundSamples ~= Vector2(sampleWorldX, sampleWorldY);
+                    }
+                    }
                 }
             }
             // If we've already found support in a higher-priority layer, stop searching lower layers
@@ -511,46 +840,77 @@ struct Player {
         }
 
     if (anySupport) {
+            writeln("[GROUND CHECK] FOUND SUPPORT! bestSurfaceY=", bestSurfaceY, " bestAngle=", bestAngle);
             // New landing only if previously airborne
             if (!vars.isGrounded) {
+                // Landing: set grounded, snap to surface, safe velocity handling
                 vars.isGrounded = true;
-                if (abs(vars.xSpeed) < 1.0f) {
-                    vars.groundSpeed = 0;
-                } else {
+                vars.yPosition = bestSurfaceY - vars.heightRadius;
+                
+                // Ensure angle is safe before assigning
+                if (isNaN(bestAngle) || abs(bestAngle) > 89.0f) {
+                    writeln("[WARN] Landing bestAngle invalid: ", bestAngle, ", using 0");
+                    bestAngle = 0.0f;
+                }
+                
+                // Debug: track groundAngle assignment
+                float oldGroundAngle = vars.groundAngle;
+                vars.groundAngle = bestAngle;
+                writeln("[DEBUG GROUND ANGLE] Assigned: old=", oldGroundAngle, " new=", vars.groundAngle, " bestAngle=", bestAngle);
+
+                // Safe velocity conversion - avoid NaN and zipping
+                if (isNaN(bestAngle) || abs(bestAngle) > 90.0f) {
+                    writeln("[WARN] bestAngle invalid: ", bestAngle, ", resetting to 0");
+                    bestAngle = 0.0f;
+                    vars.groundAngle = 0.0f;
+                }
+                
+                // Simple ground speed calculation with extra safety
+                if (abs(bestAngle) < 5.0f) {
+                    // Nearly flat surface - use horizontal speed
                     vars.groundSpeed = vars.xSpeed;
+                } else {
+                    // Sloped surface - blend with angle consideration
+                    float factor = abs(bestAngle) / 45.0f;
+                    if (factor > 1.0f) factor = 1.0f;
+                    vars.groundSpeed = vars.xSpeed * (1.0f - factor * 0.3f);
                 }
 
-                // Snap to the best supporting surface
-                vars.yPosition = bestSurfaceY - vars.heightRadius;
-                vars.groundAngle = bestAngle;
-                // Diagnostic: Print the raw tile under each ground sample and try to resolve tileset/localIndex
-                import std.math : floor;
-                foreach (s; dbgGroundSamples) {
-                    int tx = cast(int)floor(s.x / tileSize);
-                    int ty = cast(int)floor(s.y / tileSize);
-                    // Look up tile in the main ground layers
-                    Tile t1 = utils.level_loader.getTileAtPosition(level.groundLayer1, tx, ty);
-                    if (t1.tileId > 0) {
-                        world.tileset_map.TilesetInfo chosen; int localIdx;
-                        if (world.tileset_map.resolveGlobalGid(t1.tileId, level.tilesets, chosen, localIdx)) {
-                            writeln("LANDING_DBG: raw=", t1.tileId, " resolved to localIndex=", localIdx, " candidates=", chosen.nameCandidates);
-                        } else {
-                            writeln("LANDING_DBG: raw=", t1.tileId, " could not resolve tileset");
-                        }
-                        float a = world.tile_collision.TileCollision.getTileGroundAngle(t1.tileId, "Ground_1", level.tilesets);
-                        writeln("LANDING_DBG: tile angle returned=", a);
-                    }
+                // Safety checks
+                if (isNaN(vars.groundSpeed)) {
+                    writeln("[WARN] groundSpeed became NaN, resetting to 0");
+                    vars.groundSpeed = 0.0f;
                 }
-                writeln("LANDING (multi-sample) surfaceY=", bestSurfaceY, " -> yPosition=", vars.yPosition, " angle=", bestAngle);
+                if (abs(vars.groundSpeed) < 0.1f) vars.groundSpeed = 0.0f;
+                
+                writeln("LANDING: angle=", vars.groundAngle, " groundSpeed=", vars.groundSpeed);
                 return true;
             }
-            // Already grounded: keep grounded
+            // Already grounded: update Y position to follow slope contour
+            // This ensures the player follows slopes smoothly as they move horizontally
+            // BUT NOT when in pushing state - stay exactly where we are
             vars.isGrounded = true;
+            if (state != PlayerState.PUSHING) {
+                vars.yPosition = bestSurfaceY - vars.heightRadius;
+            } else {
+                writeln("[PUSH STATE] Blocking Y position update in ground collision");
+            }
+            
+            // Update ground angle if it has changed
+            if (isNaN(bestAngle) || abs(bestAngle) > 89.0f) {
+                bestAngle = 0.0f;
+            }
+            
+            // Debug: track groundAngle assignment
+            float oldGroundAngle = vars.groundAngle;
+            vars.groundAngle = bestAngle;
+            writeln("[DEBUG GROUND ANGLE] Updated during ground collision: old=", oldGroundAngle, " new=", vars.groundAngle, " bestAngle=", bestAngle);
             return false;
         }
 
         // No sample supported us
         vars.isGrounded = false;
+        writeln("[GROUND CHECK] No support found - setting isGrounded = false");
         return false;
     }
 
@@ -576,23 +936,21 @@ struct Player {
         // Number of steps equals distance in pixels (ceiled). We'll step 1px at a time.
         float dx = targetX - oldX;
         int steps = cast(int)ceil(abs(dx));
+        
+        // Skip collision detection for very small movements to prevent jittering
+        if (abs(dx) < 0.5f) {
+            vars.xPosition = targetX;
+            return;
+        }
+        
         if (steps == 0) {
-            // No horizontal movement; still run side sample debug at current position
+            // No horizontal movement; run side sample debug at the side Sonic is facing
             dbgSideSamples = [];
-            float leftEdgeX = oldX - vars.widthRadius + 1.0f;
-            float rightEdgeX = oldX + vars.widthRadius - 1.0f;
-            // Don't sample the bottom-most pixels (feet area) since they will hit the ground
-            float sideSampleInset = 6.0f;
-            float topY = vars.yPosition - vars.heightRadius + 1.0f;
-            float bottomY = vars.yPosition + vars.heightRadius - 1.0f - sideSampleInset;
-            int samples = 5;
-            float dy = (bottomY - topY) / cast(float)(samples - 1);
-            bool overlapAt(float x, float y) { return isSolidAtPosition(*level, x, y); }
-            for (int i = 0; i < samples; ++i) {
-                float sy = topY + dy * i;
-                dbgSideSamples ~= Vector2(leftEdgeX, sy);
-                dbgSideSamples ~= Vector2(rightEdgeX, sy);
-            }
+            float margin = 2.0f;
+            float sideX = vars.xPosition + ((vars.facing > 0) ? (vars.widthRadius + margin) : -(vars.widthRadius + margin));
+            // Sample at vertical center and feet
+            dbgSideSamples ~= Vector2(sideX, vars.yPosition); // center
+            dbgSideSamples ~= Vector2(sideX, vars.yPosition + vars.heightRadius - 2.0f); // near feet
             return;
         }
 
@@ -601,188 +959,78 @@ struct Player {
         dbgSideSamples = [];
 
         // Helper to test overlap at a candidate centerX and sample vertically.
-        // Additionally consults the tile height profile beneath candidateX and allows
-        // small step-ups (within stepHeight) so the player can traverse low ledges.
+        // Simplified approach: if there's any solid tile in movement direction, it's a wall
         bool overlapsAtCenter(float centerX) {
-            float leftEdgeX = centerX - vars.widthRadius + 1.0f;
-            float rightEdgeX = centerX + vars.widthRadius - 1.0f;
-            // Don't sample the bottom-most pixels (feet area) since those will be in contact with ground
-            float sideSampleInset = 6.0f;
-            float topY = vars.yPosition - vars.heightRadius + 1.0f;
-            float bottomY = vars.yPosition + vars.heightRadius - 1.0f - sideSampleInset;
-            int samples = 5;
-            float dy = (bottomY - topY) / cast(float)(samples - 1);
-            // Allow small step-ups when moving horizontally (e.g., stepHeight in pixels)
-            float maxStepUp = 6.0f;
-
-            // More robust collision check - sample both edges AND center column
-            int solidHits = 0;
-            for (int i = 0; i < samples; ++i) {
-                float sy = topY + dy * i;
-                dbgSideSamples ~= Vector2(leftEdgeX, sy);
-                dbgSideSamples ~= Vector2(rightEdgeX, sy);
-                dbgSideSamples ~= Vector2(centerX, sy); // Also check center
-                
-                if (isSolidAtPosition(*level, leftEdgeX, sy)) solidHits++;
-                if (isSolidAtPosition(*level, rightEdgeX, sy)) solidHits++;
-                if (isSolidAtPosition(*level, centerX, sy)) solidHits++;
-            }
-
-            // Stricter collision detection for horizontal movement:
-            // If we're moving horizontally into a wall (not climbing), require minimal solid overlap
-            float horizontalSpeed = vars.isGrounded ? vars.groundSpeed : vars.xSpeed;
-            bool movingIntoWall = (stepDir > 0 && horizontalSpeed > 0) || (stepDir < 0 && horizontalSpeed < 0);
+            import utils.level_loader : isSolidAtPosition;
+            import std.math : floor;
             
-            if (movingIntoWall && solidHits > 0) {
-                // Moving straight into wall - block even minimal overlap
-                return true;
-            } else if (solidHits >= 3) {
-                // Significant overlap regardless of direction - block
-                return true;
-            }
-
-            // Helper to get surface Y at an X world coordinate (using precomputed profiles if available)
-            float getSurfaceYAtX(float worldX) {
-                if (level is null) return 1e9;
-                int tileSize = 16;
-                int tx = cast(int)floor(worldX / tileSize);
-                // Choose the tile row that is currently under the player's bottom
-                int sampleTileY = cast(int)floor((vars.yPosition + vars.heightRadius) / tileSize);
-
-                // Layers to check in priority order (SOLID layers only - exclude semisolids for horizontal collision)
-                struct LayerCheck { Tile[][]* layer; string name; }
-                LayerCheck[3] checks = [
-                    LayerCheck(&level.collisionLayer, "Collision"),
-                    LayerCheck(&level.groundLayer1, "Ground_1"),
-                    LayerCheck(&level.groundLayer2, "Ground_2")
-                ];
-
-                foreach (ch; checks) {
-                    Tile[][] layer = *ch.layer;
-                    if (layer.length == 0) continue;
-                    Tile tile = utils.level_loader.getTileAtPosition(layer, tx, sampleTileY);
-                    if (tile.tileId <= 0) continue;
-
-                    world.tile_collision.TileHeightProfile profile;
-                    bool hadProfile = utils.level_loader.getPrecomputedTileProfile(*level, tile.tileId, ch.name, profile);
-                    if (!hadProfile) {
-                        profile = world.tile_collision.TileCollision.getTileHeightProfile(tile.tileId, ch.name, level.tilesets);
-                    }
-
-                    int localX = cast(int)floor(worldX) - tx * tileSize;
-                    if (localX < 0) localX = 0;
-                    if (localX > 15) localX = 15;
-                    int h = profile.groundHeights[localX];
-
-                    float tileTopY = cast(float)(sampleTileY * tileSize);
-                    return tileTopY + (tileSize - cast(float)h);
-                }
-
-                return 1e9; // no tile found
-            }
-
-            // Only allow step-ups if not moving directly into a wall
-            if (!movingIntoWall) {
-                // Compute the surface at the forward edge and compare against player's bottom
-                float forwardX = centerX + (vars.groundSpeed >= 0 ? vars.widthRadius : -vars.widthRadius);
-                float surfaceY = getSurfaceYAtX(forwardX);
-                float playerBottom = vars.yPosition + vars.heightRadius;
-                if (surfaceY < 1e8) {
-                    // stepUp: positive when the forward surface is higher (smaller Y)
-                    float stepUp = playerBottom - surfaceY;
-                    if (stepUp > 0.0f) {
-                        // If the forward surface is higher than current bottom
-                        if (stepUp <= maxStepUp) {
-                            // Allow stepping up: snap candidate centerY to surface
-                            // We'll not treat this as a blocking overlap
-                            // But also update dbgGroundSamples for visualization
-                            dbgGroundSamples ~= Vector2(forwardX, surfaceY);
-                            return false; // not overlapping because we can step up
-                        } else {
-                            // Too high to step up -> blocking
-                            return true;
-                        }
-                    }
-                    // If stepUp <= 0, forward surface is below or equal to bottom -> no block
+            // Check multiple points in the direction of movement
+            float checkDistance = vars.widthRadius + 2.0f;
+            float checkX = centerX + (stepDir > 0 ? checkDistance : -checkDistance);
+            
+            // Sample vertically at multiple points to detect solid tiles
+            float playerTop = vars.yPosition - vars.heightRadius + 4.0f;
+            float playerBottom = vars.yPosition + vars.heightRadius - 8.0f; // Above feet
+            
+            int samples = 6;
+            int solidHits = 0;
+            
+            dbgSideSamples = []; // Reset debug samples
+            
+            for (int i = 0; i < samples; i++) {
+                float sampleY = playerTop + (playerBottom - playerTop) * cast(float)i / cast(float)(samples - 1);
+                dbgSideSamples ~= Vector2(checkX, sampleY);
+                
+                if (isSolidAtPosition(*level, checkX, sampleY)) {
+                    solidHits++;
                 }
             }
-
-            return false; // No blocking overlap detected
+            
+            // If most samples hit solid, it's a wall
+            bool isWall = solidHits >= 4;
+            
+            if (isWall) {
+                writeln("Touching wall: true");
+                writeln("[WALL DEBUG] WALL DETECTED! checkX=", checkX, " solidHits=", solidHits, "/", samples);
+            } else {
+                writeln("[WALL DEBUG] No wall - checkX=", checkX, " solidHits=", solidHits, "/", samples);
+            }
+            
+            return isWall;
         }
 
-        // Step along the path and record the last safe X
+        // Step along the path and stop at the first wall collision
         for (int i = 1; i <= steps; ++i) {
             float candidateX = oldX + stepDir * cast(float)i;
             if (overlapsAtCenter(candidateX)) {
-                // Hit a wall - push player out to the nearest safe position without bouncing
-                float pushDirection = (stepDir > 0) ? -1.0f : 1.0f; // Push away from wall
+                // Hit a wall - stop at last safe position
+                vars.xPosition = lastSafeX;
                 
-                // Find the nearest safe position by pushing away from the wall
-                float safeX = candidateX;
-                float pushDistance = 1.0f;
-                const float maxPush = 16.0f; // Maximum distance to search for safe position
-                
-                // Incrementally push away until we find a safe position
-                while (pushDistance <= maxPush) {
-                    safeX = candidateX + (pushDirection * pushDistance);
-                    if (!overlapsAtCenter(safeX)) {
-                        break;
-                    }
-                    pushDistance += 1.0f;
-                }
-                
-                vars.xPosition = safeX;
-                
-                // Stop horizontal movement when hitting a wall (no bounce)
+                // Handle wall collision based on state
                 if (vars.isGrounded) {
+                    // Grounded: normal wall collision - stop movement and set push flag
                     vars.groundSpeed = 0;
                     vars.xSpeed = 0;
+                    hitWallThisFrame = true;
+                    writeln("WALL HIT (grounded): stopped at x=", lastSafeX);
                 } else {
-                    vars.xSpeed = 0;
-                }
-
-                // No cooldown needed since we're not bouncing
-                wallCollisionCooldown = 0;
-
-                writeln("WALL CLIP-OUT: pushed to safeX=", safeX, " stopped movement");
-
-                dbgCandidateValid = false;
-                return;
-            } else {
-                // If we detected a step-up at this candidate (dbgGroundSamples appended),
-                // snap yPosition to that surface so movement continues seamlessly.
-                if (dbgGroundSamples.length > 0) {
-                    auto last = dbgGroundSamples[$ - 1];
-                    float newSurfaceY = last.y;
-                    vars.yPosition = newSurfaceY - vars.heightRadius;
-                    // Update ground angle from tile under forwardX
-                    float ang = world.tile_collision.TileCollision.getTileGroundAngle(0, "", level.tilesets);
-                    // Try to compute a real angle by fetching tile under forwardX
-                    int tileSize = 16;
-                    int tx = cast(int)floor((candidateX + (vars.groundSpeed >= 0 ? vars.widthRadius : -vars.widthRadius)) / tileSize);
-                    int ty = cast(int)floor((vars.yPosition + vars.heightRadius) / tileSize);
-                    struct LayerCheck2 { Tile[][]* layer; string name; }
-                    LayerCheck2[3] layerChecks = [
-                        LayerCheck2(&level.groundLayer1, "Ground_1"), 
-                        LayerCheck2(&level.groundLayer2, "Ground_2"), 
-                        LayerCheck2(&level.collisionLayer, "Collision")
-                    ];
-                    foreach (lc; layerChecks) {
-                        Tile[][] layer = *lc.layer;
-                        if (layer.length == 0) continue;
-                        Tile t = utils.level_loader.getTileAtPosition(layer, tx, ty);
-                        if (t.tileId <= 0) continue;
-                        float a = world.tile_collision.TileCollision.getTileGroundAngle(t.tileId, lc.name, level.tilesets);
-                        import std.math : isNaN;
-                        if (!isNaN(a)) {
-                            vars.groundAngle = a;
-                            break;
-                        }
+                    // Airborne (JUMP/FALL): bounce away from wall
+                    float bounceForce = 2.0f; // Adjust this value for bounce strength
+                    if (stepDir > 0) {
+                        // Moving right, hit right wall - bounce left
+                        vars.xSpeed = -bounceForce;
+                        writeln("WALL BOUNCE: hit right wall, bouncing left with force ", bounceForce);
+                    } else {
+                        // Moving left, hit left wall - bounce right  
+                        vars.xSpeed = bounceForce;
+                        writeln("WALL BOUNCE: hit left wall, bouncing right with force ", bounceForce);
                     }
-
+                    // Don't set hitWallThisFrame for airborne - no push state
                 }
-                lastSafeX = candidateX;
+                
+                return;
             }
+            lastSafeX = candidateX;
         }
 
         // If we reached here, targetX is safe
@@ -823,37 +1071,40 @@ struct Player {
         }
 
         // Additional check: only escape if movement is severely restricted
-        // This prevents escape system from activating during normal air movement against walls
+        // This prevents escape system from activating during normal movement
         bool isMovementBlocked() {
             if (vars.isGrounded) {
-                // On ground: escape if we have input but no movement for several frames
+                // On ground: escape if stuck for fewer frames, especially if embedded in wall
                 static int stuckFrames = 0;
                 bool hasHorizontalInput = vars.keyLeft || vars.keyRight;
-                bool hasMinimalSpeed = abs(vars.groundSpeed) < 0.1f && abs(vars.xSpeed) < 0.1f;
+                bool hasMinimalSpeed = abs(vars.groundSpeed) < 0.05f && abs(vars.xSpeed) < 0.05f;
                 
                 if (hasHorizontalInput && hasMinimalSpeed) {
                     stuckFrames++;
-                    return stuckFrames > 10; // Allow 10 frames of being stuck before escaping
+                    // If deeply embedded (high solid count), escape faster
+                    bool deeplyEmbedded = isStuckInWall(); // Check current embedding
+                    int escapeThreshold = deeplyEmbedded ? 5 : 20; // Much faster escape if embedded
+                    return stuckFrames > escapeThreshold;
                 } else {
                     stuckFrames = 0;
                     return false;
                 }
             } else {
-                // In air: only escape if we're truly embedded, not just wall-sliding
-                // Check if we're moving vertically - if falling normally, don't escape
-                return abs(vars.ySpeed) < 1.0f; // Only escape if vertical movement is also blocked
+                // In air: only escape if completely stuck (no movement at all)
+                return abs(vars.ySpeed) < 0.5f && abs(vars.xSpeed) < 0.5f;
             }
         }
 
         if (!isStuckInWall() || !isMovementBlocked()) return;
 
         // We're truly stuck - find the best escape direction
-        float[] escapeDirections = [-1.0f, 1.0f]; // Left first, then right
-        float maxEscapeDistance = 32.0f; // Increased escape range
+        float[] escapeDirections = [-1.0f, 1.0f]; // Try both directions
+        float maxEscapeDistance = 48.0f; // Increased escape range for severe embedding
         bool escaped = false;
 
+        // Try horizontal escape first - check both directions
         foreach (direction; escapeDirections) {
-            for (float distance = 1.0f; distance <= maxEscapeDistance; distance += 1.0f) {
+            for (float distance = 2.0f; distance <= maxEscapeDistance; distance += 2.0f) {
                 float testX = vars.xPosition + (direction * distance);
                 
                 // Temporarily move to test position and check if we're clear
@@ -869,7 +1120,7 @@ struct Player {
                         vars.xSpeed = 0;
                     }
                     
-                    writeln("WALL ESCAPE: moved from ", originalX, " to ", testX, " (distance: ", distance, ")");
+                    writeln("WALL ESCAPE (horizontal): moved from ", originalX, " to ", testX, " (distance: ", distance, ")");
                     escaped = true;
                     break;
                 } else {
