@@ -66,12 +66,11 @@ struct TileCollision {
         if (actualTileId == -1 || actualTileId == 0)
             return TileHeightProfile.empty();
 
-        // For semi-solid layers, all non-empty tiles are platforms
+        // For semi-solid layers, use runtime collision based on actual tile graphics instead of treating all as platforms
         bool isSemiSolidLayer = layerName.startsWith("SemiSolid");
         if (isSemiSolidLayer) {
-            int[16] platformHeights;
-            platformHeights[] = 15;
-            return TileHeightProfile.custom(platformHeights, true);
+            // Fall through to use tileset-based collision or 16x16 fallback
+            // Don't return early - let the system analyze the actual tile graphics
         }
 
         // If tileset info was provided, try to resolve generated heightmaps first

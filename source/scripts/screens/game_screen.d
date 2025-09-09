@@ -278,15 +278,15 @@ class GameScreen : IScreen {
     int dbgTileX = cast(int)floor(player.vars.xPosition / dbgTileSize);
     int dbgTileY = cast(int)floor(dbgBottom / dbgTileSize);
 
-    struct DbgLayer { Tile[][]* layer; string name; }
+    struct DbgLayer { Tile[][]* layer; string name; bool isSemi; }
     DbgLayer[7] dbgChecks = [
-        DbgLayer(&currentLevel.collisionLayer, "Collision"),
-        DbgLayer(&currentLevel.groundLayer1, "Ground_1"),
-        DbgLayer(&currentLevel.groundLayer2, "Ground_2"),
-        DbgLayer(&currentLevel.groundLayer3, "Ground_3"),
-        DbgLayer(&currentLevel.semiSolidLayer1, "SemiSolid_1"),
-        DbgLayer(&currentLevel.semiSolidLayer2, "SemiSolid_2"),
-        DbgLayer(&currentLevel.semiSolidLayer3, "SemiSolid_3")
+        DbgLayer(&currentLevel.collisionLayer, "Collision", false),
+        DbgLayer(&currentLevel.groundLayer1, "Ground_1", false),
+        DbgLayer(&currentLevel.groundLayer2, "Ground_2", false),
+        DbgLayer(&currentLevel.groundLayer3, "Ground_3", false),
+        DbgLayer(&currentLevel.semiSolidLayer1, "SemiSolid_1", true),
+        DbgLayer(&currentLevel.semiSolidLayer2, "SemiSolid_2", true),
+        DbgLayer(&currentLevel.semiSolidLayer3, "SemiSolid_3", true)
     ];
 
     bool drewDbg = false;
@@ -296,11 +296,18 @@ class GameScreen : IScreen {
         Tile tile = utils.level_loader.getTileAtPosition(layer, dbgTileX, dbgTileY);
         if (tile.tileId <= 0) continue;
 
-        // Try precomputed profile first, else ask runtime
+        // Try precomputed profile first for solid layers, always use runtime for semi-solid layers
         import world.tile_collision : TileHeightProfile, TileCollision;
         TileHeightProfile profile;
-        bool hadProfile = utils.level_loader.getPrecomputedTileProfile(currentLevel, tile.tileId, ch.name, profile);
+        bool hadProfile = false;
+        
+        if (!ch.isSemi) {
+            // For solid layers, try precomputed first
+            hadProfile = utils.level_loader.getPrecomputedTileProfile(currentLevel, tile.tileId, ch.name, profile);
+        }
+        
         if (!hadProfile) {
+            // Use runtime collision (fallback for solid layers, always for semi-solid layers)
             profile = TileCollision.getTileHeightProfile(tile.tileId, ch.name, currentLevel.tilesets);
         }
 

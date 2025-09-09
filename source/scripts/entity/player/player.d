@@ -788,10 +788,17 @@ struct Player {
                     Tile tile = utils.level_loader.getTileAtPosition(layer, sampleTileX, checkY);
                     if (tile.tileId <= 0) continue;
 
-                    // Get profile
+                    // Get profile - for semi-solid layers, always use runtime collision
                     world.tile_collision.TileHeightProfile profile;
-                    bool hadProfile = utils.level_loader.getPrecomputedTileProfile(*level, tile.tileId, ch.name, profile);
+                    bool hadProfile = false;
+                    
+                    if (!ch.isSemi) {
+                        // For solid layers, try precomputed first
+                        hadProfile = utils.level_loader.getPrecomputedTileProfile(*level, tile.tileId, ch.name, profile);
+                    }
+                    
                     if (!hadProfile) {
+                        // Use runtime collision (fallback for solid layers, always for semi-solid layers)
                         profile = world.tile_collision.TileCollision.getTileHeightProfile(tile.tileId, ch.name, level.tilesets);
                     }
 
