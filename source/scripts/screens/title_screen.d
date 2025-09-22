@@ -12,6 +12,7 @@ import std.algorithm;
 import world.screen_manager;
 import world.screen_state;
 import world.audio_manager;
+import world.input_manager;
 import sprite.sprite_fonts;
 import app;
 import app : VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT;
@@ -144,16 +145,16 @@ class TitleScreen : IScreen {
                 checkerScrollX += deltaTime * 40.0f;
                 checkerScrollY += deltaTime * 40.0f;
 
-                // Handle menu navigation (up/down/enter)
-                if (IsKeyPressed(KeyboardKey.KEY_DOWN)) {
+                // Handle menu navigation (up/down/enter) via InputManager
+                if (InputManager.getInstance().wasPressed(InputBit.DOWN)) {
                     selectedMenu = cast(int)((selectedMenu + 1) % menuItems.length);
                     PlaySound(moveSound);
-                } else if (IsKeyPressed(KeyboardKey.KEY_UP)) {
+                } else if (InputManager.getInstance().wasPressed(InputBit.UP)) {
                     selectedMenu = cast(int)((selectedMenu - 1 + menuItems.length) % menuItems.length);
                     PlaySound(moveSound);
                 }
-                // Accept: S key
-                if (IsKeyPressed(KeyboardKey.KEY_S)) {
+                // Accept: A face button or START
+                if (InputManager.getInstance().wasPressed(InputBit.A) || InputManager.getInstance().wasPressed(InputBit.START)) {
                     import world.audio_manager;
                     AudioManager.getInstance().playSFX("resources/sound/sfx/Sonic World Sounds/022.wav");
                     if (menuItems[selectedMenu] == "START GAME") {
@@ -197,8 +198,8 @@ class TitleScreen : IScreen {
                     }
                 }
                 break;
-                // Back: A key
-                if (IsKeyPressed(KeyboardKey.KEY_A)) {
+                // Back: map to B face button (controller) or other back intent
+                if (InputManager.getInstance().wasPressed(InputBit.B)) {
                     // For now, do nothing or add logic to exit or go back
                 }
                 break;

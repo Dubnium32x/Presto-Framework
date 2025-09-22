@@ -80,7 +80,7 @@ class PaletteSwapTestScreen : IScreen {
             newColumn = 2;
         } else if (IsKeyPressed(KeyboardKey.KEY_THREE)) {
             newColumn = 3;
-        } else if (IsKeyPressed(KeyboardKey.KEY_FOUR)) {
+                } else if (IsKeyPressed(KeyboardKey.KEY_FOUR) || InputManager.getInstance().wasPressed(InputBit.RB)) {
             newColumn = 4;
         } else if (IsKeyPressed(KeyboardKey.KEY_FIVE)) {
             newColumn = 5;
@@ -95,12 +95,12 @@ class PaletteSwapTestScreen : IScreen {
         }
         
         // Keep left/right arrow functionality for convenience
-        if (IsKeyPressed(KeyboardKey.KEY_LEFT) || IsKeyPressed(KeyboardKey.KEY_A)) {
+        if (InputManager.getInstance().wasPressed(InputBit.LEFT) || InputManager.getInstance().wasPressed(InputBit.X)) {
             if (currentColumn > 0) {
                 newColumn = currentColumn - 1;
             }
         }
-        if (IsKeyPressed(KeyboardKey.KEY_RIGHT) || IsKeyPressed(KeyboardKey.KEY_D)) {
+        if (InputManager.getInstance().wasPressed(InputBit.RIGHT) || InputManager.getInstance().wasPressed(InputBit.B)) {
             if (currentColumn < numColumns - 1) {
                 newColumn = currentColumn + 1;
             }
@@ -114,7 +114,7 @@ class PaletteSwapTestScreen : IScreen {
         }
         
         // Check for level test screen switch
-        if (IsKeyPressed(KeyboardKey.KEY_L)) {
+        if (InputManager.getInstance().wasPressed(InputBit.LB)) {
             import world.screen_manager;
             import world.screen_state;
             ScreenManager.getInstance().changeState(ScreenState.LEVEL_TEST);
@@ -122,19 +122,19 @@ class PaletteSwapTestScreen : IScreen {
         }
 
         // Check for palette swap test screen switch
-        if (IsKeyPressed(KeyboardKey.KEY_P)) {
+        if (InputManager.getInstance().wasPressed(InputBit.RB)) {
             ScreenManager.getInstance().changeState(ScreenState.PALETTE_SWAP_TEST);
             return;
         }
 
         // Check for animation test screen access
-        if (IsKeyPressed(KeyboardKey.KEY_A)) {
+        if (InputManager.getInstance().wasPressed(InputBit.A)) {
             runAnimationTest(); // Call the animation test function
             return;
         }
 
         // Check for U key press to switch to ANIMATION_TEST screen
-        if (IsKeyPressed(KeyboardKey.KEY_U)) {
+        if (InputManager.getInstance().wasPressed(InputBit.Y)) {
             ScreenManager.getInstance().changeState(ScreenState.ANIMATION_TEST);
             return;
         }

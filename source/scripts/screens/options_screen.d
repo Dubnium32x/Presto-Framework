@@ -9,6 +9,7 @@ import std.algorithm;
 import world.screen_manager;
 import world.screen_state;
 import world.audio_manager;
+import world.input_manager;
 import app;
 import app : VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT;
 
@@ -119,7 +120,7 @@ class OptionsScreen : IScreen {
                 }
                 break;
             case OptionsScreenState.ACTIVE:
-                if (IsKeyPressed(KeyboardKey.KEY_DOWN)) {
+                if (InputManager.getInstance().wasPressed(InputBit.DOWN)) {
                     selectedOption = cast(int)((selectedOption + 1) % options.length);
                     if (selectedOption - cameraOffset >= visibleOptions) {
                         cameraOffset = selectedOption - visibleOptions + 1;
@@ -127,7 +128,7 @@ class OptionsScreen : IScreen {
                         cameraOffset = 0;
                     }
                     AudioManager.getInstance().playSFX("resources/sound/sfx/Sonic World Sounds/004.wav");
-                } else if (IsKeyPressed(KeyboardKey.KEY_UP)) {
+                } else if (InputManager.getInstance().wasPressed(InputBit.UP)) {
                     selectedOption = cast(int)((selectedOption - 1 + options.length) % options.length);
                     if (selectedOption < cameraOffset) {
                         cameraOffset = selectedOption;
@@ -138,10 +139,10 @@ class OptionsScreen : IScreen {
                     AudioManager.getInstance().playSFX("resources/sound/sfx/Sonic World Sounds/004.wav");
                 }
                 // Toggle/cycle option with left/right
-                if (IsKeyPressed(KeyboardKey.KEY_LEFT) || IsKeyPressed(KeyboardKey.KEY_RIGHT)) {
+                if (InputManager.getInstance().wasPressed(InputBit.LEFT) || InputManager.getInstance().wasPressed(InputBit.RIGHT)) {
                     auto opt = options[selectedOption];
-                    bool left = IsKeyPressed(KeyboardKey.KEY_LEFT);
-                    bool right = IsKeyPressed(KeyboardKey.KEY_RIGHT);
+                    bool left = InputManager.getInstance().wasPressed(InputBit.LEFT);
+                    bool right = InputManager.getInstance().wasPressed(InputBit.RIGHT);
                     // Boolean toggle
                     if (opt.isBool) {
                         opt.toggle();
@@ -188,7 +189,7 @@ class OptionsScreen : IScreen {
                     AudioManager.getInstance().playSFX("resources/sound/sfx/Sonic World Sounds/004.wav");
                 }
                 // Accept: S key (save changes)
-                if (IsKeyPressed(KeyboardKey.KEY_S)) {
+                if (InputManager.getInstance().wasPressed(InputBit.A)) {
                     bool fullscreenChanged = false;
                     foreach (opt; options) {
                         if (opt.key == "fullscreen") {
@@ -214,7 +215,7 @@ class OptionsScreen : IScreen {
             }
         }
                 // Back: A key
-                if (IsKeyPressed(KeyboardKey.KEY_A)) {
+                if (InputManager.getInstance().wasPressed(InputBit.B)) {
                     AudioManager.getInstance().playSFX("resources/sound/sfx/Sonic World Sounds/002.wav");
                     state = OptionsScreenState.FADE_OUT;
                     transitionAlpha = 0.0f;

@@ -15,6 +15,7 @@ import entity.entity_manager;
 import entity.sprite_object;
 import world.screen_manager; // Import IScreen interface
 import entity.player.animations; // Import PlayerAnimations
+import world.input_manager;
 
 // Define missing constants
 enum RAYWHITE = Color(245, 245, 245, 255);
@@ -52,19 +53,19 @@ class AnimationTestScreen : IScreen {
     }
 
     void update(float deltaTime) {
-        // Adjust animation speed with UP/DOWN keys
-        if (IsKeyPressed(KeyboardKey.KEY_UP)) {
+        // Adjust animation speed with UP/DOWN keys via InputManager
+        if (InputManager.getInstance().wasPressed(InputBit.UP)) {
             frameDuration = max(0.01f, frameDuration - 0.01f); // Faster, min 0.01s
         }
-        if (IsKeyPressed(KeyboardKey.KEY_DOWN)) {
+        if (InputManager.getInstance().wasPressed(InputBit.DOWN)) {
             frameDuration = min(1.0f, frameDuration + 0.01f); // Slower, max 1s
         }
 
         // Switch animation states with LEFT/RIGHT keys
-        if (IsKeyPressed(KeyboardKey.KEY_LEFT)) {
+        if (InputManager.getInstance().wasPressed(InputBit.LEFT)) {
             playerAnimations.setPlayerAnimationState(PlayerAnimationState.FANSPIN); // Example state
         }
-        if (IsKeyPressed(KeyboardKey.KEY_RIGHT)) {
+        if (InputManager.getInstance().wasPressed(InputBit.RIGHT)) {
             playerAnimations.setPlayerAnimationState(PlayerAnimationState.DIE); // Example state
         }
 

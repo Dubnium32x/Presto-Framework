@@ -64,36 +64,36 @@ class GameScreen : IScreen {
     
     // Load camera type from options.ini
     CameraType loadCameraTypeFromOptions() {
-        writeln("[DEBUG] Loading camera type from options.ini...");
+    // writeln("[DEBUG] Loading camera type from options.ini...");
         if (exists("options.ini")) {
             foreach (line; File("options.ini").byLine()) {
                 auto parts = line.idup.split("=");
                 if (parts.length == 2) {
                     string key = parts[0].strip;
                     string value = parts[1].strip;
-                    writeln("[DEBUG] Found option: ", key, " = ", value);
+                    // writeln("[DEBUG] Found option: ", key, " = ", value);
                     if (key == "cameraType") {
                         string lowerValue = value.toLower();
-                        writeln("[DEBUG] Camera type value: '", value, "' -> '", lowerValue, "'");
+                        // writeln("[DEBUG] Camera type value: '", value, "' -> '", lowerValue, "'");
                         switch (lowerValue) {
                             case "genesis": 
-                                writeln("[DEBUG] Selected GENESIS camera");
+                                // writeln("[DEBUG] Selected GENESIS camera");
                                 return CameraType.GENESIS;
                             case "cd": 
-                                writeln("[DEBUG] Selected CD camera");
+                                // writeln("[DEBUG] Selected CD camera");
                                 return CameraType.CD;
                             case "pocket": 
-                                writeln("[DEBUG] Selected POCKET camera");
+                                // writeln("[DEBUG] Selected POCKET camera");
                                 return CameraType.POCKET;
                             default: 
-                                writeln("[DEBUG] Unknown camera type '", lowerValue, "', defaulting to POCKET");
+                                // writeln("[DEBUG] Unknown camera type '", lowerValue, "', defaulting to POCKET");
                                 return CameraType.POCKET; // Default fallback
                         }
                     }
                 }
             }
         }
-        writeln("[DEBUG] No camera type found, defaulting to POCKET");
+    // writeln("[DEBUG] No camera type found, defaulting to POCKET");
         return CameraType.POCKET; // Default if not found
     }
 
@@ -113,20 +113,20 @@ class GameScreen : IScreen {
         currentLevel = loadCompleteLevel(levelPath);
 
         // Debug: Print level dimensions
-        writeln("[DEBUG] Loaded level dimensions: ", currentLevel.width, "x", currentLevel.height);
+    // writeln("[DEBUG] Loaded level dimensions: ", currentLevel.width, "x", currentLevel.height);
         if (currentLevel.width == 0 || currentLevel.height == 0) {
             writeln("[ERROR] Level size is 0. Check level data.");
         }
 
         // Debug: Print the size of each layer
-        writeln("[DEBUG] Ground Layer 1 size: ", currentLevel.groundLayer1.length, "x", (currentLevel.groundLayer1.length > 0 ? currentLevel.groundLayer1[0].length : 0));
-        writeln("[DEBUG] Ground Layer 2 size: ", currentLevel.groundLayer2.length, "x", (currentLevel.groundLayer2.length > 0 ? currentLevel.groundLayer2[0].length : 0));
-        writeln("[DEBUG] Ground Layer 3 size: ", currentLevel.groundLayer3.length, "x", (currentLevel.groundLayer3.length > 0 ? currentLevel.groundLayer3[0].length : 0));
-        writeln("[DEBUG] Semi-Solid Layer 1 size: ", currentLevel.semiSolidLayer1.length, "x", (currentLevel.semiSolidLayer1.length > 0 ? currentLevel.semiSolidLayer1[0].length : 0));
-        writeln("[DEBUG] Semi-Solid Layer 2 size: ", currentLevel.semiSolidLayer2.length, "x", (currentLevel.semiSolidLayer2.length > 0 ? currentLevel.semiSolidLayer2[0].length : 0));
-        writeln("[DEBUG] Semi-Solid Layer 3 size: ", currentLevel.semiSolidLayer3.length, "x", (currentLevel.semiSolidLayer3.length > 0 ? currentLevel.semiSolidLayer3[0].length : 0));
-        writeln("[DEBUG] Collision Layer size: ", currentLevel.collisionLayer.length, "x", (currentLevel.collisionLayer.length > 0 ? currentLevel.collisionLayer[0].length : 0));
-        writeln("[DEBUG] Hazard Layer size: ", currentLevel.hazardLayer.length, "x", (currentLevel.hazardLayer.length > 0 ? currentLevel.hazardLayer[0].length : 0));
+    // writeln("[DEBUG] Ground Layer 1 size: ", currentLevel.groundLayer1.length, "x", (currentLevel.groundLayer1.length > 0 ? currentLevel.groundLayer1[0].length : 0));
+    // writeln("[DEBUG] Ground Layer 2 size: ", currentLevel.groundLayer2.length, "x", (currentLevel.groundLayer2.length > 0 ? currentLevel.groundLayer2[0].length : 0));
+    // writeln("[DEBUG] Ground Layer 3 size: ", currentLevel.groundLayer3.length, "x", (currentLevel.groundLayer3.length > 0 ? currentLevel.groundLayer3[0].length : 0));
+    // writeln("[DEBUG] Semi-Solid Layer 1 size: ", currentLevel.semiSolidLayer1.length, "x", (currentLevel.semiSolidLayer1.length > 0 ? currentLevel.semiSolidLayer1[0].length : 0));
+    // writeln("[DEBUG] Semi-Solid Layer 2 size: ", currentLevel.semiSolidLayer2.length, "x", (currentLevel.semiSolidLayer2.length > 0 ? currentLevel.semiSolidLayer2[0].length : 0));
+    // writeln("[DEBUG] Semi-Solid Layer 3 size: ", currentLevel.semiSolidLayer3.length, "x", (currentLevel.semiSolidLayer3.length > 0 ? currentLevel.semiSolidLayer3[0].length : 0));
+    // writeln("[DEBUG] Collision Layer size: ", currentLevel.collisionLayer.length, "x", (currentLevel.collisionLayer.length > 0 ? currentLevel.collisionLayer[0].length : 0));
+    // writeln("[DEBUG] Hazard Layer size: ", currentLevel.hazardLayer.length, "x", (currentLevel.hazardLayer.length > 0 ? currentLevel.hazardLayer[0].length : 0));
 
     // Initialize the new GameCamera system
     CameraType cameraType = loadCameraTypeFromOptions();
@@ -138,9 +138,9 @@ class GameScreen : IScreen {
     // Set up render camera for raylib
     renderCamera = gameCamera.toCamera2D();
     
-    writeln("[DEBUG] Initialized camera type: ", cameraType);
-    writeln("[DEBUG] Player spawn point: ", currentLevel.playerSpawnPoint);
-    writeln("[DEBUG] Initial camera target: ", gameCamera.target);
+    // writeln("[DEBUG] Initialized camera type: ", cameraType);
+    // writeln("[DEBUG] Player spawn point: ", currentLevel.playerSpawnPoint);
+    // writeln("[DEBUG] Initial camera target: ", gameCamera.target);
 
 
     // Initialize player at spawn point (do not modify collision internals here)
@@ -187,25 +187,30 @@ class GameScreen : IScreen {
 
             // Get player input for camera look up/down
             bool inputUp = player.vars.keyUp;
-            bool inputDown = player.vars.keyDown;
+            // Only pass down input to camera when explicitly wanting to look down (crouching with delay)
+            bool inputDown = player.wantsLookDown();
 
             // Update camera using SPG-compliant system
+            bool lockCamera = player.shouldLockCamera();
             Vector2 playerPos = Vector2(player.vars.xPosition, player.vars.yPosition);
             gameCamera.update(playerPos, player.vars.groundSpeed, player.vars.isGrounded, 
-                              inputUp, inputDown, deltaTime);
+                              inputUp, inputDown, deltaTime, lockCamera);
             
             // Update render camera for raylib
             renderCamera = gameCamera.toCamera2D();
+            // Snap camera offset/target to integer pixels to avoid sub-pixel jitter
+            import std.math : round;
+            renderCamera.offset.x = cast(float)round(renderCamera.offset.x);
+            renderCamera.offset.y = cast(float)round(renderCamera.offset.y);
+            renderCamera.target.x = cast(float)round(renderCamera.target.x);
+            renderCamera.target.y = cast(float)round(renderCamera.target.y);
             
             // Debug output every 60 frames
             static int debugFrameCounter = 0;
             debugFrameCounter++;
             if (debugFrameCounter >= 60) {
                 debugFrameCounter = 0;
-                writeln("[CAM DEBUG] PlayerPos: ", playerPos);
-                writeln("[CAM DEBUG] GameCamera target: ", gameCamera.target);
-                writeln("[CAM DEBUG] RenderCamera target: ", renderCamera.target);
-                writeln("[CAM DEBUG] RenderCamera offset: ", renderCamera.offset);
+                // for debugging
             }
         }
 
@@ -259,16 +264,16 @@ class GameScreen : IScreen {
     // drawLayerIfNotEmpty(currentLevel.collisionLayer, ground1Tileset, "CollisionLayer");
     // drawLayerIfNotEmpty(currentLevel.hazardLayer, ground1Tileset, "HazardLayer");
 
-        // Draw player (in world space so camera affects it)
-        player.draw();
+    // Draw player (in world space so camera affects it)
+    player.draw();
 
-        // Debug: always draw a simple magenta marker at the player's world position
-        // so we can tell whether the player is on-screen even if animation fails.
-        DrawCircleV(Vector2(player.vars.xPosition, player.vars.yPosition), 8, Colors.MAGENTA);
-        // Debug: draw a small cross at the camera target
-        DrawLineV(renderCamera.target - Vector2(6,0), renderCamera.target + Vector2(6,0), Colors.SKYBLUE);
-        DrawLineV(renderCamera.target - Vector2(0,6), renderCamera.target + Vector2(0,6), Colors.SKYBLUE);
+    // Debug: always draw a simple magenta marker at the player's world position
+    // DrawCircleV(Vector2(player.vars.xPosition, player.vars.yPosition), 8, Colors.MAGENTA);
+    // Debug: draw a small cross at the camera target
+    // DrawLineV(renderCamera.target - Vector2(6,0), renderCamera.target + Vector2(6,0), Colors.SKYBLUE);
+    // DrawLineV(renderCamera.target - Vector2(0,6), renderCamera.target + Vector2(0,6), Colors.SKYBLUE);
 
+    /*
     // Debug overlay: visualize the TileHeightProfile for the tile under the player
     // This helps diagnose missing collision / invisible player issues by drawing
     // the per-column heights and surface marker in world space (camera transformed).
@@ -311,59 +316,47 @@ class GameScreen : IScreen {
             profile = TileCollision.getTileHeightProfile(tile.tileId, ch.name, currentLevel.tilesets);
         }
 
-        // Draw per-column heights (columns are 0..15 mapped to world X = tileX*16 + col)
+        // Draw per-column heights (columns are 0..16 mapped to world X = tileX*16 + col)
         for (int col = 0; col < 16; col++) {
             int h = profile.groundHeights[col]; // 0..16
             float colWorldX = cast(float)(dbgTileX * dbgTileSize + col) + 0.5f; // center the line
             float colBottomY = cast(float)(dbgTileY * dbgTileSize + dbgTileSize);
             float colTopY = cast(float)(dbgTileY * dbgTileSize + (dbgTileSize - h));
             // Draw column line
-            DrawLineV(Vector2(colWorldX, colBottomY), Vector2(colWorldX, colTopY), Colors.YELLOW);
-            // Draw a small marker at the top of the column
-            DrawPixel(cast(int)colWorldX, cast(int)colTopY, Colors.ORANGE);
+        // DrawLineV(Vector2(colWorldX, colBottomY), Vector2(colWorldX, colTopY), Colors.YELLOW);
+        // Draw a small marker at the top of the column
+        // DrawPixel(cast(int)colWorldX, cast(int)colTopY, Colors.ORANGE);
         }
 
         // Draw surface marker at player's local column
         int localX = cast(int)floor(player.vars.xPosition) - dbgTileX * dbgTileSize;
         if (localX < 0) localX = 0;
         if (localX > 15) localX = 15;
-        float surfaceY = cast(float)(dbgTileY * dbgTileSize) + (dbgTileSize - profile.groundHeights[localX]);
-        DrawCircleV(Vector2(player.vars.xPosition, surfaceY), 3, Colors.RED);
+        float surfaceY = cast<float>(dbgTileY * dbgTileSize) + (dbgTileSize - profile.groundHeights[localX]);
+        // DrawCircleV(Vector2(player.vars.xPosition, surfaceY), 3, Colors.RED);
 
         // Draw debug text (tile id, layer, whether profile was precomputed, angle)
         float textWorldX = cast(float)(dbgTileX * dbgTileSize);
         float textWorldY = cast(float)(dbgTileY * dbgTileSize) - 12.0f;
-    float angle = TileCollision.getTileGroundAngle(tile.tileId, ch.name, currentLevel.tilesets);
-    string dbgText = "TID:" ~ to!string(tile.tileId) ~ " L:" ~ ch.name ~ " precomp:" ~ (hadProfile ? "Y" : "N") ~ " ang:" ~ to!string(angle);
-        DrawText(dbgText.toStringz, cast(int)textWorldX, cast(int)textWorldY, 10, Colors.WHITE);
+    // float angle = TileCollision.getTileGroundAngle(tile.tileId, ch.name, currentLevel.tilesets);
+    // string dbgText = "TID:" ~ to!string(tile.tileId) ~ " L:" ~ ch.name ~ " precomp:" ~ (hadProfile ? "Y" : "N") ~ " ang:" ~ to!string(angle);
+    // DrawText(dbgText.toStringz, cast(int)textWorldX, cast(int)textWorldY, 10, Colors.WHITE);
 
         drewDbg = false;
         break; // only draw the first matching layer
     }
 
     // If nothing drawn, optionally show player position info
-    if (!drewDbg) {
-        string info = "Player: (" ~ to!string(player.vars.xPosition) ~ "," ~ to!string(player.vars.yPosition) ~ ") grd:" ~ (player.vars.isGrounded ? "Y" : "N");
-        DrawText(info.toStringz, cast(int)(player.vars.xPosition - 40), cast(int)(player.vars.yPosition - 30), 10, Colors.LIGHTGRAY);
-    }
+    // if (!drewDbg) {
+    //     string info = "Player: (" ~ to!string(player.vars.xPosition) ~ "," ~ to!string(player.vars.yPosition) ~ ") grd:" ~ (player.vars.isGrounded ? "Y" : "N");
+    //     DrawText(info.toStringz, cast(int)(player.vars.xPosition - 40), cast(int)(player.vars.yPosition - 30), 10, Colors.LIGHTGRAY);
+    // }
+
+    */
 
     EndMode2D();
 
-    // Debug: show player and camera positions in screen space for quick inspection
-    import std.conv : to;
-    string posText = "Player: (" ~ to!string(player.vars.xPosition) ~ "," ~ to!string(player.vars.yPosition) ~ ")  ";
-    posText ~= "Camera: (" ~ to!string(renderCamera.target.x) ~ "," ~ to!string(renderCamera.target.y) ~ ") Zoom:" ~ to!string(renderCamera.zoom);
-    DrawText(posText.toStringz, 10, GetScreenHeight() - 28, 12, Colors.LIGHTGRAY);
-
-    // Additional check: map player's world position to screen space using the camera
-    // and draw a screen-space marker so we can see whether the camera transform is correct
-    Vector2 playerScreen = GetWorldToScreen2D(Vector2(player.vars.xPosition, player.vars.yPosition), renderCamera);
-    DrawCircleV(playerScreen, 6, Colors.LIME);
-    // Also show camera offset to validate centering behaviour
-    string offsetText = "CamOffset: (" ~ to!string(renderCamera.offset.x) ~ "," ~ to!string(renderCamera.offset.y) ~ ")";
-    DrawText(offsetText.toStringz, 10, GetScreenHeight() - 44, 10, Colors.LIGHTGRAY);
-
-    // Draw HUD
+    // Draw HUD in screen space (fixed to screen) to avoid sub-pixel jitter
     hud.draw();
 
         // Draw title card if in title card state
@@ -376,6 +369,8 @@ class GameScreen : IScreen {
         // ...cleanup...
     }
 }
+
+
 
 
 

@@ -1,6 +1,7 @@
 module game.hud;
 
 import raylib;
+import app : VIRTUAL_SCREEN_HEIGHT; // For bottom alignment
 
 import std.stdio;
 import std.array;
@@ -55,13 +56,14 @@ class HUD {
         }
     }
 
+    // Draw HUD at fixed screen positions (classic Sonic style)
     void draw() {
         // Top-left HUD layout
-        int baseX = 12;
-        int baseY = 8;
+    int baseX = 12;
+    int baseY = 8;
         int spacingY = 20;
         // Score
-        DrawTexture(hudSprites[3], baseX, baseY, Colors.WHITE);
+    DrawTexture(hudSprites[3], baseX, baseY, Colors.WHITE);
         drawPrestoNumbersBText(score.to!string, baseX + 70, baseY, Colors.WHITE);
     // Time
     DrawTexture(hudSprites[2], baseX, baseY + spacingY, Colors.WHITE);
@@ -73,16 +75,46 @@ class HUD {
     string timeStr = format("%02d:%02d.%03d", minutes, seconds, milliseconds);
     drawPrestoNumbersBText(timeStr, baseX + 70, baseY + spacingY, Colors.WHITE);
         // Rings
-        DrawTexture(hudSprites[1], baseX, baseY + spacingY * 2, Colors.WHITE);
+    DrawTexture(hudSprites[1], baseX, baseY + spacingY * 2, Colors.WHITE);
         drawPrestoNumbersBText(rings.to!string, baseX + 70, baseY + spacingY * 2, Colors.WHITE);
 
     // Bottom-left lives counter using smallSonicFont for the value
     import sprite.sprite_fonts;
     int livesX = 12;
-    int livesY = 224 - 24; // Adjust for your screen height
+    int livesY = VIRTUAL_SCREEN_HEIGHT - 24; // bottom aligned
     DrawTexture(hudSprites[0], livesX, livesY, Colors.WHITE);
     drawSpriteText(smallSonicFont, "SONIC", livesX + 20, livesY, Colors.YELLOW);
     drawSpriteText(smallSonicFont, "x", livesX + 24, livesY + 12, Colors.WHITE);
     drawSpriteText(smallSonicFont, lives.to!string, livesX + 36, livesY + 10, Colors.WHITE);
+    }
+
+    // Draw HUD anchored to a world-space top-left origin so it follows the camera.
+    void drawAtWorld(Vector2 worldTopLeft) {
+        int baseX = cast(int)worldTopLeft.x + 12;
+        int baseY = cast(int)worldTopLeft.y + 8;
+        int spacingY = 20;
+        // Score
+        DrawTexture(hudSprites[3], baseX, baseY, Colors.WHITE);
+        drawPrestoNumbersBText(score.to!string, baseX + 70, baseY, Colors.WHITE);
+        // Time
+        DrawTexture(hudSprites[2], baseX, baseY + spacingY, Colors.WHITE);
+        int totalMilliseconds = time;
+        int minutes = totalMilliseconds / 60000;
+        int seconds = (totalMilliseconds % 60000) / 1000;
+        int milliseconds = totalMilliseconds % 1000;
+        string timeStr = format("%02d:%02d.%03d", minutes, seconds, milliseconds);
+        drawPrestoNumbersBText(timeStr, baseX + 70, baseY + spacingY, Colors.WHITE);
+        // Rings
+        DrawTexture(hudSprites[1], baseX, baseY + spacingY * 2, Colors.WHITE);
+        drawPrestoNumbersBText(rings.to!string, baseX + 70, baseY + spacingY * 2, Colors.WHITE);
+
+        // Bottom-left lives counter using smallSonicFont for the value
+        import sprite.sprite_fonts;
+        int livesX = cast(int)worldTopLeft.x + 12;
+        int livesY = cast(int)worldTopLeft.y + VIRTUAL_SCREEN_HEIGHT - 24; // bottom aligned
+        DrawTexture(hudSprites[0], livesX, livesY, Colors.WHITE);
+        drawSpriteText(smallSonicFont, "SONIC", livesX + 20, livesY, Colors.YELLOW);
+        drawSpriteText(smallSonicFont, "x", livesX + 24, livesY + 12, Colors.WHITE);
+        drawSpriteText(smallSonicFont, lives.to!string, livesX + 36, livesY + 10, Colors.WHITE);
     }
 }

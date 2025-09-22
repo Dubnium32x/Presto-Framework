@@ -77,7 +77,11 @@ struct TileCollision {
         if (tilesets !is null && tilesets.length > 0) {
             world.tileset_map.TilesetInfo chosenInfo;
             int localIndex;
-            if (world.tileset_map.resolveGlobalGid(actualTileId, tilesets, chosenInfo, localIndex)) {
+            bool resolved = world.tileset_map.resolveGlobalGid(actualTileId, tilesets, chosenInfo, localIndex);
+            if (DEBUG_TILE_ANGLE) {
+                writeln("TileProfileDbg: raw=", rawTileId, " actual=", actualTileId, " layer=", layerName, " resolved=", resolved, " localIndex=", (resolved?localIndex:-1));
+            }
+            if (resolved) {
                 // Try each candidate name in the chosen tileset against generated names
                 foreach (candidate; chosenInfo.nameCandidates) {
                     string candNorm = candidate; // already normalized in loader
@@ -85,6 +89,9 @@ struct TileCollision {
                     foreach (i, n; TILESET_NAMES) {
                         string genNorm = world.tileset_map.normalizeTilesetName(n);
                         if (genNorm == candNorm) { idx = cast(int)i; break; }
+                    }
+                    if (DEBUG_TILE_ANGLE && idx == -1) {
+                        writeln("TileProfileDbg: tileset name not found in generated names -> candidate=", candNorm, " raw=", rawTileId);
                     }
                     if (idx != -1) {
                         // If rawTileId includes flip bits, prefer precomputed variant tables if available
@@ -112,6 +119,8 @@ struct TileCollision {
                                         outHeights[i] = val;
                                     }
                                     return TileHeightProfile.custom(outHeights[], false);
+                                } else {
+                                    if (DEBUG_TILE_ANGLE) writeln("TileProfileDbg: variant heightmaps OOB -> idx=", idx, " var=", variantIdx, " localIndex=", localIndex, " len=", tilesForVariant.length);
                                 }
                             }
                         }
@@ -185,9 +194,13 @@ struct TileCollision {
                             }
 
                             return TileHeightProfile.custom(outHeights[], false);
+                        } else {
+                            if (DEBUG_TILE_ANGLE) writeln("TileProfileDbg: base heightmaps OOB -> idx=", idx, " localIndex=", localIndex, " len=", block.length);
                         }
                     }
                 }
+            } else {
+                if (DEBUG_TILE_ANGLE) writeln("TileProfileDbg: resolveGlobalGid FAILED for actual=", actualTileId);
             }
         }
 
@@ -206,6 +219,7 @@ struct TileCollision {
             int[] heights = [7, 7, 6, 6, 5, 5, 4, 4, 3, 3, 2, 2, 1, 1, 0, 0];
             return TileHeightProfile.custom(heights);
         } else {
+            if (DEBUG_TILE_ANGLE) writeln("TileProfileDbg: solidBlock() fallback for raw=", rawTileId, " layer=", layerName);
             return TileHeightProfile.solidBlock();
         }
     }
@@ -235,13 +249,21 @@ struct TileCollision {
         // Use rawTileId as cache key (includes flip bits so flipped variants are cached separately)
         float cached;
         if (groundAngleCache.get(rawTileId, cached)) {
-            if (debugThis) writeln("[DEBUG 221] Cache hit, returning=", cached);
-            return cached;
+            import std.math : isNaN;
+            if (DEBUG_TILE_ANGLE) writeln("TileAngleDbg: cache hit -> raw=", rawTileId, " deg=", cached);
+            if (isNaN(cached)) {
+                // Never return NaN from cache; drop it and recompute
+                if (DEBUG_TILE_ANGLE) writeln("TileAngleDbg: cached NaN detected for raw=", rawTileId, ", removing and recomputing");
+                groundAngleCache.remove(rawTileId);
+            } else {
+                if (debugThis) writeln("[DEBUG 221] Cache hit, returning=", cached);
+                return cached;
+            }
         }
 
-        // If tilesets provided and the tile has no flip bits, prefer precomputed angle
+        // If tilesets provided, prefer precomputed angle (handle flipped variants too)
         int actualTileId = getActualTileId(rawTileId);
-        if (tilesets !is null && tilesets.length > 0 && actualTileId == rawTileId) {
+        if (tilesets !is null && tilesets.length > 0) {
             world.tileset_map.TilesetInfo chosenInfo;
             int localIndex;
             if (world.tileset_map.resolveGlobalGid(actualTileId, tilesets, chosenInfo, localIndex)) {
@@ -268,7 +290,12 @@ struct TileCollision {
                                 auto angList = varAngBlock[variantIdx];
                                 if (localIndex >= 0 && localIndex < angList.length) {
                                     float angleF = cast(float)angList[localIndex];
-                                    if (DEBUG_TILE_ANGLE) writeln("TileAngleDbg: variant table hit -> tilesetIdx=", idx, " variant=", variantIdx, " localIndex=", localIndex, " raw=", rawTileId, " angle=", angleF);
+                                    import std.math : isNaN;
+                                    if (isNaN(angleF)) {
+                                        writeln("[WARN] TileAngle: variant table NaN for raw=", rawTileId, " name=", candNorm, " idx=", idx, " var=", variantIdx, " local=", localIndex, " -> forcing 0");
+                                        angleF = 0.0f;
+                                    }
+                                    if (DEBUG_TILE_ANGLE) writeln("TileAngleDbg: variant table hit -> name=", candNorm, " tilesetIdx=", idx, " variant=", variantIdx, " localIndex=", localIndex, " raw=", rawTileId, " angle=", angleF);
                                     groundAngleCache[rawTileId] = angleF;
                                     return angleF;
                                 }
@@ -280,7 +307,12 @@ struct TileCollision {
                             auto angBlock = TILESET_GROUND_ANGLES[idx];
                             if (localIndex >= 0 && localIndex < angBlock.length) {
                                 float angleF = cast(float)angBlock[localIndex];
-                                if (DEBUG_TILE_ANGLE) writeln("TileAngleDbg: base table hit -> tilesetIdx=", idx, " localIndex=", localIndex, " raw=", rawTileId, " angle=", angleF);
+                                import std.math : isNaN;
+                                if (isNaN(angleF)) {
+                                    writeln("[WARN] TileAngle: base table NaN for raw=", rawTileId, " name=", candNorm, " idx=", idx, " local=", localIndex, " -> forcing 0");
+                                    angleF = 0.0f;
+                                }
+                                if (DEBUG_TILE_ANGLE) writeln("TileAngleDbg: base table hit -> name=", candNorm, " tilesetIdx=", idx, " localIndex=", localIndex, " raw=", rawTileId, " angle=", angleF);
                                 groundAngleCache[rawTileId] = angleF;
                                 return angleF;
                             }
@@ -343,7 +375,7 @@ struct TileCollision {
     }
     
         if (DEBUG_TILE_ANGLE) {
-            writeln("TileAngleDbg: computed angle -> raw=", rawTileId, " slope=", slope, " deg=", angleF, " heights=[", profile.groundHeights[0], ",", profile.groundHeights[1], ",", profile.groundHeights[2], ",...]");
+            writeln("TileAngleDbg: computed angle -> raw=", rawTileId, " layer=", layerName, " slope=", slope, " deg=", angleF, " heights=[", profile.groundHeights[0], ",", profile.groundHeights[1], ",", profile.groundHeights[2], ",...]");
             // print full heights for deeper inspection
             writefln("TileAngleDbg heights full: %s", profile.groundHeights[]);
         }

@@ -1,3 +1,11 @@
+/*
+    ---------------------------------------
+    Presto Framework - Pre-Alpha v 0.1.4
+    ---------------------------------------
+
+    Constructed by Dylan "DiSKO" Kleven
+*/
+
 module app;
 
 import raylib;
@@ -25,7 +33,7 @@ public int windowSize;
 public int SCREEN_WIDTH;
 public int SCREEN_HEIGHT;
 public int VIRTUAL_SCREEN_WIDTH = 400;
-public int VIRTUAL_SCREEN_HEIGHT = 224;
+public int VIRTUAL_SCREEN_HEIGHT = 240;
 
 // Fonts
 Font s1TitleFont;
@@ -74,7 +82,7 @@ void main() {
         }
     }
     SCREEN_WIDTH = 400 * windowSize;
-    SCREEN_HEIGHT = 224 * windowSize;
+    SCREEN_HEIGHT = 240 * windowSize;
 
     SetConfigFlags(ConfigFlags.FLAG_VSYNC_HINT); // Use the correct namespace for the flag
 
@@ -100,7 +108,7 @@ void main() {
         SCREEN_WIDTH = displayWidth;
         SCREEN_HEIGHT = displayHeight;
     }
-    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Presto Framework Pre-Alpha v 0.1.2");
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Presto Framework Pre-Alpha v 0.1.4");
     if (fullscreen) {
         ToggleBorderlessWindowed();
     } else {

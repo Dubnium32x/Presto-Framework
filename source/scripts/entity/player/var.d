@@ -7,6 +7,7 @@ import std.math;
 
 // Player physics variables based on Sonic Physics Guide (SPG)
 struct PlayerVariables {
+    bool hasJumped = false;
     // Position variables
     float xPosition = 0.0f;          // X-coordinate of the player's center
     float yPosition = 0.0f;          // Y-coordinate of the player's center
@@ -62,7 +63,7 @@ struct PlayerVariables {
     static immutable float TOP_Y_SPEED = 16.0f;                 // Maximum falling speed
     
     // Physics constants - Jumping
-    static immutable float INITIAL_JUMP_VELOCITY = -6.5f;       // Initial upward velocity when jumping
+    static immutable float INITIAL_JUMP_VELOCITY = -7.5f;       // Initial upward velocity when jumping
     static immutable float RELEASE_JUMP_VELOCITY = -4.0f;       // Y speed when jump is released early
     
     // Physics constants - Rolling
@@ -117,6 +118,7 @@ struct PlayerVariables {
         groundAngle = 0.0f;
         isGrounded = false;
         controlLockTimer = 0;
+        hasJumped = false;
     }
     
     void setFacing(int direction) {

@@ -272,33 +272,33 @@ class LevelTestScreen : IScreen {
     
     void handleInput(float deltaTime) {
         // Screen switching
-        if (IsKeyPressed(KeyboardKey.KEY_P)) {
+        if (InputManager.getInstance().wasPressed(InputBit.RB)) {
             ScreenManager.getInstance().changeState(ScreenState.PALETTE_SWAP_TEST);
             return;
         }
         
         // Level switching
-        if (IsKeyPressed(KeyboardKey.KEY_N) && availableLevels.length > 0) {
+        if ((IsKeyPressed(KeyboardKey.KEY_N) || InputManager.getInstance().wasPressed(InputBit.Y)) && availableLevels.length > 0) {
             currentLevelIndex = (currentLevelIndex + 1) % cast(int)availableLevels.length;
             loadLevel(availableLevels[currentLevelIndex]);
         }
-        if (IsKeyPressed(KeyboardKey.KEY_B) && availableLevels.length > 0) {
+        if ((IsKeyPressed(KeyboardKey.KEY_B) || InputManager.getInstance().wasPressed(InputBit.X)) && availableLevels.length > 0) {
             currentLevelIndex = (currentLevelIndex - 1 + cast(int)availableLevels.length) % cast(int)availableLevels.length;
             loadLevel(availableLevels[currentLevelIndex]);
         }
         
         // Camera movement
         Vector2 movement = Vector2(0, 0);
-        if (IsKeyDown(KeyboardKey.KEY_LEFT) || IsKeyDown(KeyboardKey.KEY_A)) {
+        if (InputManager.getInstance().isDown(InputBit.LEFT) || InputManager.getInstance().isDown(InputBit.X)) {
             movement.x -= cameraSpeed * deltaTime;
         }
-        if (IsKeyDown(KeyboardKey.KEY_RIGHT) || IsKeyDown(KeyboardKey.KEY_D)) {
+        if (InputManager.getInstance().isDown(InputBit.RIGHT) || InputManager.getInstance().isDown(InputBit.B)) {
             movement.x += cameraSpeed * deltaTime;
         }
-        if (IsKeyDown(KeyboardKey.KEY_UP) || IsKeyDown(KeyboardKey.KEY_W)) {
+        if (InputManager.getInstance().isDown(InputBit.UP) || InputManager.getInstance().isDown(InputBit.Y)) {
             movement.y -= cameraSpeed * deltaTime;
         }
-        if (IsKeyDown(KeyboardKey.KEY_DOWN) || IsKeyDown(KeyboardKey.KEY_S)) {
+        if (InputManager.getInstance().isDown(InputBit.DOWN) || InputManager.getInstance().isDown(InputBit.A)) {
             movement.y += cameraSpeed * deltaTime;
         }
         
@@ -314,7 +314,7 @@ class LevelTestScreen : IScreen {
         }
         
         // Reset camera
-        if (IsKeyPressed(KeyboardKey.KEY_R)) {
+        if (InputManager.getInstance().wasPressed(InputBit.LB)) {
             cameraTarget = Vector2(
                 (currentLevel.width * tileSize * renderScale) / 2.0f,
                 (currentLevel.height * tileSize * renderScale) / 2.0f
@@ -323,7 +323,7 @@ class LevelTestScreen : IScreen {
         }
         
         // Debug key to reload tilesets
-        if (IsKeyPressed(KeyboardKey.KEY_T)) {
+        if (InputManager.getInstance().wasPressed(InputBit.START)) {
             writeln("Reloading tilesets...");
             foreach (layerName, texture; tilesets) {
                 if (texture.id != 0) {

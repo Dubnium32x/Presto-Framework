@@ -5,6 +5,9 @@
         },
         {
             "path": "../../../Pascal-Sonic"
+        },
+        {
+            "path": "../../raylib-projects/KoF-Frenzy"
         }
     ]
 }

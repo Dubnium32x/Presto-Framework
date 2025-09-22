@@ -25,6 +25,7 @@ enum PlayerAnimationState {
 class PlayerAnimations {
     private Animator* animator = new Animator();
     private AnimationManager animationManager = new AnimationManager();
+    private PlayerAnimationState currentState = PlayerAnimationState.IDLE; // Track currently active state
 
     this() {}
 
@@ -40,6 +41,18 @@ class PlayerAnimations {
     void update(float deltaTime) {
         animationManager.update(deltaTime);
         animator.update(deltaTime); // Advance animation frames
+        // Debug: print current frame info occasionally
+        static float debugTimer = 0.0f;
+        debugTimer += deltaTime;
+        if (debugTimer >= 1.0f) { // Print every second
+            debugTimer = 0.0f;
+            writeln("[PLAYER ANIM] Current frame: ", animator.currentFrame.frameIndex, " Duration: ", animator.currentFrame.duration, " Timer: ", animator.frameTimer);
+        }
+    }
+
+    // Control animation playback speed (1.0 = normal). Values >1 speed up, <1 slow down.
+    void setPlaybackMultiplier(float m) {
+        animator.setSpeedMultiplier(m);
     }
 
     void setFrameTime(float time) {
@@ -51,6 +64,11 @@ class PlayerAnimations {
     }
 
     void setPlayerAnimationState(PlayerAnimationState state) {
+        // If the requested state is already active, do nothing to avoid resetting the animation every frame
+        if (state == currentState) {
+            return;
+        }
+
         AnimationSequence sequence;
         writeln("Switching to animation state: ", state);
 
@@ -65,7 +83,7 @@ class PlayerAnimations {
                 break;
             case PlayerAnimationState.IMPATIENT_LOOK:
                 sequence = AnimationSequence("ImpatientLook", AnimationSequenceType.ONCE, [
-                    AnimationFrame(1, 0.5),
+                    AnimationFrame(1, 0.2),
                     AnimationFrame(2, 2.0)
                 ]);
                 break;
@@ -105,14 +123,14 @@ class PlayerAnimations {
                 break;
             case PlayerAnimationState.WALK:
                 sequence = AnimationSequence("Walk", AnimationSequenceType.LOOP, [
-                    AnimationFrame(5, 0.2),
-                    AnimationFrame(6, 0.2),
-                    AnimationFrame(7, 0.2),
-                    AnimationFrame(8, 0.2),
-                    AnimationFrame(9, 0.2),
-                    AnimationFrame(10, 0.2),
-                    AnimationFrame(11, 0.2),
-                    AnimationFrame(12, 0.2),
+                    AnimationFrame(5, 0.1),
+                    AnimationFrame(6, 0.1),
+                    AnimationFrame(7, 0.1),
+                    AnimationFrame(8, 0.1),
+                    AnimationFrame(9, 0.1),
+                    AnimationFrame(10, 0.1),
+                    AnimationFrame(11, 0.1),
+                    AnimationFrame(12, 0.1),
                 ]);
                 break;
             case PlayerAnimationState.RUN:
@@ -132,12 +150,16 @@ class PlayerAnimations {
                 ]);
                 break;
             case PlayerAnimationState.JUMP:
-                sequence = AnimationSequence("Jump", AnimationSequenceType.SEQUENCE_WITH_FIRST_FRAME_ALTERNATING, [
-                    AnimationFrame(13, 0.2),
-                    AnimationFrame(14, 0.2),
-                    AnimationFrame(15, 0.2),
-                    AnimationFrame(16, 0.2),
-                    AnimationFrame(17, 0.2)
+                // Play the jump frames in sequence once (do not alternate the first frame)
+                sequence = AnimationSequence("Jump", AnimationSequenceType.ONCE, [
+                    AnimationFrame(13, 0.1),
+                    AnimationFrame(14, 0.1),
+                    AnimationFrame(13, 0.1),
+                    AnimationFrame(15, 0.1),
+                    AnimationFrame(13, 0.1),
+                    AnimationFrame(16, 0.1),
+                    AnimationFrame(13, 0.1),    
+                    AnimationFrame(17, 0.1)
                 ]);
                 break;
             case PlayerAnimationState.ROLL:
@@ -147,11 +169,6 @@ class PlayerAnimations {
                     AnimationFrame(15, 0.2),
                     AnimationFrame(16, 0.2),
                     AnimationFrame(17, 0.2)
-                ]);
-                break;
-            case PlayerAnimationState.FALL:
-                sequence = AnimationSequence("Fall", AnimationSequenceType.LOOP, [
-                    AnimationFrame(0, 0.2)
                 ]);
                 break;
             case PlayerAnimationState.SKID:
@@ -326,15 +343,18 @@ class PlayerAnimations {
         }
 
     writeln("Setting animation sequence: ", sequence.name, " with frames: ", sequence.frames.map!(f => f.frameIndex).array);
+    // Apply the new sequence and mark current state
     setAnimationState(sequence);
     // We just added the new animation name to the manager; select it as the current animation
     animationManager.setAnimation(0);
+    currentState = state;
     }
 
     // Render the current animation frame at the given world position.
     // "position" is the center point where the sprite should be drawn.
     // "scale" scales the frame (1.0 = native frame size)
-    void render(Vector2 position, float scale = 1.0f) {
+    // "flipH" flips the sprite horizontally (true = facing left, false = facing right)
+    void render(Vector2 position, float scale = 1.0f, bool flipH = false) {
         // Assuming the Animator provides a way to get the current frame index
         int frameIndex = animator.currentFrame.frameIndex;
 
@@ -348,8 +368,15 @@ class PlayerAnimations {
             float destH = frameRect.height * scale;
             // Destination rectangle must be top-left, so offset by half to center at position
             Rectangle dest = Rectangle(position.x - destW / 2.0f, position.y - destH / 2.0f, destW, destH);
+            
+            // Flip horizontally if needed by negating the width
+            Rectangle sourceRect = frameRect;
+            if (flipH) {
+                sourceRect.width = -sourceRect.width;
+            }
+            
             // Draw with DrawTexturePro so we can scale and keep crisp sampling
-            DrawTexturePro(texture, frameRect, dest, Vector2(0, 0), 0.0f, Colors.WHITE);
+            DrawTexturePro(texture, sourceRect, dest, Vector2(0, 0), 0.0f, Colors.WHITE);
         } else {
             // Nothing to draw (fallback) - emit debug information to help track why
             writeln("[ANIM DBG] render: texture.id=", texture.id, " frameIndex=", frameIndex, " frameRect=", frameRect);

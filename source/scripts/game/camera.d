@@ -113,23 +113,23 @@ struct GameCamera {
     
     // Update camera position based on player position and input
     void update(Vector2 playerPos, float playerGroundSpeed, bool playerGrounded, 
-                bool inputUp, bool inputDown, float deltaTime) {
+                bool inputUp, bool inputDown, float deltaTime, bool lockCamera = false) {
         
         // Handle look up/down input
         updateLookUpDown(inputUp, inputDown, playerGrounded);
         
         switch (cameraType) {
             case CameraType.GENESIS:
-                processGenesisCamera(playerPos, playerGroundSpeed, playerGrounded, deltaTime);
+                processGenesisCamera(playerPos, playerGroundSpeed, playerGrounded, deltaTime, lockCamera);
                 break;
             case CameraType.CD:
-                processCDCamera(playerPos, playerGroundSpeed, playerGrounded, deltaTime);
+                processCDCamera(playerPos, playerGroundSpeed, playerGrounded, deltaTime, lockCamera);
                 break;
             case CameraType.POCKET:
-                processPocketCamera(playerPos, playerGroundSpeed, playerGrounded, deltaTime);
+                processPocketCamera(playerPos, playerGroundSpeed, playerGrounded, deltaTime, lockCamera);
                 break;
             default:
-                processGenesisCamera(playerPos, playerGroundSpeed, playerGrounded, deltaTime);
+                processGenesisCamera(playerPos, playerGroundSpeed, playerGrounded, deltaTime, lockCamera);
                 break;
         }
         
@@ -205,7 +205,7 @@ struct GameCamera {
                 
                 // Start scrolling after delay (except CD)
                 if (cameraType != CameraType.CD && lookTimer >= 120) {
-                    // Look down: shift focal point up by 88 pixels max, 2 per frame
+                    // Look down: shift focal point down by 88 pixels max, 2 per frame (negative for down)
                     verticalShift = fmax(verticalShift - 2.0f, -88.0f);
                 } else if (cameraType == CameraType.CD && lookTimer > 0) {
                     // CD starts immediately
@@ -235,7 +235,7 @@ struct GameCamera {
     }
     
     // Genesis-style camera processing (SPG borders system)
-    void processGenesisCamera(Vector2 playerPos, float playerGroundSpeed, bool playerGrounded, float deltaTime) {
+    void processGenesisCamera(Vector2 playerPos, float playerGroundSpeed, bool playerGrounded, float deltaTime, bool lockCamera) {
         float currentVerticalFocalPoint = verticalFocalPoint - verticalShift;
         
         // SPG Genesis Camera Logic:
@@ -243,61 +243,56 @@ struct GameCamera {
         // Camera position represents the top-left of the view
         // Player screen position = playerPos - camera position
         
-        // Calculate where the player appears on screen
-        float playerScreenX = playerPos.x - position.x;
-        float playerScreenY = playerPos.y - position.y;
-        
-        // Horizontal movement - check if player is outside borders
-        if (playerScreenX < borders.x) { // Left border (144)
-            // Player is past left border, move camera left
-            float diff = borders.x - playerScreenX;
-            position.x -= fmin(diff, horizontalSpeedCap);
-        } else if (playerScreenX > borders.y) { // Right border (160) 
-            // Player is past right border, move camera right
-            float diff = playerScreenX - borders.y;
-            position.x += fmin(diff, horizontalSpeedCap);
-        }
-        
-        // Vertical movement
-        if (playerGrounded) {
-            // On ground: try to keep player at vertical focal point
-            float targetScreenY = currentVerticalFocalPoint;
-            float diff = playerScreenY - targetScreenY;
-            float speedCap = verticalSpeedCap;
-            
-            // SPG: Speed-dependent vertical camera movement
-            if (abs(verticalShift) < 0.1f && abs(playerGroundSpeed) >= 8.0f) {
-                speedCap = 24.0f; // Fast movement when running fast
-            } else if (abs(verticalShift) < 0.1f && abs(playerGroundSpeed) < 8.0f) {
-                speedCap = 6.0f; // Slow movement when walking
+        if (!lockCamera) {
+            // Calculate where the player appears on screen
+            float playerScreenX = playerPos.x - position.x;
+            float playerScreenY = playerPos.y - position.y;
+            // Horizontal movement - check if player is outside borders
+            if (playerScreenX < borders.x) { // Left border (144)
+                // Player is past left border, move camera left
+                float diff = borders.x - playerScreenX;
+                position.x -= fmin(diff, horizontalSpeedCap);
+            } else if (playerScreenX > borders.y) { // Right border (160) 
+                // Player is past right border, move camera right
+                float diff = playerScreenX - borders.y;
+                position.x += fmin(diff, horizontalSpeedCap);
             }
-            
-            if (abs(diff) > 0.5f) {
-                position.y += diff > 0 ? fmin(diff, speedCap) : fmax(diff, -speedCap);
-            }
-        } else {
-            // In air: use borders around focal point
-            float topBorder = currentVerticalFocalPoint - 32;
-            float bottomBorder = currentVerticalFocalPoint + 32;
-            
-            if (playerScreenY < topBorder) {
-                float diff = topBorder - playerScreenY;
-                position.y -= fmin(diff, verticalSpeedCap);
-            } else if (playerScreenY > bottomBorder) {
-                float diff = playerScreenY - bottomBorder;
-                position.y += fmin(diff, verticalSpeedCap);
+            // Vertical movement
+            if (playerGrounded) {
+                // On ground: try to keep player at vertical focal point
+                float targetScreenY = currentVerticalFocalPoint;
+                float diff = playerScreenY - targetScreenY;
+                float speedCap = verticalSpeedCap;
+                // SPG: Speed-dependent vertical camera movement
+                if (abs(verticalShift) < 0.1f && abs(playerGroundSpeed) >= 8.0f) {
+                    speedCap = 24.0f; // Fast movement when running fast
+                } else if (abs(verticalShift) < 0.1f && abs(playerGroundSpeed) < 8.0f) {
+                    speedCap = 6.0f; // Slow movement when walking
+                }
+                if (abs(diff) > 0.5f) {
+                    position.y += diff > 0 ? fmin(diff, speedCap) : fmax(diff, -speedCap);
+                }
+            } else {
+                // In air: use borders around focal point
+                float topBorder = currentVerticalFocalPoint - 32;
+                float bottomBorder = currentVerticalFocalPoint + 32;
+                if (playerScreenY < topBorder) {
+                    float diff = topBorder - playerScreenY;
+                    position.y -= fmin(diff, verticalSpeedCap);
+                } else if (playerScreenY > bottomBorder) {
+                    float diff = playerScreenY - bottomBorder;
+                    position.y += fmin(diff, verticalSpeedCap);
+                }
             }
         }
-        
-        // Set target for raylib Camera2D (center of the view)
-        // In raylib, target is the center point of what we're looking at
-        // So we need to convert from SPG's top-left position to center point
-        // Convert camera position (top-left) to target (center of view)
-        target = Vector2(position.x + VIRTUAL_SCREEN_WIDTH / 2.0f, position.y + VIRTUAL_SCREEN_HEIGHT / 2.0f);
+    // Always apply verticalShift for look up/down, even if locked
+    float camCenterX = position.x + VIRTUAL_SCREEN_WIDTH / 2.0f;
+    float camCenterY = position.y + VIRTUAL_SCREEN_HEIGHT / 2.0f - verticalShift;
+    target = Vector2(camCenterX, camCenterY);
     }
     
     // CD-style camera processing (SPG focal point system with extended camera)
-    void processCDCamera(Vector2 playerPos, float playerGroundSpeed, bool playerGrounded, float deltaTime) {
+    void processCDCamera(Vector2 playerPos, float playerGroundSpeed, bool playerGrounded, float deltaTime, bool lockCamera) {
         float currentVerticalFocalPoint = verticalFocalPoint - verticalShift;
         
         // Extended camera logic: shift horizontal focal point when speed >= 6
@@ -325,48 +320,53 @@ struct GameCamera {
         
         float currentHorizontalFocalPoint = horizontalFocalPoint + extendedCameraShift;
         
-        // Horizontal movement: keep player at focal point
-        float hDiff = playerPos.x - (position.x + currentHorizontalFocalPoint);
-        if (abs(hDiff) > 0.5f) {
-            position.x += hDiff > 0 ? fmin(hDiff, horizontalSpeedCap) : fmax(hDiff, -horizontalSpeedCap);
-        }
-        
-        // Vertical movement (same logic as Genesis)
-        if (playerGrounded) {
-            float diff = playerPos.y - (position.y + currentVerticalFocalPoint);
-            float speedCap = verticalSpeedCap;
-            
-            if (abs(verticalShift) < 0.1f && abs(playerGroundSpeed) >= 8.0f) {
-                speedCap = 24.0f;
-            } else if (abs(verticalShift) < 0.1f && abs(playerGroundSpeed) < 8.0f) {
-                speedCap = 6.0f;
+        if (!lockCamera) {
+            // Horizontal movement: keep player at focal point
+            float hDiff = playerPos.x - (position.x + currentHorizontalFocalPoint);
+            if (abs(hDiff) > 0.5f) {
+                position.x += hDiff > 0 ? fmin(hDiff, horizontalSpeedCap) : fmax(hDiff, -horizontalSpeedCap);
             }
-            
-            if (abs(diff) > 0.5f) {
-                position.y += diff > 0 ? fmin(diff, speedCap) : fmax(diff, -speedCap);
-            }
-        } else {
-            float topBorder = currentVerticalFocalPoint - 32;
-            float bottomBorder = currentVerticalFocalPoint + 32;
-            
-            if (playerPos.y < position.y + topBorder) {
-                float diff = (position.y + topBorder) - playerPos.y;
-                position.y -= fmin(diff, verticalSpeedCap);
-            } else if (playerPos.y > position.y + bottomBorder) {
-                float diff = playerPos.y - (position.y + bottomBorder);
-                position.y += fmin(diff, verticalSpeedCap);
+            // Vertical movement (same logic as Genesis)
+            if (playerGrounded) {
+                float diff = playerPos.y - (position.y + currentVerticalFocalPoint);
+                float speedCap = verticalSpeedCap;
+                if (abs(verticalShift) < 0.1f && abs(playerGroundSpeed) >= 8.0f) {
+                    speedCap = 24.0f;
+                } else if (abs(verticalShift) < 0.1f && abs(playerGroundSpeed) < 8.0f) {
+                    speedCap = 6.0f;
+                }
+                if (abs(diff) > 0.5f) {
+                    position.y += diff > 0 ? fmin(diff, speedCap) : fmax(diff, -speedCap);
+                }
+            } else {
+                float topBorder = currentVerticalFocalPoint - 32;
+                float bottomBorder = currentVerticalFocalPoint + 32;
+                if (playerPos.y < position.y + topBorder) {
+                    float diff = (position.y + topBorder) - playerPos.y;
+                    position.y -= fmin(diff, verticalSpeedCap);
+                } else if (playerPos.y > position.y + bottomBorder) {
+                    float diff = playerPos.y - (position.y + bottomBorder);
+                    position.y += fmin(diff, verticalSpeedCap);
+                }
             }
         }
-        
-        // Convert camera position (top-left) to target (center of view)
-        target = Vector2(position.x + VIRTUAL_SCREEN_WIDTH / 2.0f, position.y + VIRTUAL_SCREEN_HEIGHT / 2.0f);
+    // Always apply verticalShift for look up/down, even if locked
+    float camCenterX = position.x + VIRTUAL_SCREEN_WIDTH / 2.0f;
+    float camCenterY = position.y + VIRTUAL_SCREEN_HEIGHT / 2.0f - verticalShift;
+    target = Vector2(camCenterX, camCenterY);
     }
     
     // Pocket Adventure style camera - smoother and more forgiving
-    void processPocketCamera(Vector2 playerPos, float playerGroundSpeed, bool playerGrounded, float deltaTime) {
+    void processPocketCamera(Vector2 playerPos, float playerGroundSpeed, bool playerGrounded, float deltaTime, bool lockCamera) {
         // DEBUG: For now, just follow the player directly to test
-        target = playerPos;
-        position = playerPos;
+        if (!lockCamera) {
+            target = playerPos;
+            position = playerPos;
+        }
+    // Always apply verticalShift for look up/down, even if locked
+    float camCenterX = position.x + VIRTUAL_SCREEN_WIDTH / 2.0f;
+    float camCenterY = position.y + VIRTUAL_SCREEN_HEIGHT / 2.0f - verticalShift;
+    target = Vector2(camCenterX, camCenterY);
     }
     
     // Convert to raylib Camera2D for rendering

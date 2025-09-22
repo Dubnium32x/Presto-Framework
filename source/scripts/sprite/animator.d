@@ -32,111 +32,117 @@ struct AnimationSequence {
 
 struct Animator {
     AnimationSequence sequence;
-
     AnimationFrame currentFrame;
-
     AnimationSequenceType currentType;
+    int currentFrameIndex; // Track which frame we're on
+    float frameTimer; // Track how long we've been on current frame
+    float speedMultiplier = 1.0f; // Playback speed multiplier (1.0 = normal)
 
     void setAnimationState(AnimationSequence newSequence) {
         sequence = newSequence;
-        currentFrame = sequence.frames[0];
-        currentType = sequence.type;
+        currentFrameIndex = 0;
+        frameTimer = 0.0f;
+        if (sequence.frames.length > 0) {
+            currentFrame = sequence.frames[0];
+            currentType = sequence.type;
+            // Debug: report initial frame and duration
+            writeln("[ANIMATOR] setAnimationState: '", sequence.name, "' starting frameIndex=", currentFrameIndex, " sprite=", currentFrame.frameIndex, " duration=", currentFrame.duration);
+        }
     }
 
     void update(float deltaTime) {
         if (sequence.frames.length == 0) return;
 
-        currentFrame.duration -= deltaTime;
-        if (currentFrame.duration <= 0) {
+        // Debug: trace timing each update
+        frameTimer += deltaTime;
+        writeln("[ANIMATOR] update: delta=", deltaTime, " frameTimer=", frameTimer, " currentDuration=", currentFrame.duration, " idx=", currentFrameIndex, " sprite=", currentFrame.frameIndex);
+        // Guard: if duration is zero or negative, set a small default to avoid busy loops
+        float baseDuration = currentFrame.duration > 0.0f ? currentFrame.duration : 0.016f; // default to ~60fps
+        float curDuration = baseDuration / (speedMultiplier > 0.0f ? speedMultiplier : 1.0f);
+        while (frameTimer >= curDuration) {
+            frameTimer -= curDuration; // Consume the actual playback duration for this frame
+            int oldIndex = currentFrameIndex;
             advanceFrame();
+            // Debug output to see if frames are advancing
+            if (currentFrameIndex != oldIndex) {
+                writeln("[ANIMATOR] Advanced from frame ", oldIndex, " (sprite ", sequence.frames[oldIndex].frameIndex, ") to frame ", currentFrameIndex, " (sprite ", currentFrame.frameIndex, ")");
+            } else {
+                writeln("[ANIMATOR] advanceFrame called but index unchanged (idx=", currentFrameIndex, ")");
+            }
+            // Update curDuration in case the new frame has a different duration
+            baseDuration = currentFrame.duration > 0.0f ? currentFrame.duration : 0.016f;
+            curDuration = baseDuration / (speedMultiplier > 0.0f ? speedMultiplier : 1.0f);
         }
+    }
+
+    void setSpeedMultiplier(float m) {
+        if (m <= 0.0f) m = 1.0f;
+        speedMultiplier = m;
+        writeln("[ANIMATOR] setSpeedMultiplier: ", speedMultiplier);
     }
 
     void advanceFrame() {
         switch (currentType) {
             case AnimationSequenceType.ONCE:
-                for (int i = 0; i < sequence.frames.length; i++) {
-                    if (sequence.frames[i].frameIndex == currentFrame.frameIndex) {
-                        if (i < sequence.frames.length - 1) {
-                            currentFrame = sequence.frames[i + 1];
-                        } else {
-                            // End of the sequence, reset or stop
-                            currentFrame = sequence.frames[0]; // Reset to first frame
-                        }
-                        break;
-                    }
+                if (currentFrameIndex < sequence.frames.length - 1) {
+                    currentFrameIndex++;
+                } else {
+                    // End of sequence, stay on last frame or reset to first
+                    currentFrameIndex = 0;
                 }
+                currentFrame = sequence.frames[currentFrameIndex];
                 break;
             case AnimationSequenceType.LOOP:
-                for (int i = 0; i < sequence.frames.length; i++) {
-                    if (sequence.frames[i].frameIndex == currentFrame.frameIndex) {
-                        if (i < sequence.frames.length - 1) {
-                            currentFrame = sequence.frames[i + 1];
-                        } else {
-                            // Loop back to the first frame
-                            currentFrame = sequence.frames[0];
-                        }
-                        break;
-                    }
-                }
+                currentFrameIndex = cast(int)((currentFrameIndex + 1) % sequence.frames.length);
+                currentFrame = sequence.frames[currentFrameIndex];
                 break;
             case AnimationSequenceType.SEQUENCE_WITH_FIRST_FRAME_ALTERNATING:
                 // Logic for SEQUENCE_WITH_FIRST_FRAME_ALTERNATING type
                 // What this does is it plays the first frame every other frame.
                 static bool playFirstFrame = true;
                 if (playFirstFrame) {
-                    currentFrame = sequence.frames[0];
+                    currentFrameIndex = 0;
                 } else {
-                    for (int i = 1; i < sequence.frames.length; i++) {
-                        if (sequence.frames[i].frameIndex == currentFrame.frameIndex) {
-                            if (i < sequence.frames.length - 1) {
-                                currentFrame = sequence.frames[i + 1];
-                            } else {
-                                currentFrame = sequence.frames[1];
-                            }
-                            break;
-                        }
+                    // Cycle through frames 1 to end
+                    if (currentFrameIndex == 0) {
+                        currentFrameIndex = 1;
+                    } else if (currentFrameIndex < sequence.frames.length - 1) {
+                        currentFrameIndex++;
+                    } else {
+                        currentFrameIndex = 1; // Loop back to frame 1
                     }
                 }
                 playFirstFrame = !playFirstFrame;
+                currentFrame = sequence.frames[currentFrameIndex];
                 break;
             case AnimationSequenceType.REVERSE:
                 // Logic for REVERSE type
-                for (int i = cast(int)sequence.frames.length - 1; i >= 0; i--) {
-                    if (sequence.frames[i].frameIndex == currentFrame.frameIndex) {
-                        if (i > 0) {
-                            currentFrame = sequence.frames[i - 1];
-                        } else {
-                            // Reverse to the last frame
-                            currentFrame = sequence.frames[sequence.frames.length - 1];
-                        }
-                        break;
-                    }
+                if (currentFrameIndex > 0) {
+                    currentFrameIndex--;
+                } else {
+                    currentFrameIndex = cast(int)sequence.frames.length - 1;
                 }
+                currentFrame = sequence.frames[currentFrameIndex];
                 break;
             case AnimationSequenceType.PINGPONG:
                 // Logic for PINGPONG type
                 static bool forward = true;
-                for (int i = 0; i < sequence.frames.length; i++) {
-                    if (sequence.frames[i].frameIndex == currentFrame.frameIndex) {
-                        if (forward) {
-                            if (i < sequence.frames.length - 1) {
-                                currentFrame = sequence.frames[i + 1];
-                            } else {
-                                forward = false; // Change direction
-                                currentFrame = sequence.frames[i - 1];
-                            }
-                        } else {
-                            if (i > 0) {
-                                currentFrame = sequence.frames[i - 1];
-                            } else {
-                                forward = true; // Change direction
-                                currentFrame = sequence.frames[1];
-                            }
-                        }
-                        break;
+                if (forward) {
+                    if (currentFrameIndex < sequence.frames.length - 1) {
+                        currentFrameIndex++;
+                    } else {
+                        forward = false; // Change direction
+                        currentFrameIndex--;
+                    }
+                } else {
+                    if (currentFrameIndex > 0) {
+                        currentFrameIndex--;
+                    } else {
+                        forward = true; // Change direction
+                        currentFrameIndex++;
                     }
                 }
+                currentFrame = sequence.frames[currentFrameIndex];
                 break;
             default:
                 // Handle unknown sequence types
