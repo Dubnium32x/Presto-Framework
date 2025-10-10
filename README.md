@@ -1,5 +1,4 @@
-# Presto Framework
-![alt_text](logo.jpg)
+![Presto-Framework Logo](res/image/logos/logo.jpg)
 
 A high-performance, extensible Sonic-style game framework in C23, focusing on fast-paced platformer mechanics, physics, and modularity for rapid prototyping and development.
 
