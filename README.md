@@ -17,27 +17,60 @@ A high-performance, extensible Sonic-style game framework in C23, focusing on fa
 
 ## Getting Started
 ##### Presto Framework requires a C23 compatible compiler and the Raylib graphics library, and prefers Linux for development.
+
+### Requirements
+- GCC with C23 support (GCC 14+ recommended)
+- Raylib graphics library
+- Make build system
+
+### Installation
+
 1. Clone the repository:
     ```bash
-    git clone https://github.com/yourusername/presto-framework.git
-    cd presto-framework
+    git clone https://github.com/Dubnium32x/Presto-Framework.git
+    cd Presto-Framework
     ```
-2. Install dependencies:
+
+2. Install Raylib (choose one method):
+    
+    **Option A: Package Manager (if available)**
     ```bash
-    # Install raylib (and any other dependencies)
-    sudo apt-get install libraylib-dev
+    sudo apt install libraylib-dev  # Ubuntu/Debian
     ```
-3. Build the project:
+    
+    **Option B: From Source (recommended)**
     ```bash
-    mkdir build
-    cd build
-    cmake ..
+    make install-raylib
+    ```
+    
+    **Option C: Manual Installation**
+    - Place raylib in `~/raylib/src`, `/usr/local/include`, or `./raylib/src`
+
+3. Build and test:
+    ```bash
+    # Check if raylib is detected
+    make check-raylib
+    
+    # Build the Sonic demo
     make
+    
+    # Run the demo
+    make run
     ```
-4. Run the example:
-    ```bash
-    ./example
-    ```
+
+### Demo Controls
+- **Arrow Keys**: Move Sonic left/right
+- **Spacebar**: Jump
+- **ESC**: Exit
+
+### Build Options
+```bash
+make           # Build release version
+make debug     # Build debug version
+make run       # Build and run
+make clean     # Clean build files
+make help      # Show all targets
+```
 
 ## Documentation
 Comprehensive documentation is available in the [docs](docs) directory, covering framework architecture, API reference, and usage examples.
