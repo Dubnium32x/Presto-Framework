@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+// Global error handler instance definition
+ErrorHandler g_errorHandler;
+
 void InitErrorHandler(void) {
     g_errorHandler.lastError = ERROR_NONE;
     memset(g_errorHandler.lastErrorMessage, 0, sizeof(g_errorHandler.lastErrorMessage));

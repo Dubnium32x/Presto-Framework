@@ -8,11 +8,19 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+// Don't redefine constants that raylib already defines
+#ifndef PI
 #define PI 3.14159265358979323846f
+#endif
+#ifndef DEG2RAD
 #define DEG2RAD (PI / 180.0f)
+#endif
+#ifndef RAD2DEG
 #define RAD2DEG (180.0f / PI)
+#endif
 
-
+// Don't redefine functions that raylib already provides
+#ifndef RAYLIB_H
 static inline float Clamp(float value, float min, float max) {
     if (value < min) return min;
     if (value > max) return max;
@@ -22,6 +30,7 @@ static inline float Clamp(float value, float min, float max) {
 static inline float Lerp(float start, float end, float t) {
     return start + t * (end - start);
 }
+#endif
 
 static inline float ClampedLerp(float start, float end, float t) {
     t = Clamp(t, 0.0f, 1.0f);

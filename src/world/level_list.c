@@ -6,11 +6,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include "../util/global_constants.h"
+// #include "../util/global_constants.h" // TODO: Create this file when needed
 
 Level levelList[MAX_LEVELS] = {0};
 Level actList[MAX_ACTS] = {0};
-int index[] = {0};
 
 #define THUMBNAIL_WIDTH 128
 #define THUMBNAIL_HEIGHT 64
@@ -18,23 +17,18 @@ int index[] = {0};
 void InitLevelList(void) {
     for (int i = 0; i < MAX_LEVELS; i++) {
         levelList[i] = (Level){
-            .name = "Level " + ("%d", i),
+            .name = "Level 1", // TODO: Replace with real names
             .filePath = "",
             .thumbnail = (Texture2D){0},
-            .isLocked = true
-            for (int j = 0; j < MAX_ACTS; j++) {
-                actList[j] = (Level){
-                    .name = "Act " + ("%d", j),
-                    .filePath = "",
-                    .thumbnail = (Texture2D){0},
-                    .isLocked = true
-                };
-
-                levelList[i].isLocked = (i != 0 || j != 0) ? true : false; // Unlock first level and act
-            }
-            
-            // Add to index
-            index[i] = i;
+            .isLocked = (i != 0) // Unlock first level
+        };
+    }
+    for (int j = 0; j < MAX_ACTS; j++) {
+        actList[j] = (Level){
+            .name = "Act 1", // TODO: Replace with real act names
+            .filePath = "",
+            .thumbnail = (Texture2D){0},
+            .isLocked = (j != 0) // Unlock first act
         };
     }
 }

@@ -55,3 +55,5 @@ void StartAnimation(SpriteObject* sprite, int totalFrames, float frameTime);
 void StopSpriteAnimation(SpriteObject* sprite);
 void SetSpriteAnimationFrame(SpriteObject* sprite, int frame);
 void UnloadSpriteObject(SpriteObject* sprite);
+
+#endif // SPRITE_OBJECT_H

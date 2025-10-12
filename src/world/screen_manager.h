@@ -22,6 +22,7 @@ typedef struct {
 } ScreenManager;
 
 extern bool screenManagerInitialized;
+extern ScreenManager* g_screenManager;
 
 void InitScreenManager(ScreenManager *manager);
 void RegisterScreen(ScreenManager *manager, ScreenType type, 

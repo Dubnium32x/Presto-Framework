@@ -2,8 +2,7 @@
 
 #ifndef SCREEN_STATE_H
 #define SCREEN_STATE_H
-#include <string>
-#include <vector>
+#include <string.h>
 #include "raylib.h"
 #include <stdio.h>
 
@@ -63,6 +62,17 @@ typedef struct Transition {
     float elapsed;
     bool active;
 } Transition;
+
+typedef struct ScreenState {
+    ScreenType currentScreen;
+    ScreenType previousScreen;
+    MenuType currentMenu;
+    GameplayState gameplayState;
+    Transition transition;
+    bool initialized;
+    int frameCounter;
+    bool isPaused;
+} ScreenState;
 
 void InitScreenState(ScreenState *state);
 void UpdateScreenState(ScreenState *state, float deltaTime);

@@ -99,42 +99,4 @@ void SetScreen(ScreenState* state, ScreenType newScreen) {
     state->frameCounter = 0;
 }
 
-// Simple transition functions (stubs for now)
-void StartTransition(Transition* transition, TransitionType type, float duration) {
-    if (!transition) return;
-    transition->type = type;
-    transition->duration = duration;
-    transition->elapsed = 0.0f;
-    transition->active = true;
-}
-
-void UpdateTransition(Transition* transition, float deltaTime) {
-    if (!transition || !transition->active) return;
-    
-    transition->elapsed += deltaTime;
-    if (transition->elapsed >= transition->duration) {
-        transition->active = false;
-        transition->elapsed = transition->duration;
-    }
-}
-
-void DrawTransition(Transition* transition) {
-    if (!transition || !transition->active) return;
-    
-    float alpha = transition->elapsed / transition->duration;
-    
-    switch (transition->type) {
-        case TRANSITION_FADE_OUT:
-            DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), 
-                         (Color){ 0, 0, 0, (unsigned char)(255 * alpha) });
-            break;
-            
-        case TRANSITION_FADE_IN:
-            DrawRectangle(0, 0, GetScreenWidth(), GetScreenHeight(), 
-                         (Color){ 0, 0, 0, (unsigned char)(255 * (1.0f - alpha)) });
-            break;
-            
-        default:
-            break;
-    }
-}
+// Transition functions moved to transition_manager.c to avoid duplicates

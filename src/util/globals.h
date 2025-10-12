@@ -18,11 +18,15 @@
 extern int screenWidth;
 extern int screenHeight;
 extern int windowSize;
+extern bool isFullscreen;
+extern bool isVSync;
+extern bool isDebugMode;
 
 // Fonts
-Font s1TitleFont;
-Font s1ClassicOpenCFont;
-Font sonicGameworldFont;
+extern Font s1TitleFont;
+extern Font s1ClassicOpenCFont;
+extern Font sonicGameworldFont;
 
-Font fontFamily[] = {s1TitleFont, s1ClassicOpenCFont, sonicGameworldFont};
+extern Font fontFamily[3];
 
+#endif // GLOBALS_H

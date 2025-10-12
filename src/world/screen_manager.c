@@ -8,6 +8,10 @@
 #include "screen_manager.h"
 #include "screen_state.h"
 
+// Global screen manager instance
+ScreenManager* g_screenManager = NULL;
+
+
 
 void InitScreenManager(ScreenManager *manager) {
     if (manager == NULL) return;

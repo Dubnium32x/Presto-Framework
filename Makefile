@@ -55,7 +55,8 @@ BINDIR = bin
 
 # Source files
 MAIN_SRC = $(SRCDIR)/main.c
-FRAMEWORK_SRCS = $(wildcard $(SRCDIR)/presto/*.c)
+FRAMEWORK_SRCS = $(wildcard $(SRCDIR)/*/*.c) $(wildcard $(SRCDIR)/*/*/*.c)
+ALL_SRCS = $(MAIN_SRC) $(FRAMEWORK_SRCS)
 
 # Output targets
 MAIN_OUT = $(BINDIR)/presto_demo
@@ -92,14 +93,14 @@ directories:
 	@mkdir -p $(OBJDIR) $(BINDIR)
 
 # Build main demo (release)
-$(MAIN_OUT): $(MAIN_SRC)
-	$(CC) $(CFLAGS) $(MAIN_SRC) -o $(MAIN_OUT) $(LDFLAGS)
+$(MAIN_OUT): $(ALL_SRCS)
+	$(CC) $(CFLAGS) $(ALL_SRCS) -o $(MAIN_OUT) $(LDFLAGS)
 
 # Build main demo (debug)
 debug: directories $(DEBUG_OUT)
 
-$(DEBUG_OUT): $(MAIN_SRC)
-	$(CC) $(DEBUG_CFLAGS) $(MAIN_SRC) -o $(DEBUG_OUT) $(LDFLAGS)
+$(DEBUG_OUT): $(ALL_SRCS)
+	$(CC) $(DEBUG_CFLAGS) $(ALL_SRCS) -o $(DEBUG_OUT) $(LDFLAGS)
 
 # Run the demo
 run: $(MAIN_OUT)
