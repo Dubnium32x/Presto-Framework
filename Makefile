@@ -59,8 +59,8 @@ FRAMEWORK_SRCS = $(wildcard $(SRCDIR)/*/*.c) $(wildcard $(SRCDIR)/*/*/*.c)
 ALL_SRCS = $(MAIN_SRC) $(FRAMEWORK_SRCS)
 
 # Output targets
-MAIN_OUT = $(BINDIR)/presto_demo
-DEBUG_OUT = $(BINDIR)/presto_demo_debug
+MAIN_OUT = $(BINDIR)/presto-framework
+DEBUG_OUT = $(BINDIR)/presto-framework-debug
 
 # Check if raylib is available
 check-raylib:

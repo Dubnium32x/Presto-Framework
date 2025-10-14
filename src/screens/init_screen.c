@@ -30,8 +30,8 @@ InitScreenPhase* currentPhase = NULL;
 
 void InitScreen_Init(void) {
     // Load resources
-    segaLogo = LoadTexture("res/image/logos/sega_logo.png");
-    segaJingle = LoadSound("res/audio/sega_jingle.wav");
+    segaLogo = LoadTexture("res/image/logos/Sega-logo.png");
+    segaJingle = LoadSound("res/audio/sfx/jingle.ogg");
     logoPosition = (Vector2*)malloc(sizeof(Vector2));
     logoPosition->x = VIRTUAL_SCREEN_WIDTH / 2 - segaLogo.width / 2;
     logoPosition->y = VIRTUAL_SCREEN_HEIGHT / 2 - segaLogo.height / 2;
@@ -155,19 +155,15 @@ void InitScreen_Draw(void) {
             float bodyScale = 1.0f;    // Small Sonic glyphs are 8x8
             float startY = 60.0f; // Start a bit higher to accommodate larger header
             
-            // Debug output
-            static int debugCounter = 0;
-            if (debugCounter++ % 60 == 0) {
-                printf("Disclaimer alpha: %.2f, phase: %d, state: %d\n", disclaimerAlpha, *currentPhase, *initState);
-            }
+            // Text fades in and out with background
             
-            // Draw header with Discovery font (properly centered)
+            // Draw header with Discovery font (properly centered and faded)
             int headerWidth = MeasureDiscoveryTextWidth(header, headerScale);
             float headerX = (VIRTUAL_SCREEN_WIDTH - headerWidth) / 2.0f;
             float headerY = startY;
-            Color visibleHeaderColor = WHITE;
-            visibleHeaderColor.a = 255;
-            DrawDiscoveryText(header, (Vector2){headerX, headerY}, headerScale, visibleHeaderColor);
+            Color headerColor = WHITE;
+            headerColor.a = (unsigned char)(255 * disclaimerAlpha);
+            DrawDiscoveryText(header, (Vector2){headerX, headerY}, headerScale, headerColor);
             
             // Draw disclaimer lines with proper font and spacing
             int headerHeight = MeasureDiscoveryTextHeight(header, headerScale);
@@ -177,11 +173,9 @@ void InitScreen_Draw(void) {
                     int textWidth = MeasureSmallSonicTextWidth(disclaimerLines[i], bodyScale);
                     float textX = (VIRTUAL_SCREEN_WIDTH - textWidth) / 2.0f;
                     
-                    // Use the fade color for proper animation, ensure minimum visibility
-                    Color textColor = visibleHeaderColor;
-                    float effectiveAlpha = disclaimerAlpha;
-                    if (effectiveAlpha < 0.5f) effectiveAlpha = 1.0f; // Force visibility for debugging
-                    textColor.a = (unsigned char)(255 * effectiveAlpha);
+                    // Use the fade color for proper animation
+                    Color textColor = WHITE;
+                    textColor.a = (unsigned char)(255 * disclaimerAlpha);
                     
                     DrawSmallSonicText(disclaimerLines[i], (Vector2){textX, currentY}, bodyScale, textColor);
                     

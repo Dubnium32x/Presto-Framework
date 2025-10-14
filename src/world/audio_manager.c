@@ -187,7 +187,7 @@ void PrestoSetMusicVolume(AudioManager* manager, float volume) {
 void SetSFXVolume(AudioManager* manager, float volume) {
     if (manager == NULL) return;
     manager->sfxVolume = volume;
-    for (int i = 0; i < manager->sound_count; i++) {
+    for (size_t i = 0; i < manager->sound_count; i++) {
         if (manager->sounds[i].type == SFX) {
             SetSoundVolume(manager->sounds[i].sound, volume * manager->masterVolume);
         }
@@ -197,7 +197,7 @@ void SetSFXVolume(AudioManager* manager, float volume) {
 void SetVOXVolume(AudioManager* manager, float volume) {
     if (manager == NULL) return;
     manager->voxVolume = volume;
-    for (int i = 0; i < manager->sound_count; i++) {
+    for (size_t i = 0; i < manager->sound_count; i++) {
         if (manager->sounds[i].type == VOX) {
             SetSoundVolume(manager->sounds[i].sound, volume * manager->masterVolume);
         }
@@ -207,7 +207,7 @@ void SetVOXVolume(AudioManager* manager, float volume) {
 void SetAmbienceVolume(AudioManager* manager, float volume) {
     if (manager == NULL) return;
     manager->ambienceVolume = volume;
-    for (int i = 0; i < manager->sound_count; i++) {
+    for (size_t i = 0; i < manager->sound_count; i++) {
         if (manager->sounds[i].type == AMBIENCE) {
             SetSoundVolume(manager->sounds[i].sound, volume * manager->masterVolume);
         }
@@ -222,7 +222,7 @@ void StopMusic(AudioManager* manager) {
 
 void StopAllSFX(AudioManager* manager) {
     if (manager == NULL) return;
-    for (int i = 0; i < manager->sound_count; i++) {
+    for (size_t i = 0; i < manager->sound_count; i++) {
         if (manager->sounds[i].type == SFX || manager->sounds[i].type == VOX || manager->sounds[i].type == AMBIENCE) {
             StopSound(manager->sounds[i].sound);
         }

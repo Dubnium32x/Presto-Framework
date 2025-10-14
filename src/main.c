@@ -18,8 +18,11 @@
 // Framework includes
 #include "util/globals.h"
 #include "screens/init_screen.h"
+#include "screens/title_screen.h"
+#include "screens/options_screen.h"
 #include "world/screen_manager.h"
 #include "world/sprite_font_manager.h"
+#include "world/input.h"
 
 // Global variables (defined in globals.h)
 int screenWidth = 400 * 2;  // Default window size
@@ -28,6 +31,11 @@ int windowSize = 2;
 bool isFullscreen = false;
 bool isVSync = true;
 bool isDebugMode = false;
+
+// Audio settings
+bool musicEnabled = true;
+bool sfxEnabled = true;
+float masterVolume = 1.0f;
 
 // Font variables
 Font s1TitleFont = {0};
@@ -50,7 +58,43 @@ Vector2 GetMousePositionVirtual(void) {
     float virtualMouseX = (mouseScreenPos.x - destX) / scale;
     float virtualMouseY = (mouseScreenPos.y - destY) / scale;
 
-    return (Vector2){ virtualMouseX, virtualMouseY };
+    return (Vector2){virtualMouseX, virtualMouseY};
+}
+
+// Load audio settings from options.ini
+void LoadAudioSettings(void) {
+    FILE* file = fopen("options.ini", "r");
+    if (file == NULL) return;
+    
+    char line[256];
+    while (fgets(line, sizeof(line), file)) {
+        // Remove newline
+        line[strcspn(line, "\n")] = 0;
+        
+        // Find the '=' separator
+        char* equals = strchr(line, '=');
+        if (equals == NULL) continue;
+        
+        *equals = '\0';
+        char* key = line;
+        char* value = equals + 1;
+        
+        // Trim whitespace
+        while (*key == ' ' || *key == '\t') key++;
+        while (*value == ' ' || *value == '\t') value++;
+        
+        // Load audio settings
+        if (strcmp(key, "musicEnabled") == 0) {
+            musicEnabled = (strcmp(value, "true") == 0);
+        } else if (strcmp(key, "sfxEnabled") == 0) {
+            sfxEnabled = (strcmp(value, "true") == 0);
+        }
+    }
+    
+    fclose(file);
+    printf("Audio settings loaded - Music: %s, SFX: %s\n", 
+           musicEnabled ? "enabled" : "disabled",
+           sfxEnabled ? "enabled" : "disabled");
 }
 
 // Load configuration from options.ini
@@ -142,7 +186,7 @@ int main(void) {
         screenHeight = VIRTUAL_SCREEN_HEIGHT * windowSize;
     }
     
-    InitWindow(screenWidth, screenHeight, GAME_TITLE);
+    InitWindow(screenWidth, screenHeight, GAME_TITLE " " VERSION);
     
     if (isFullscreen) {
         ToggleBorderlessWindowed();
@@ -165,6 +209,12 @@ int main(void) {
     
     // Initialize sprite font manager
     InitSpriteFontManager();
+    
+    // Initialize unified input system
+    InitUnifiedInput();
+    
+    // Load audio settings from options.ini
+    LoadAudioSettings();
     
     // Load fonts
     s1TitleFont = LoadFont("res/fonts/DiscoveryFont/Discovery-Regular.otf");
@@ -190,6 +240,8 @@ int main(void) {
     
     // Register screens
     RegisterScreen(&screenManager, SCREEN_INIT, InitScreen_Init, InitScreen_Update, InitScreen_Draw, InitScreen_Unload);
+    RegisterScreen(&screenManager, SCREEN_TITLE, TitleScreen_Init, TitleScreen_Update, TitleScreen_Draw, TitleScreen_Unload);
+    RegisterScreen(&screenManager, SCREEN_OPTIONS, OptionsScreen_Init, OptionsScreen_Update, OptionsScreen_Draw, OptionsScreen_Unload);
     
     // Set initial screen
     SetCurrentScreen(&screenManager, SCREEN_INIT);
@@ -199,6 +251,9 @@ int main(void) {
     // Main game loop
     while (!WindowShouldClose()) {
         float deltaTime = GetFrameTime();
+        
+        // Update unified input system
+        UpdateUnifiedInput(deltaTime);
         
         // Handle dynamic window size changes (only if not fullscreen)
         if (!isFullscreen) {

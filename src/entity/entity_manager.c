@@ -113,7 +113,7 @@ Entity** GetEntitiesByType(const EntityManager* manager, const char* type, size_
         return NULL;
     }
     size_t count = 0;
-    for (int i = 0; i < manager->entityCount; i++) {
+    for (size_t i = 0; i < manager->entityCount; i++) {
         if (manager->entities[i] != NULL && strcmp(manager->entities[i]->entityType, type) == 0) {
             matchedEntities[count++] = manager->entities[i];
         }
