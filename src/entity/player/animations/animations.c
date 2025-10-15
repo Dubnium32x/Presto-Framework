@@ -51,7 +51,8 @@ const char* PlayerAnimations_GetCurrentAnimation(PlayerAnimations* animations) {
 }
 
 void PlayerAnimations_SetPlayerAnimationState(PlayerAnimations* animations, PlayerAnimationState newState) {
-    if (animations->currentState != newState) {
+    // Only proceed when the state actually changes
+    if (animations->currentState == newState) {
         return;
     }
 
@@ -464,13 +465,22 @@ void PlayerAnimations_SetPlayerAnimationState(PlayerAnimations* animations, Play
             // Unknown state, do nothing
             return;
     }
+
+    // Apply the sequence to the animator
+    if (animations->animator) {
+        animations->animator->sequence = sequence;
+        animations->animator->currentFrameIndex = 0;
+        animations->animator->currentFrame = &animations->animator->sequence.frames[0];
+        animations->animator->frameTimer = 0.0f;
+        animations->animator->currentType = sequence.sequenceType;
+    }
 }
 
 void PlayerAnimations_Render(PlayerAnimations* animations, Vector2 position, int flip, float scale, Color tint) {
     int frameIndex = animations->animator->currentFrame->frameIndex;
 
     Texture2D texture = animations->animManager.texture;
-    auto frameRect = GetAnimationFrameRect(&animations->animManager, frameIndex);
+    Rectangle frameRect = GetAnimationFrameRect(&animations->animManager, frameIndex);
 
     if (texture.id == 0) {
         // No texture set, cannot render

@@ -20,6 +20,7 @@
 #include "screens/init_screen.h"
 #include "screens/title_screen.h"
 #include "screens/options_screen.h"
+#include "screens/anim_demo_screen.h"
 #include "world/screen_manager.h"
 #include "world/sprite_font_manager.h"
 #include "world/input.h"
@@ -242,6 +243,7 @@ int main(void) {
     RegisterScreen(&screenManager, SCREEN_INIT, InitScreen_Init, InitScreen_Update, InitScreen_Draw, InitScreen_Unload);
     RegisterScreen(&screenManager, SCREEN_TITLE, TitleScreen_Init, TitleScreen_Update, TitleScreen_Draw, TitleScreen_Unload);
     RegisterScreen(&screenManager, SCREEN_OPTIONS, OptionsScreen_Init, OptionsScreen_Update, OptionsScreen_Draw, OptionsScreen_Unload);
+    RegisterScreen(&screenManager, SCREEN_ANIM_DEMO, AnimDemo_Init, AnimDemo_Update, AnimDemo_Draw, AnimDemo_Unload);
     
     // Set initial screen
     SetCurrentScreen(&screenManager, SCREEN_INIT);

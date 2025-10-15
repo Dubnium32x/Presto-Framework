@@ -32,7 +32,8 @@ typedef enum {
     SCREEN_DEBUG9,
     SCREEN_DEBUG10,
     SCREEN_DEBUG11,
-    SCREEN_DEBUG12
+    SCREEN_DEBUG12,
+    SCREEN_ANIM_DEMO
 } ScreenType;
 
 typedef enum {

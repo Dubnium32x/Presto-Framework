@@ -8,7 +8,7 @@
 #include <stdlib.h>
 
 // Global constants
-#define VERSION "0.1.1"
+#define VERSION "0.1.2"
 #define GAME_TITLE "Presto Framework Pre-Alpha"
 
 // Screen dimensions

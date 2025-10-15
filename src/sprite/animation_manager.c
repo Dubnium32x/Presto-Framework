@@ -48,14 +48,14 @@ void UpdateAnimators(AnimationManager* manager, float deltaTime) {
         Animator* animator = manager->animators[i];
         if (animator != NULL && animator->currentFrame != NULL) {
             animator->frameTimer += deltaTime * animator->speedMultiplier;
-            if (animator->frameTimer >= animator->currentFrame->duration) {
+                if (animator->frameTimer >= animator->currentFrame->duration) {
                 animator->frameTimer -= animator->currentFrame->duration;
                 animator->currentFrameIndex++;
-                if (animator->currentFrameIndex >= sizeof(animator->sequence.frames) / sizeof(animator->sequence.frames[0])) {
+                if (animator->currentFrameIndex >= animator->sequence.frameCount) {
                     if (animator->sequence.sequenceType == ANIMATION_SEQUENCE_LOOP) {
                         animator->currentFrameIndex = 0;
                     } else if (animator->sequence.sequenceType == ANIMATION_SEQUENCE_ONCE) {
-                        animator->currentFrameIndex = sizeof(animator->sequence.frames) / sizeof(animator->sequence.frames[0]) - 1; // Stay on last frame
+                        animator->currentFrameIndex = animator->sequence.frameCount - 1; // Stay on last frame
                     } else if (animator->sequence.sequenceType == ANIMATION_SEQUENCE_PINGPONG) {
                         // Implement pingpong logic if needed
                     }
@@ -118,3 +118,24 @@ AnimationSequence* GetAnimationByName(const char* name) {
 }
 
 // Note: The above function is a placeholder. In a real implementation, you would have a collection of AnimationSequence objects to search through.
+
+Rectangle GetAnimationFrameRect(const AnimationManager* manager, int frameIndex) {
+    // Sonic spritesheet uses 64x64 tiles
+    // 704x704 image = 11x11 grid of 64x64 frames (704/64 = 11)
+    (void)manager; // currently unused
+    const int frameWidth = 64;
+    const int frameHeight = 64;
+    const int framesPerRow = 11; // 704 / 64 = 11
+    const int maxFrames = 11 * 11; // 121 total frames
+    
+    // Bounds check to prevent garbage values
+    if (frameIndex < 0 || frameIndex >= maxFrames) {
+        printf("[ERROR] Frame index %d out of bounds (0-%d), using frame 0\n", frameIndex, maxFrames-1);
+        frameIndex = 0;
+    }
+    
+    int row = frameIndex / framesPerRow;
+    int col = frameIndex % framesPerRow;
+    
+    return (Rectangle){ col * frameWidth, row * frameHeight, frameWidth, frameHeight };
+}

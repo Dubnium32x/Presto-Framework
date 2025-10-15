@@ -85,8 +85,8 @@ else
 	@false
 endif
 
-# Default target
-all: check-raylib directories $(MAIN_OUT)
+# Default target builds the project; use 'make doctor' to only check environment
+all: directories $(MAIN_OUT)
 
 # Create necessary directories
 directories:
@@ -133,6 +133,12 @@ install-raylib:
 	@echo "✓ raylib installed to $(HOME)/raylib"
 	@echo "  You can now run 'make' to build the project"
 
+# Environment diagnostics (checks raylib and prints detected flags)
+doctor: check-raylib
+
+# Alias for convenience
+raylib-check: check-raylib
+
 # Help target
 help:
 	@echo "Presto Framework - Sonic C23 Game Engine"
@@ -147,5 +153,7 @@ help:
 	@echo "  install-raylib - Install raylib from source"
 	@echo "  framework    - Framework development (WIP)"
 	@echo "  help         - Show this help message"
+	@echo "  doctor       - Run environment checks (raylib detection)"
+	@echo "  raylib-check - Alias for check-raylib"
 
 .PHONY: all debug run run-debug clean directories framework install-raylib check-raylib help

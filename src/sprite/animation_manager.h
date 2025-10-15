@@ -65,4 +65,6 @@ bool IsAnimationPlaying(const Animator* animator);
 void UnloadAllAnimators(AnimationManager* manager);
 void SetAnimationState(Animator* animator, AnimationSequenceType state);
 AnimationSequence* GetAnimationByName(const char* name);
+// Return the source rectangle for a given frame index in the current texture/spritesheet
+Rectangle GetAnimationFrameRect(const AnimationManager* manager, int frameIndex);
 #endif // ANIMATION_MANAGER_H
