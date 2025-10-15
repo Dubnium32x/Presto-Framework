@@ -25,7 +25,7 @@ void AddEntity(EntityManager* manager, Entity* entity) {
 
 void RemoveEntity(EntityManager* manager, int entityId) {
     if (manager == NULL) return;
-    for (int i = 0; i < manager->entityCount; i++) {
+    for (size_t i = 0; i < manager->entityCount; i++) {
         if (manager->entities[i] != NULL && manager->entities[i]->id == entityId) {
             if (manager->entities[i]->sprite != NULL) {
                 UnloadTexture(manager->entities[i]->sprite->texture);
@@ -34,7 +34,7 @@ void RemoveEntity(EntityManager* manager, int entityId) {
             free(manager->entities[i]);
             manager->entities[i] = NULL;
             // Shift remaining entities
-            for (int j = i; j < manager->entityCount - 1; j++) {
+            for (size_t j = i; j < manager->entityCount - 1; j++) {
                 manager->entities[j] = manager->entities[j + 1];
             }
             manager->entities[--manager->entityCount] = NULL;
@@ -46,7 +46,7 @@ void RemoveEntity(EntityManager* manager, int entityId) {
 
 void UpdateEntities(EntityManager* manager, float deltaTime) {
     if (manager == NULL) return;
-    for (int i = 0; i < manager->entityCount; i++) {
+    for (size_t i = 0; i < manager->entityCount; i++) {
         Entity* entity = manager->entities[i];
         if (entity != NULL && entity->isActive && entity->interface != NULL && entity->interface->Update != NULL) {
             entity->interface->Update(deltaTime);
@@ -56,7 +56,7 @@ void UpdateEntities(EntityManager* manager, float deltaTime) {
 
 void DrawEntities(const EntityManager* manager) {
     if (manager == NULL) return;
-    for (int i = 0; i < manager->entityCount; i++) {
+    for (size_t i = 0; i < manager->entityCount; i++) {
         Entity* entity = manager->entities[i];
         if (entity != NULL && entity->isActive) {
             if (entity->sprite != NULL) {
@@ -71,7 +71,7 @@ void DrawEntities(const EntityManager* manager) {
 
 void UnloadAllEntities(EntityManager* manager) {
     if (manager == NULL) return;
-    for (int i = 0; i < manager->entityCount; i++) {
+    for (size_t i = 0; i < manager->entityCount; i++) {
         if (manager->entities[i] != NULL) {
             if (manager->entities[i]->sprite != NULL) {
                 UnloadTexture(manager->entities[i]->sprite->texture);
@@ -87,7 +87,7 @@ void UnloadAllEntities(EntityManager* manager) {
 
 Entity* GetEntityByID(const EntityManager* manager, int entityId) {
     if (manager == NULL) return NULL;
-    for (int i = 0; i < manager->entityCount; i++) {
+    for (size_t i = 0; i < manager->entityCount; i++) {
         if (manager->entities[i] != NULL && manager->entities[i]->id == entityId) {
             return manager->entities[i];
         }
@@ -97,7 +97,7 @@ Entity* GetEntityByID(const EntityManager* manager, int entityId) {
 
 Entity* GetEntityByName(const EntityManager* manager, const char* name) {
     if (manager == NULL || name == NULL) return NULL;
-    for (int i = 0; i < manager->entityCount; i++) {
+    for (size_t i = 0; i < manager->entityCount; i++) {
         if (manager->entities[i] != NULL && strcmp(manager->entities[i]->name, name) == 0) {
             return manager->entities[i];
         }

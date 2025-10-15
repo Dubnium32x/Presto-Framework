@@ -75,6 +75,7 @@ Rectangle GetRectangleByFrameIndex(int frameIndex) {
 }
 
 Texture2D GetTextureByAnimation(char* animationName) {
+    (void)animationName; // Suppress unused parameter warning
     // Placeholder function: In a real implementation, this would look up the texture based on the animation name
     // For now, return a dummy texture
     Texture2D dummyTexture = LoadTexture("path/to/dummy.png");
@@ -88,8 +89,10 @@ void LoadSprite(SpriteManager* manager, const char* filePath, int id, const char
         printf("Error: Memory allocation for sprite failed.\n");
         return;
     }
+    memset(sprite, 0, sizeof(SpriteObject));
     sprite->id = id;
-    strncpy(sprite->name, name, MAX_SPRITE_NAME_LENGTH);
+    strncpy(sprite->name, name, MAX_SPRITE_NAME_LENGTH - 1);
+    sprite->name[MAX_SPRITE_NAME_LENGTH - 1] = '\0';
     sprite->texture = LoadTexture(filePath);
     if (sprite->texture.id == 0) {
         printf("Error: Failed to load texture from %s\n", filePath);

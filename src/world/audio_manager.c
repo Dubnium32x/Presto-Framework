@@ -157,6 +157,7 @@ bool PlayVOX(AudioManager* manager, const char* filePath, float volume) {
 }
 
 bool PlayAmbience(AudioManager* manager, const char* filePath, float volume, bool loop) {
+    (void)loop; // Suppress unused parameter warning
     return PrestoPlaySound(manager, filePath, AMBIENCE, volume);
 }
 

@@ -95,9 +95,11 @@ static void LoadOptions(void) {
         // Skip certain options
         if (strcmp(key, "colorswapmethod") == 0) continue;
         
-        // Store the option
-        strncpy(options[optionCount].key, key, sizeof(options[optionCount].key) - 1);
-        strncpy(options[optionCount].value, value, sizeof(options[optionCount].value) - 1);
+    // Store the option (ensure null-termination)
+    strncpy(options[optionCount].key, key, sizeof(options[optionCount].key) - 1);
+    options[optionCount].key[sizeof(options[optionCount].key) - 1] = '\0';
+    strncpy(options[optionCount].value, value, sizeof(options[optionCount].value) - 1);
+    options[optionCount].value[sizeof(options[optionCount].value) - 1] = '\0';
         options[optionCount].isBool = (strcmp(value, "true") == 0 || strcmp(value, "false") == 0);
         optionCount++;
     }

@@ -2,6 +2,7 @@
 #include "level_list.h"
 #include "error_handler.h"
 #include "../util/globals.h"
+#include "../util/csv_loader.h"
 #include <raylib.h>
 #include <stdio.h>
 #include <string.h>
@@ -10,6 +11,10 @@
 
 Level levelList[MAX_LEVELS] = {0};
 Level actList[MAX_ACTS] = {0};
+
+// CSV loader compatibility
+const int g_levelCount = MAX_LEVELS;
+LevelMetaData g_levels[MAX_LEVELS] = {0};
 
 #define THUMBNAIL_WIDTH 128
 #define THUMBNAIL_HEIGHT 64

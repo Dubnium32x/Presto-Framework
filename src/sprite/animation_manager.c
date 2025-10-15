@@ -112,6 +112,7 @@ void SetAnimationState(Animator* animator, AnimationSequenceType state) {
 }
 
 AnimationSequence* GetAnimationByName(const char* name) {
+    (void)name; // Unused parameter
     // This function would typically search a global or passed-in list of animations.
     // For simplicity, we return NULL here.
     return NULL;

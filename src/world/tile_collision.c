@@ -52,7 +52,16 @@ TileHeightProfile TileCollision_GetTileHeightProfile(int rawTileId, const char* 
         return TileHeightProfile_Empty();
 
     // For semi-solid layers, use runtime collision based on actual tile graphics instead of treating all as platforms
-    bool isSemiSolidLayer = (layerName != NULL && strncmp(layerName, "SemiSolid", 9) == 0);
+    bool isSemiSolidLayer = false;
+    if (layerName) {
+        isSemiSolidLayer = (
+            strncmp(layerName, "SemiSolid", 9) == 0 ||
+            strcmp(layerName, "SemiSolid_1") == 0 ||
+            strcmp(layerName, "SemiSolid_2") == 0
+        );
+    }
+    // Layer type checking (variables removed as they're currently unused)
+    // bool isGroundLayer, isObjectsLayer, isCollisionLayer can be added when needed
     if (isSemiSolidLayer) {
         // Fall through to use tileset-based collision or 16x16 fallback
         // Don't return early - let the system analyze the actual tile graphics
@@ -182,6 +191,7 @@ TileHeightProfile TileCollision_GetTileHeightProfile(int rawTileId, const char* 
 }
 
 bool TileCollision_IsSemiSolidTop(int rawTileId, int rawTileIdAbove, const char* layerName, TilesetInfo* tilesets, int tilesetCount) {
+    (void)tilesets; (void)tilesetCount; // Unused parameters
     bool isSemiSolidLayer = (layerName != NULL && strncmp(layerName, "SemiSolid", 9) == 0);
 
     if (!isSemiSolidLayer)

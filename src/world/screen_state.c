@@ -14,6 +14,7 @@ void InitScreenState(ScreenState* state) {
 }
 
 void UpdateScreenState(ScreenState* state, float deltaTime) {
+    (void)deltaTime; // Suppress unused parameter warning
     if (!state) return;
 
     state->frameCounter++;

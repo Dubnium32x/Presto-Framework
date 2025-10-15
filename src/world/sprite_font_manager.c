@@ -66,6 +66,7 @@ void InitSmallSonicFont() {
 }
 
 void LoadPrestoNumbersFontA(const char* basePath) {
+    (void)basePath; // Suppress unused parameter warning
     char prestoNumbersAGlyphs[15] = {
         '-', '/', ':', '.', '"', '9', '8', '7', '6', '5', '4', '3', '2', '1', '0'
     };
@@ -86,6 +87,7 @@ void LoadPrestoNumbersFontA(const char* basePath) {
 }
 
 void LoadPrestoNumbersFontB(const char* basePath) {
+    (void)basePath; // Suppress unused parameter warning
     char prestoNumbersBGlyphs[15] = {
         '-', '/', ':', '.', '"', '9', '8', '7', '6', '5', '4', '3', '2', '1', '0'
     };
