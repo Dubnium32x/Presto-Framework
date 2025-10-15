@@ -106,7 +106,7 @@ Whether you're a curious newcomer, an experienced fan game developer, or a seaso
 
 This guide will present these physics rules in an engine-agnostic manner, focusing on the tangible results of the game logic instead of delving into the minutiae of how the original 68k assembly code operated. As a result, these rules can be applied to modern programming languages such as Java, C, C++, Python, or a Lisp dialect when implementing the physics described in this guide. Moreover, individuals using this guide will be able to easily utilise specialised engines/IDEs such as GameMaker, Unity, Godot, Clickteam Fusion, or Love2D to implement the described game rules. Nevertheless, it is important to note that this guide will still acknowledge the quirks, limitations, and workarounds that were necessary for the original game due to its utilisation of a low-level programming language. 
 
-##### *Editors Note: We may offer some examples throughout the guide to illustrate key concepts. As you know, I'm not the one who wrote this guide, but I'll gladly offer examples that will be used in Presto Framework, a Sonic fan game engine developed in D with Raylib.*
+##### *Editors Note: We may offer some examples throughout the guide to illustrate key concepts. As you know, I'm not the one who wrote this guide, but I'll gladly offer examples that will be used in Presto Framework, a Sonic fan game engine developed in C with Raylib.*
 
 ---
 ## 2. Basics
