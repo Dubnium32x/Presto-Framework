@@ -14,6 +14,12 @@
 #include "../../world/tileset_map.h"
 #include "../../sprite/animation_manager.h"
 #include "../../sprite/sprite_manager.h"
+#include "../../sprite/spritesheet_splitter.h"
+#include "../../world/audio_manager.h"
+#include "../../world/input.h"
+
+// Function declarations
+
 
 
 
