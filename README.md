@@ -60,16 +60,19 @@ A high-performance, extensible Sonic-style game framework in C23, focusing on fa
 
 ### Demo Controls
 - **Arrow Keys**: Move Sonic left/right
-- **Spacebar**: Jump
+- **Z/X/C**: Jump, Roll, Spin Dash
+- **Enter**: Start/Restart/Pause
+- **P**: Toggle debug overlay
 - **ESC**: Exit
 
 ### Build Options
 ```bash
-make           # Build release version
-make debug     # Build debug version
-make run       # Build and run
-make clean     # Clean build files
-make help      # Show all targets
+make           # Check raylib, build release version
+make all       # Builds all versions
+make debug     # Builds debug version
+make run       # Runs the game
+make clean     # Cleans build files
+make help      # Shows all targets
 ```
 
 ## Documentation
