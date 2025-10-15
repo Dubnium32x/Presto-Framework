@@ -38,16 +38,21 @@ typedef struct {
     float speedMultiplier;
 } Animator;
 
-typedef struct {
-    Animator* animators[MAX_ANIMATIONS];
-    size_t animatorCount;
-    int state;
-} AnimationManager;
 
 typedef enum {
     ANIMATION_MANAGER_UNINITIALIZED,
     ANIMATION_MANAGER_INITIALIZED
 } AnimationManagerState;
+
+typedef struct {
+    Animator* animators[MAX_ANIMATIONS];
+    size_t animatorCount;
+    AnimationManagerState state;
+    float frameTime;
+    float elapsedTime;
+    const char* animations;
+    Texture2D texture;
+} AnimationManager;
 
 void InitAnimationManager(AnimationManager* manager);
 void AddAnimator(AnimationManager* manager, Animator* animator);
@@ -58,5 +63,6 @@ void StopAnimation(Animator* animator);
 void SetAnimationSpeed(Animator* animator, float speedMultiplier);
 bool IsAnimationPlaying(const Animator* animator);
 void UnloadAllAnimators(AnimationManager* manager);
+void SetAnimationState(Animator* animator, AnimationSequenceType state);
 AnimationSequence* GetAnimationByName(const char* name);
 #endif // ANIMATION_MANAGER_H

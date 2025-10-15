@@ -106,6 +106,11 @@ void UnloadAllAnimators(AnimationManager* manager) {
     manager->animatorCount = 0;
 }
 
+void SetAnimationState(Animator* animator, AnimationSequenceType state) {
+    if (animator == NULL) return;
+    animator->currentType = state;
+}
+
 AnimationSequence* GetAnimationByName(const char* name) {
     // This function would typically search a global or passed-in list of animations.
     // For simplicity, we return NULL here.
