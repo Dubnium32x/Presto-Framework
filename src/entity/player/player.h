@@ -114,7 +114,50 @@ typedef struct {
     int slipAngleType; // Type of slip angle behavior
 } Player;
 
+/*
+    We need to figure out how to handle player physics and initialization.
+    I am a little lost on how to do this properly. The transition from D to
+    C is not too difficult, but knowing that I want to rewrite things, I need to
+    figure out how to do this properly. There were some issues with the player script
+    in the original game, and I want to avoid those issues here.
 
+    I hope Present has an idea on how to handle this. Or the AI, I don't know.
+
+    So lets just write some notes down then. What can we gather from the SPG?
+    - Player has a position and velocity
+    - Player has a state (idle, walking, running, jumping, etc.)
+    - Player has a six sensor collision system (ground, left, right, ceiling, etc.)
+    - Player has animations for each state
+    - Player can interact with the environment (ground, walls, etc.)
+    - Player can be controlled by input (left, right, jump, etc.)
+    - Player has physics properties (gravity, friction, etc.)
+    - Player can take damage and become invincible for a short time
+    - Player can die and respawn
+    - Player can perform special moves (spindash, peel out, etc.)
+
+    - Player has a groundAngle that affects X and Y speed
+    - Player can rotate based on groundAngle
+    - Player has a groundDirection based on input and facing direction
+    - Player has a slipAngleType that affects how they slide on slopes
+    - Player has a frictionCoefficient that affects movement on different surfaces
+    - Player has a topSpeed and a maxSpeed that can be achieved with powerups or downhill slopes.
+    - Player has a jumpHeight and a jumpDuration that affects how high and how long they can jump.
+    - Player has a fallSpeed and a terminalVelocity that affects how fast they fall.
+    - Player has a rollSpeed and a rollDuration that affects how fast and how long they can roll.
+    - Player has a spindashSpeed and a spindashDuration that affects how fast and how long they can spindash.
+    - Player has a peelOutSpeed and a peelOutDuration that affects how fast and how long they can peel out.
+    - Player has a flySpeed and a flyDuration that affects how fast and how long they can fly.
+    - Player has a glideSpeed and a glideDuration that affects how fast and how long they can glide.
+    
+    - Player input will be locked for a short time after certain actions (like getting hurt or performing a special move).
+    - Player will have a controlLockTimer that plays when the player is sliding down a steep slope or falling from a height (upside down).
+    - Player can run upside down on loops and special collisions.
+
+    - Player can climb ladders and vines. (but we will not implement this yet)
+    - Player can swim in water. (but we will not implement this yet)
+    - Player can hang from monkey bars. (but we will not implement this yet)
+    - Player can wall jump. (but we will not implement this yet)
+    - Player can slide on ice. (but we will not implement this yet)
 
 
 #endif
