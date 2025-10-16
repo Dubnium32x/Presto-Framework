@@ -9,6 +9,7 @@
 #include "../util/globals.h"
 #include "../world/sprite_font_manager.h"
 #include "../world/input.h"
+#include "../world/data.h"
 
 #define MAX_OPTIONS 20
 #define VISIBLE_OPTIONS 8
@@ -58,66 +59,67 @@ void OptionsScreen_Init(void) {
 
 static void LoadOptions(void) {
     optionCount = 0;
-    FILE* file = fopen("options.ini", "r");
     
-    if (file == NULL) {
-        // Create default options if file doesn't exist
-        strcpy(options[optionCount].key, "No options.ini found!");
-        strcpy(options[optionCount].value, "");
-        options[optionCount].isBool = false;
-        optionCount++;
-        return;
-    }
+    // Load configuration using data system
+    LoadConfiguration();
     
-    char line[256];
-    while (fgets(line, sizeof(line), file) && optionCount < MAX_OPTIONS) {
-        // Remove newline
-        line[strcspn(line, "\n")] = 0;
-        
-        // Find the '=' separator
-        char* equals = strchr(line, '=');
-        if (equals == NULL) continue;
-        
-        *equals = '\0';  // Split the string
-        char* key = line;
-        char* value = equals + 1;
-        
-        // Trim whitespace (simple version)
-        while (*key == ' ' || *key == '\t') key++;
-        while (*value == ' ' || *value == '\t') value++;
-        
-        // Remove quotes if present
-        if (value[0] == '"' && value[strlen(value)-1] == '"') {
-            value[strlen(value)-1] = '\0';
-            value++;
-        }
-        
-        // Skip certain options
-        if (strcmp(key, "colorswapmethod") == 0) continue;
-        
-    // Store the option (ensure null-termination)
-    strncpy(options[optionCount].key, key, sizeof(options[optionCount].key) - 1);
-    options[optionCount].key[sizeof(options[optionCount].key) - 1] = '\0';
-    strncpy(options[optionCount].value, value, sizeof(options[optionCount].value) - 1);
-    options[optionCount].value[sizeof(options[optionCount].value) - 1] = '\0';
-        options[optionCount].isBool = (strcmp(value, "true") == 0 || strcmp(value, "false") == 0);
-        optionCount++;
-    }
+    // Create options from data system values
+    // Music settings
+    strcpy(options[optionCount].key, "musicEnabled");
+    strcpy(options[optionCount].value, isMusicEnabled ? "true" : "false");
+    options[optionCount].isBool = true;
+    optionCount++;
     
-    fclose(file);
+    // SFX settings
+    strcpy(options[optionCount].key, "sfxEnabled");
+    strcpy(options[optionCount].value, isSoundEnabled ? "true" : "false");
+    options[optionCount].isBool = true;
+    optionCount++;
+    
+    // Fullscreen settings
+    strcpy(options[optionCount].key, "fullscreen");
+    strcpy(options[optionCount].value, isFullscreen ? "true" : "false");
+    options[optionCount].isBool = true;
+    optionCount++;
+    
+    // Window size
+    strcpy(options[optionCount].key, "windowSize");
+    snprintf(options[optionCount].value, sizeof(options[optionCount].value), "%d", windowSize);
+    options[optionCount].isBool = false;
+    optionCount++;
+    
+    // Gameplay options
+    strcpy(options[optionCount].key, "dropDash");
+    strcpy(options[optionCount].value, isDropDashEnabled ? "true" : "false");
+    options[optionCount].isBool = true;
+    optionCount++;
+    
+    strcpy(options[optionCount].key, "peelOut");
+    strcpy(options[optionCount].value, isSuperPeeloutEnabled ? "true" : "false");
+    options[optionCount].isBool = true;
+    optionCount++;
+    
+    strcpy(options[optionCount].key, "instaShield");
+    strcpy(options[optionCount].value, isInstaShieldEnabled ? "true" : "false");
+    options[optionCount].isBool = true;
+    optionCount++;
+    
+    strcpy(options[optionCount].key, "cameraType");
+    strcpy(options[optionCount].value, GetConfigValueString("cameraType"));
+    options[optionCount].isBool = false;
+    optionCount++;
 }
 
 static void SaveOptions(void) {
-    FILE* file = fopen("options.ini", "w");
-    if (file == NULL) return;
-    
+    // Update data system values from options array
     for (int i = 0; i < optionCount; i++) {
         if (strlen(options[i].key) > 0 && strlen(options[i].value) > 0) {
-            fprintf(file, "%s=%s\n", options[i].key, options[i].value);
+            SetConfigValue(options[i].key, options[i].value);
         }
     }
     
-    fclose(file);
+    // Save configuration using data system
+    SaveConfiguration();
 }
 
 static void ToggleOption(int index) {
@@ -128,19 +130,34 @@ static void ToggleOption(int index) {
             strcpy(options[index].value, "true");
         }
         
-        // Apply audio settings immediately
+        // Update data system immediately
+        SetConfigValue(options[index].key, options[index].value);
+        
+        // Apply special settings immediately
         if (strcmp(options[index].key, "musicEnabled") == 0) {
-            extern bool musicEnabled;
-            musicEnabled = (strcmp(options[index].value, "true") == 0);
-            if (!musicEnabled) {
+            if (!isMusicEnabled) {
                 // Stop any currently playing music
-                // Note: This would need access to the music stream
                 printf("Music disabled\n");
             }
         } else if (strcmp(options[index].key, "sfxEnabled") == 0) {
-            extern bool sfxEnabled;
-            sfxEnabled = (strcmp(options[index].value, "true") == 0);
-            printf("SFX %s\n", sfxEnabled ? "enabled" : "disabled");
+            printf("SFX %s\n", isSoundEnabled ? "enabled" : "disabled");
+        }
+    } else {
+        // Handle non-boolean options (like camera type, window size)
+        if (strcmp(options[index].key, "cameraType") == 0) {
+            if (strcmp(options[index].value, "Genesis") == 0) {
+                strcpy(options[index].value, "CD");
+            } else if (strcmp(options[index].value, "CD") == 0) {
+                strcpy(options[index].value, "Pocket");
+            } else {
+                strcpy(options[index].value, "Genesis");
+            }
+            SetConfigValue(options[index].key, options[index].value);
+        } else if (strcmp(options[index].key, "windowSize") == 0) {
+            int size = atoi(options[index].value);
+            size = (size % 4) + 1; // Cycle through 1-4
+            snprintf(options[index].value, sizeof(options[index].value), "%d", size);
+            SetConfigValue(options[index].key, options[index].value);
         }
     }
 }

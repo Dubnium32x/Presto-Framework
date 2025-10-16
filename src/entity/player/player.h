@@ -6,7 +6,7 @@
 #include <string.h>
 #include <math.h>
 #include "raylib.h"
-#include "../util/math_utils.h"
+#include "../../util/math_utils.h"
 #include "var.h"
 #include "../entity_manager.h"
 #include "../sprite_object.h"
@@ -58,7 +58,7 @@ typedef enum {
 } PlayerState;
 
 typedef enum {
-    NORMAL,
+    IDLE_NORMAL,
     IMPATIENT_LOOK,
     TIRED,
     IMPATIENT_ANIMATION
@@ -104,7 +104,7 @@ typedef struct {
     float idleLookTimer; // Time spent looking in idle state
     SpriteObject* sprite;
     AnimationManager* animationManager;
-    PlayerAnimations animations;
+    //PlayerAnimations animations;
     int controlLockTimer; // Frames to lock controls
     int invincibilityTimer; // Frames of invincibility after being hurt
     int blinkTimer; // Timer for blinking effect
@@ -170,5 +170,48 @@ typedef struct {
     Ok, I think that is enough for now. We can implement these features step by step. This will require
     a lot of functions, but we can start with the basics and build up from there.
 */
+
+void Player_Init(Player* player, float startX, float startY);
+void Player_SetLevel(Player* player, TilesetInfo* tilesetInfo);
+void Player_Update_Input(Player* player);
+void Player_Update(Player* player, float deltaTime);
+void Player_UpdatePhysics(Player* player, float deltaTime);
+void Player_UpdateGroundPhysics(Player* player, float deltaTime);
+void Player_UpdateAirPhysics(Player* player, float deltaTime);
+void Player_UpdateRollingPhysics(Player* player, float deltaTime);
+void Player_UpdateState(Player* player, float deltaTime);
+void Player_UpdateAnimation(Player* player, float deltaTime);
+void Player_UpdatePosition(Player* player, float deltaTime);
+void Player_HandleCollisionModePhysics(Player* player, float deltaTime);
+void Player_ApplySlopeFactor(Player* player);
+void Player_PredictSlopePosition(Player* player, float* predictedX, float* predictedY, float deltaTime);
+bool Player_IsNextToWallInDirection(Player* player, int direction);
+bool Player_IsOnSteepSlope(Player* player);
+bool Player_WantsToLookUp(Player* player);
+bool Player_WantsToCrouch(Player* player);
+bool Player_WantsToJump(Player* player);
+bool Player_WantsToSpindash(Player* player);
+bool Player_WantsToPeelOut(Player* player);
+bool Player_WantsToRun(Player* player);
+float Player_GetSlopeMovementModifier(Player* player);
+void Player_ApplyFriction(Player* player, float friction);
+void Player_ApplyGravity(Player* player, float gravity);
+void Player_ApplyGroundDirection(Player* player);
+void Player_StartJump(Player* player);
+void Player_Jump(Player* player);
+void Player_ReleaseJump(Player* player);
+void Player_StartSpindash(Player* player);
+void Player_ChargeSpindash(Player* player);
+void Player_ReleaseSpindash(Player* player);
+void Player_StartPeelOut(Player* player);
+void Player_SpringBounce(Player* player, float bounceVelocity);
+void Player_UpdateIdleState(Player* player, float deltaTime);
+void Player_SetState(Player* player, PlayerState newState);
+void Player_SetIdleState(Player* player, PlayerIdleState newIdleState);
+void Player_FaceDirection(Player* player, bool faceRight);
+void Player_TakeDamage(Player* player);
+void Player_Respawn(Player* player, float startX, float startY);
+void Player_Draw(Player* player);
+void Player_Unload(Player* player);
 
 #endif

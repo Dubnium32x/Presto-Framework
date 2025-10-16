@@ -25,14 +25,12 @@
 #include "world/screen_manager.h"
 #include "world/sprite_font_manager.h"
 #include "world/input.h"
+#include "world/data.h"
 
 // Global variables (defined in globals.h)
 int screenWidth = 400 * 2;  // Default window size
 int screenHeight = 240 * 2;
-int windowSize = 2;
-bool isFullscreen = false;
-bool isVSync = true;
-bool isDebugMode = false;
+// Configuration variables moved to data system
 
 // Audio settings
 bool musicEnabled = true;
@@ -99,44 +97,8 @@ void LoadAudioSettings(void) {
            sfxEnabled ? "enabled" : "disabled");
 }
 
-// Load configuration from options.ini
-void LoadConfiguration(void) {
-    FILE *file = fopen("options.ini", "r");
-    if (file == NULL) {
-        printf("options.ini not found, using defaults\n");
-        return;
-    }
-    
-    char line[256];
-    while (fgets(line, sizeof(line), file)) {
-        char key[128], value[128];
-        if (sscanf(line, "%127[^=]=%127s", key, value) == 2) {
-            // Remove whitespace
-            char *trimmed_key = key;
-            while (*trimmed_key == ' ' || *trimmed_key == '\t') trimmed_key++;
-            char *end = trimmed_key + strlen(trimmed_key) - 1;
-            while (end > trimmed_key && (*end == ' ' || *end == '\t' || *end == '\n' || *end == '\r')) *end-- = '\0';
-            
-            char *trimmed_value = value;
-            while (*trimmed_value == ' ' || *trimmed_value == '\t') trimmed_value++;
-            end = trimmed_value + strlen(trimmed_value) - 1;
-            while (end > trimmed_value && (*end == ' ' || *end == '\t' || *end == '\n' || *end == '\r')) *end-- = '\0';
-            
-            if (strcmp(trimmed_key, "windowSize") == 0) {
-                windowSize = atoi(trimmed_value);
-                if (windowSize < 1) windowSize = 1;
-                if (windowSize > 8) windowSize = 8;
-            } else if (strcmp(trimmed_key, "fullscreen") == 0) {
-                isFullscreen = (strcmp(trimmed_value, "true") == 0);
-            } else if (strcmp(trimmed_key, "vsync") == 0) {
-                isVSync = (strcmp(trimmed_value, "true") == 0);
-            } else if (strcmp(trimmed_key, "debug") == 0) {
-                isDebugMode = (strcmp(trimmed_value, "true") == 0);
-            }
-        }
-    }
-    fclose(file);
-    
+// Update screen size based on current window size from data system
+void UpdateScreenSize(void) {
     screenWidth = VIRTUAL_SCREEN_WIDTH * windowSize;
     screenHeight = VIRTUAL_SCREEN_HEIGHT * windowSize;
 }
@@ -168,10 +130,11 @@ void CleanupFramework(void) {
 int main(void) {
     printf("Starting Presto Framework v%s...\n", VERSION);
     
-    // Load configuration
-    LoadConfiguration();
+    // Initialize data system (configuration loaded automatically)
+    InitializeDataSystem();
     
-    // Set raylib configuration flags
+    // Update screen size based on loaded configuration
+    UpdateScreenSize();    // Set raylib configuration flags
     if (isVSync) {
         SetConfigFlags(FLAG_VSYNC_HINT);
     }
@@ -263,7 +226,6 @@ int main(void) {
         // Handle dynamic window size changes (only if not fullscreen)
         if (!isFullscreen) {
             static int lastWindowSize = 0;
-            LoadConfiguration(); // Check for config changes
             if (windowSize != lastWindowSize && windowSize > 0) {
                 screenWidth = VIRTUAL_SCREEN_WIDTH * windowSize;
                 screenHeight = VIRTUAL_SCREEN_HEIGHT * windowSize;

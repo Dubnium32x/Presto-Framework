@@ -7,7 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include "../util/math_utils.h"
+#include "../../util/math_utils.h"
 
 // Player variables
 extern float playerX;
@@ -24,7 +24,7 @@ extern bool isHurt;
 extern bool isDead;
 extern bool isSuper;
 extern int controlLockTimer;
-extern int facing = 1; // 1 = right, -1 = left
+extern int facing; // 1 = right, -1 = left
 
 
 // Player box dimensions
@@ -93,9 +93,9 @@ typedef enum {
     SONIC_3K
 } SlipAngleType;
 
-SlipAngleType slipAngleType = SONIC_1_2_CD;
+extern SlipAngleType slipAngleType;
 
-void ResetPosition(float x, float y) {
+static inline void ResetPosition(float x, float y) {
     playerX = x;
     playerY = y;
     playerSpeedX = 0;
@@ -111,14 +111,14 @@ void ResetPosition(float x, float y) {
     controlLockTimer = 0;
 }
 
-void SetFacing(int dir) {
+static inline void SetFacing(int dir) {
     if (dir != 0) {
         facing = dir;
     }
 }
 
-float GroundAngleRadians() {
-    if(isnan(groundAngle) | groundAngle < -180.0f | groundAngle > 180.0f) {
+static inline float GroundAngleRadians() {
+    if(isnan(groundAngle) || groundAngle < -180.0f || groundAngle > 180.0f) {
         return 0.0f;
     }
     float radians = groundAngle * (PI / 180.0f);
@@ -128,14 +128,14 @@ float GroundAngleRadians() {
     return radians;
 }
 
-void UpdateSpeedsFromGroundSpeed() {
+static inline void UpdateSpeedsFromGroundSpeed() {
     float angleRad = GroundAngleRadians();
     playerSpeedX = cosf(angleRad) * fabsf(playerSpeedX);
     playerSpeedY = sinf(angleRad) * fabsf(playerSpeedX);
 }
 
-void UpdateGroundSpeedFromSpeeds() {
-    if (abs(playerSpeedX) < 0.01f && (abs(playerSpeedY) < 0.01f)) {
+static inline void UpdateGroundSpeedFromSpeeds() {
+    if (fabsf(playerSpeedX) < 0.01f && (fabsf(playerSpeedY) < 0.01f)) {
         playerSpeedX = 0;
         return;
     }
@@ -143,12 +143,12 @@ void UpdateGroundSpeedFromSpeeds() {
     float angleRad = GroundAngleRadians();
     groundSpeed = (cosf(angleRad) * playerSpeedX) - (sinf(angleRad) * playerSpeedY);
 
-    if (isnan(groundSpeed) || abs(groundSpeed) < 0.01f) {
+    if (isnan(groundSpeed) || fabsf(groundSpeed) < 0.01f) {
         groundSpeed = 0;
     }
 }
 
-bool ShouldSlipOnSlope() {
+static inline bool ShouldSlipOnSlope() {
     if (!isOnGround || controlLockTimer > 0) return false;
 
     return (fabsf(groundAngle) < SLIP_THRESHOLD && fabsf(groundAngle) > SLIP_ANGLE_START) ||
@@ -157,7 +157,7 @@ bool ShouldSlipOnSlope() {
                                           (groundAngle < SLIP_ANGLE_END_S3 && groundAngle > FALL_ANGLE_END_S3)));
 }
 
-void ApplySlopeFactor() {
+static inline void ApplySlopeFactor() {
     if (!isOnGround) return;
 
     if (fabsf(groundAngle) < 1.0f) return;
@@ -190,7 +190,7 @@ void ApplySlopeFactor() {
     }
 }
 
-float GetSlopeMovementModifier() {
+static inline float GetSlopeMovementModifier() {
     if (!isOnGround || fabsf(groundAngle) < 1.0f) {
         return 1.0f;
     }
@@ -210,7 +210,7 @@ float GetSlopeMovementModifier() {
     }
 }
 
-void DebugPrint() {
+static inline void DebugPrint() {
     printf("Player X: %.2f Y: %.2f SpeedX: %.2f SpeedY: %.2f GroundAngle: %.2f GroundSpeed: %.2f OnGround: %d Jumped: %d Spindash: %d Rolling: %d Hurt: %d Dead: %d Super: %d ControlLock: %d Facing: %d\n",
            playerX, playerY, playerSpeedX, playerSpeedY, groundAngle, groundSpeed, isOnGround, hasJumped, isSpindashing, isRolling, isHurt, isDead, isSuper, controlLockTimer, facing);
 }
