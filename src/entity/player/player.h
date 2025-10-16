@@ -159,5 +159,16 @@ typedef struct {
     - Player can wall jump. (but we will not implement this yet)
     - Player can slide on ice. (but we will not implement this yet)
 
+    - Player can interact with springs and bumpers.
+    - Player can collect rings and powerups.
+    - Player can enter special stages.
+    - Player can save and load their progress, and will auto-save at checkpoints.
+    - Player can pause the game and access the options menu.
+    - Player can see their score, time, and rings on the HUD.
+    - Player can hear sound effects and music.
+
+    Ok, I think that is enough for now. We can implement these features step by step. This will require
+    a lot of functions, but we can start with the basics and build up from there.
+*/
 
 #endif
