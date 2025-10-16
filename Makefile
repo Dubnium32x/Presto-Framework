@@ -180,7 +180,13 @@ windows: directories $(WINDOWS_OUT)
 $(WINDOWS_OUT): $(ALL_SRCS)
 	@if command -v $(MINGW_CC) >/dev/null 2>&1; then \
 		echo "Building Windows version..."; \
-		$(MINGW_CC) $(MINGW_CFLAGS) $(ALL_SRCS) -o $(WINDOWS_OUT) $(MINGW_LDFLAGS); \
+		if echo '#include "raylib.h"' | $(MINGW_CC) $(MINGW_CFLAGS) -E - >/dev/null 2>&1; then \
+			$(MINGW_CC) $(MINGW_CFLAGS) $(ALL_SRCS) -o $(WINDOWS_OUT) $(MINGW_LDFLAGS); \
+		else \
+			echo "Warning: raylib headers not found for Windows cross-compilation."; \
+			echo "Install raylib for MinGW or build raylib for Windows cross-compilation."; \
+			touch $(WINDOWS_OUT).missing; \
+		fi; \
 	else \
 		echo "Warning: Cross-compiler '$(MINGW_CC)' not found. Skipping Windows build."; \
 		echo "Install mingw-w64 to enable Windows builds: sudo apt install mingw-w64"; \
