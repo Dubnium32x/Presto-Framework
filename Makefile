@@ -62,6 +62,9 @@ ALL_SRCS = $(MAIN_SRC) $(FRAMEWORK_SRCS)
 MAIN_OUT = $(BINDIR)/presto-framework
 DEBUG_OUT = $(BINDIR)/presto-framework-debug
 
+# Windows cross-build output
+WINDOWS_OUT = $(BINDIR)/presto-framework.exe
+
 # Check if raylib is available
 check-raylib:
 	@echo "Checking for raylib..."
@@ -85,14 +88,19 @@ else
 	@false
 endif
 
-# Default target builds the project; use 'make doctor' to only check environment
-all: directories $(MAIN_OUT)
+# Default goal: build directly when running `make`
+.DEFAULT_GOAL := build
+
+# 'all' runs environment checks then builds (keeps previous behavior for CI/doctor runs)
+all: check-raylib build
 
 # Create necessary directories
 directories:
 	@mkdir -p $(OBJDIR) $(BINDIR)
 
-# Build main demo (release)
+# Build main demo (release) - builds both Linux and Windows versions
+build: directories $(MAIN_OUT) $(WINDOWS_OUT)
+
 $(MAIN_OUT): $(ALL_SRCS)
 	$(CC) $(CFLAGS) $(ALL_SRCS) -o $(MAIN_OUT) $(LDFLAGS)
 
@@ -112,7 +120,7 @@ run-debug: $(DEBUG_OUT)
 
 # Clean build artifacts
 clean:
-	rm -rf $(OBJDIR) $(BINDIR)
+	rm -rf $(OBJDIR) $(BINDIR) *.missing
 
 # Framework development targets
 framework: directories
@@ -157,3 +165,24 @@ help:
 	@echo "  raylib-check - Alias for check-raylib"
 
 .PHONY: all debug run run-debug clean directories framework install-raylib check-raylib help
+
+# -----------------------------
+# Cross-compile for Windows
+# -----------------------------
+# Configure cross-compiler (change if you have a different toolchain)
+MINGW_CC ?= x86_64-w64-mingw32-gcc
+MINGW_CFLAGS ?= -O2 -std=c2x -Wall -Wextra -I/usr/x86_64-w64-mingw32/include -Isrc
+MINGW_LDFLAGS ?= -L/usr/x86_64-w64-mingw32/lib -lraylib -lopengl32 -lgdi32 -lwinmm -lws2_32 -lwinpthread
+
+.PHONY: windows
+windows: directories $(WINDOWS_OUT)
+
+$(WINDOWS_OUT): $(ALL_SRCS)
+	@if command -v $(MINGW_CC) >/dev/null 2>&1; then \
+		echo "Building Windows version..."; \
+		$(MINGW_CC) $(MINGW_CFLAGS) $(ALL_SRCS) -o $(WINDOWS_OUT) $(MINGW_LDFLAGS); \
+	else \
+		echo "Warning: Cross-compiler '$(MINGW_CC)' not found. Skipping Windows build."; \
+		echo "Install mingw-w64 to enable Windows builds: sudo apt install mingw-w64"; \
+		touch $(WINDOWS_OUT).missing; \
+	fi

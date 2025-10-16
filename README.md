@@ -25,38 +25,57 @@ A high-performance, extensible Sonic-style game framework in C23, focusing on fa
 
 ### Installation
 
-1. Clone the repository:
+#### Linux
+1. Install required dependencies:
+    ```bash
+    sudo apt-get install build-essential gcc-14 g++-14 libraylib-dev mingw-w64
+    ```
+2. Clone the repository:
     ```bash
     git clone https://github.com/Dubnium32x/Presto-Framework.git
     cd Presto-Framework
     ```
-
-2. Install Raylib (choose one method):
-    
-    **Option A: Package Manager (if available)**
+3. Clone raylib if not installed:
     ```bash
-    sudo apt install libraylib-dev  # Ubuntu/Debian
+    cd ~
+    git clone https://github.com/raysan5/raylib.git
     ```
-    
-    **Option B: From Source (recommended)**
+4. Build raylib:
     ```bash
-    make install-raylib
+    cd raylib/src
+    make PLATFORM=PLATFORM_DESKTOP
+    sudo make install
     ```
-    
-    **Option C: Manual Installation**
-    - Place raylib in `~/raylib/src`, `/usr/local/include`, or `./raylib/src`
-
-3. Build and test:
+5. Return to Presto Framework directory:
     ```bash
-    # Check if raylib is detected
-    make check-raylib
-    
-    # Build the Sonic demo
+    cd ~/Presto-Framework
+    ```
+6. Build the project:
+    ```bash
     make
-    
-    # Run the demo
+    ```
+7. Run the demo:
+    ```bash
     make run
     ```
+
+#### Windows
+1. Install [MinGW-w64](http://mingw-w64.org/doku.php) and ensure `gcc` and `g++` are in your PATH.
+2. Install [Raylib for Windows](https://github.com/raysan5/raylib/releases).
+3. Clone the repository:
+    ```bash
+    git clone https://github.com/Dubnium32x/Presto-Framework.git
+    ```
+4. Open a terminal in the Presto Framework directory.
+5. Build the project:
+    ```bash
+    make
+    ```
+6. Run the demo:
+    ```bash
+    make run
+    ```
+##### You can also use Cygwin, WSL, or a Linux VM for a more consistent development environment.
 
 ### Demo Controls
 - **Arrow Keys**: Move Sonic left/right
