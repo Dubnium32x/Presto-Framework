@@ -3,6 +3,7 @@
 A high-performance, extensible Sonic-style game framework in C23, focusing on fast-paced platformer mechanics, physics, and modularity for rapid prototyping and development.
 
 ##### This is a public pre-alpha release. Expect bugs, incomplete features, and breaking changes.
+#### Current Version: 0.1.2
 
 ## Features
 - High-speed running, acceleration, deceleration, jumping, rolling, and momentum-based physics.
