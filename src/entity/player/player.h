@@ -99,6 +99,8 @@ typedef struct {
     PlayerState state;
     PlayerIdleState idleState;
     PlayerGroundDirection groundDirection;
+    bool isImpatient;
+    float impatientTimer;
     int spindashCharge; // 0 to SPINDASH_CHARGE_MAX
     float idleTimer; // Time spent idle
     float idleLookTimer; // Time spent looking in idle state
@@ -112,6 +114,7 @@ typedef struct {
     int blinkDuration; // Duration of a blink
     int jumpButtonHoldTimer; // Timer for how long the jump button has been held
     int slipAngleType; // Type of slip angle behavior
+    TilesetInfo** currentTileset; // Current tileset info for friction and other properties
 } Player;
 
 /*
@@ -173,6 +176,7 @@ typedef struct {
 
 void Player_Init(Player* player, float startX, float startY);
 void Player_SetLevel(Player* player, TilesetInfo* tilesetInfo);
+void Player_SetSpawnPoint(Player* player, float x, float y, bool checkpoint);
 void Player_Update_Input(Player* player);
 void Player_Update(Player* player, float deltaTime);
 void Player_UpdatePhysics(Player* player, float deltaTime);
@@ -213,5 +217,8 @@ void Player_TakeDamage(Player* player);
 void Player_Respawn(Player* player, float startX, float startY);
 void Player_Draw(Player* player);
 void Player_Unload(Player* player);
+void Player_ShouldLockCamera(Player *player, bool lock);
+void Player_CheckHorizontalCollision(float oldX, float targetX);
+void Player_CheckVerticalCollision(float oldY, float targetY);
 
 #endif
