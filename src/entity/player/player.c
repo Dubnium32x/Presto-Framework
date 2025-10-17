@@ -1,20 +1,19 @@
 // Player file!
 // ... oh boy.
 #include "player.h"
-#include "../../util/globals.h"'
+#include "../../util/globals.h"
 #include "../../util/math_utils.h"
 #include "../../world/input.h"
-#include "../../util/globals.h"
 #include "../../camera/game_camera.h"
 #include "var.h"
 #include "../../world/tileset_map.h"
 #include "../../world/tile_collision.h"
+#include "../../sprite/sprite_manager.h"
 #include "../../sprite/animation_manager.h"
 #include "../entity_manager.h"
 #include "../sprite_object.h"
 #include "animations/animations.h"
 #include "../../sprite/spritesheet_splitter.h"
-#include "../../sprite/sprite_manager.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -72,14 +71,19 @@ void Player_Init(Player* player, float startX, float startY) {
     player->impatientTimer = 0.0f;
 
     // Load and set up sprite and animations
-    player->sprite = SpriteManager_GetSprite("res/sprite/spritesheet/character/Sonic_spritemap.png");
+    player->sprite = malloc(sizeof(SpriteObject));
     if (player->sprite != NULL) {
-        Sprite_SetPosition(player->sprite, (int)player->position.x, (int)player->position.y);
-        Sprite_SetScale(player->sprite, 1.0f, 1.0f);
-        Sprite_SetOrigin(player->sprite, PLAYER_WIDTH_RAD, PLAYER_HEIGHT_RAD);
+        Texture2D playerTexture = LoadTexture("res/sprite/spritesheet/character/Sonic_spritemap.png");
+        InitSpriteObject(player->sprite, 1, "Sonic", playerTexture, 
+                        (Vector2){player->position.x, player->position.y}, 
+                        (Vector2){1.0f, 1.0f}, WHITE, 0.0f, PLAYER);
+        player->sprite->origin = (Vector2){PLAYER_WIDTH_RAD, PLAYER_HEIGHT_RAD};
     }
-    player->animationManager = AnimationManager_Create();
+    
+    player->animationManager = malloc(sizeof(AnimationManager));
     if (player->animationManager != NULL) {
+        InitAnimationManager(player->animationManager);
+    } else {
         fprintf(stderr, "Error: Failed to create animation manager for player\n");
     }
 }
@@ -87,43 +91,33 @@ void Player_Init(Player* player, float startX, float startY) {
 void Player_SetLevel(Player* player, TilesetInfo* tilesetInfo) {
     if (player == NULL || tilesetInfo == NULL) return;
 
-    player->currentTileset = tilesetInfo;
+    player->currentTileset = &tilesetInfo;
 }
 
 void Player_SetSpawnPoint(Player* player, float x, float y, bool checkpoint) {
     if (player == NULL) return;
 
-    ResetPosition(x, y);
+    player->position.x = x;
+    player->position.y = y;
 
     if (player->sprite != NULL) {
-        Sprite_SetPosition(player->sprite, (int)player->position.x, (int)player->position.y);
-        Sprite_SetScale(player->sprite, 1.0f, 1.0f);
-        Sprite_SetOrigin(player->sprite, PLAYER_WIDTH_RAD, PLAYER_HEIGHT_RAD);
+        SetPosition(player->sprite, (Vector2){player->position.x, player->position.y});
+        SetScale(player->sprite, (Vector2){1.0f, 1.0f});
+        player->sprite->origin = (Vector2){PLAYER_WIDTH_RAD, PLAYER_HEIGHT_RAD};
     }
+    
+    (void)checkpoint; // Suppress unused parameter warning
 }
 
-void Player_UpdateInput(Player* player) {
+void Player_Update_Input(Player* player) {
     if (player == NULL) return;
 
-    bool prevJump = IsInputDown(BUTTON_JUMP);
-    bool prevDown = IsInputDown(BUTTON_DOWN);
-    bool prevLeft = IsInputDown(BUTTON_LEFT);
-    bool prevRight = IsInputDown(BUTTON_RIGHT);
-    bool prevUp = IsInputDown(BUTTON_UP);
-    bool prevAction1 = IsInputDown(BUTTON_ACTION1);
-    bool prevAction2 = IsInputDown(BUTTON_ACTION2);
-
-    bool jumpPressed = IsInputPressed(BUTTON_JUMP);
-    bool downPressed = IsInputPressed(BUTTON_DOWN);
-    bool leftPressed = IsInputPressed(BUTTON_LEFT);
-    bool rightPressed = IsInputPressed(BUTTON_RIGHT);
-    bool upPressed = IsInputPressed(BUTTON_UP);
-    bool action1Pressed = IsInputPressed(BUTTON_ACTION1);
-    bool action2Pressed = IsInputPressed(BUTTON_ACTION2); 
+    // TODO: Implement input handling logic
+    // For now, this function is a stub to prevent compilation errors
 }
 
 void Player_Update(Player* player, float deltaTime) {
-    Player_UpdateInput(player);
+    Player_Update_Input(player);
     if (player == NULL) return;
 
     Player_UpdatePhysics(player, deltaTime);
@@ -134,7 +128,7 @@ void Player_Update(Player* player, float deltaTime) {
 
     // Update sprite position
     if (player->sprite != NULL) {
-        Sprite_SetPosition(player->sprite, (int)player->position.x, (int)player->position.y);
+        SetPosition(player->sprite, (Vector2){player->position.x, player->position.y});
     }
 
     if (player->state == IDLE) {
@@ -147,4 +141,29 @@ void Player_Update(Player* player, float deltaTime) {
             player->impatientTimer = 0.0f;
         }
     }
+}
+
+// Stub implementations for missing functions
+void Player_UpdatePhysics(Player* player, float deltaTime) {
+    if (player == NULL) return;
+    // TODO: Implement player physics
+    (void)deltaTime; // Suppress unused parameter warning
+}
+
+void Player_UpdateState(Player* player, float deltaTime) {
+    if (player == NULL) return;
+    // TODO: Implement player state updates
+    (void)deltaTime; // Suppress unused parameter warning
+}
+
+void Player_UpdateAnimation(Player* player, float deltaTime) {
+    if (player == NULL) return;
+    // TODO: Implement player animation updates
+    (void)deltaTime; // Suppress unused parameter warning
+}
+
+void Player_UpdatePosition(Player* player, float deltaTime) {
+    if (player == NULL) return;
+    // TODO: Implement player position updates
+    (void)deltaTime; // Suppress unused parameter warning
 }
