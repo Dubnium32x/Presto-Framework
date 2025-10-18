@@ -31,6 +31,17 @@
 #define SPINDASH_MIN_SPEED 6.0f
 #define SPINDASH_SPEED_PER_CHARGE 1.5f
 
+// Player dimensions
+#define PLAYER_WIDTH (PLAYER_WIDTH_RAD * 2) + 1
+#define PLAYER_HEIGHT (PLAYER_HEIGHT_RAD * 2) + 1
+
+Vector2 playerLeftBottomSensor;
+Vector2 playerRightBottomSensor;
+Vector2 playerLeftTopSensor;
+Vector2 playerRightTopSensor;
+Vector2 playerLeftCenterSensor;
+Vector2 playerRightCenterSensor;
+
 typedef enum {
     IDLE,
     WALK,
