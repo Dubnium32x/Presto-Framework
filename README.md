@@ -95,8 +95,8 @@ A high-performance, extensible Sonic-style game framework in C23, focusing on fa
     ```bash
     make run
     ```
-##### You can also use Cygwin, WSL, or a Linux VM for a more consistent development environment.
-# Definitely a better idea to create a hackintosh or VM of one than it is to run this project from a real mac
+#### You can also use Cygwin, WSL, or a Linux VM for a more consistent development environment.
+##### Definitely a better idea to create a hackintosh or VM of one than it is to run this project from a real mac
 
 ### Demo Controls
 - **Arrow Keys**: Move Sonic left/right
