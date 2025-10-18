@@ -78,7 +78,25 @@ A high-performance, extensible Sonic-style game framework in C23, focusing on fa
     ```bash
     make run
     ```
+
+
+#### Mac
+1. Install [Raylib](I just installed via homebrew tbh)
+2. Clone the repository:
+    ```bash
+    git clone https://github.com/Dubnium32x/Presto-Framework.git
+    ```
+3. Open the terminal app via spotlight (⌘+space) and change your directory to the cloned git
+4. Build the project:
+    ```bash
+    make macapp
+    ```
+5. The project should be built by then. check the bin folder or type the following command:
+    ```bash
+    make run
+    ```
 ##### You can also use Cygwin, WSL, or a Linux VM for a more consistent development environment.
+# Definitely a better idea to create a hackintosh or VM of one than it is to run this project from a real mac
 
 ### Demo Controls
 - **Arrow Keys**: Move Sonic left/right
