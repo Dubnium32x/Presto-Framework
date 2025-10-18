@@ -160,6 +160,7 @@ help:
 	@echo "  check-raylib - Check raylib installation"
 	@echo "  install-raylib - Install raylib from source"
 	@echo "  framework    - Framework development (WIP)"
+	@echo "  mac          - Build macOS binary (uses clang/frameworks)"
 	@echo "  help         - Show this help message"
 	@echo "  doctor       - Run environment checks (raylib detection)"
 	@echo "  raylib-check - Alias for check-raylib"
@@ -192,3 +193,89 @@ $(WINDOWS_OUT): $(ALL_SRCS)
 		echo "Install mingw-w64 to enable Windows builds: sudo apt install mingw-w64"; \
 		touch $(WINDOWS_OUT).missing; \
 	fi
+
+
+
+# -----------------------------
+# Mac OS build target
+# -----------------------------
+# Provide a convenient `make mac` target for building on macOS or from a macOS
+# host. This uses `clang` by default and links common macOS frameworks needed by
+# SDL/OpenGL/raylib builds. If raylib is available via pkg-config the detected
+# flags will be used; otherwise fallback framework flags are appended.
+
+MAC_CC ?= clang
+MAC_CFLAGS ?= -O2 -std=c2x -Wall -Wextra $(RAYLIB_CFLAGS) -Isrc
+MAC_LDFLAGS ?= $(RAYLIB_LDFLAGS) -framework Cocoa -framework OpenGL -framework IOKit -framework CoreVideo -lm
+
+MAC_OUT = $(BINDIR)/presto-framework-mac
+
+.PHONY: mac
+mac: directories $(MAC_OUT)
+
+$(MAC_OUT): $(ALL_SRCS)
+	@if [ "$(shell uname)" != "Darwin" ]; then \
+		echo "Note: You're not on macOS; building for macOS may fail unless cross-tools are available."; \
+	fi; \
+	if command -v $(MAC_CC) >/dev/null 2>&1; then \
+		echo "Building macOS binary with $(MAC_CC)..."; \
+		$(MAC_CC) $(MAC_CFLAGS) $(ALL_SRCS) -o $(MAC_OUT) $(MAC_LDFLAGS); \
+	else \
+		echo "Error: '$(MAC_CC)' not found. Install clang or set MAC_CC to an available compiler."; \
+		exit 1; \
+	fi
+
+# Build a macOS .app bundle containing the executable and resources so resources
+# load correctly when double-clicking the app. Creates `bin/presto-framework.app`.
+MAC_APP = $(BINDIR)/presto-framework.app
+
+.PHONY: macapp
+macapp: mac
+	@echo "Creating macOS .app bundle..."
+	@rm -rf $(MAC_APP)
+	@mkdir -p $(MAC_APP)/Contents/MacOS
+	@mkdir -p $(MAC_APP)/Contents/Resources
+	# Copy the built mac binary
+	@cp $(MAC_OUT) $(MAC_APP)/Contents/MacOS/presto-framework
+	@chmod +x $(MAC_APP)/Contents/MacOS/presto-framework
+	# Create a minimal Info.plist
+	@printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' > $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '<plist version="1.0">' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '<dict>' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '  <key>CFBundleName</key>' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '  <string>Presto Framework</string>' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '  <key>CFBundleDisplayName</key>' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '  <string>Presto Framework</string>' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '  <key>CFBundleExecutable</key>' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '  <string>presto-framework</string>' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '  <key>CFBundleIdentifier</key>' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '  <string>com.dubnium32x.presto-framework</string>' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '  <key>CFBundleVersion</key>' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '  <string>1.0</string>' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '  <key>CFBundlePackageType</key>' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '  <string>APPL</string>' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '  <key>LSMinimumSystemVersion</key>' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '  <string>10.10</string>' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '</dict>' >> $(MAC_APP)/Contents/Info.plist
+	@printf '%s\n' '</plist>' >> $(MAC_APP)/Contents/Info.plist
+	# PkgInfo
+	@echo 'APPL????' > $(MAC_APP)/Contents/PkgInfo
+	# Copy resources (images, audio, data) into Resources
+	@echo "Copying resources to app bundle..."
+	@if [ -d res ]; then \
+		mkdir -p $(MAC_APP)/Contents/Resources/res && \
+		cp -Rv res/* $(MAC_APP)/Contents/Resources/res/ || true; \
+	else \
+		echo "Warning: res directory not found"; \
+	fi
+	@echo "Copying options.ini to app bundle..."
+	@if [ -f options.ini ]; then \
+		cp -v options.ini $(MAC_APP)/Contents/Resources/ || true; \
+	else \
+		echo "Warning: options.ini not found"; \
+	fi
+	@echo ".app bundle created at $(MAC_APP)"
+	@echo "Resource path structure:"
+	@ls -R $(MAC_APP)/Contents/Resources/
+

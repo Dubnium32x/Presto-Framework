@@ -14,6 +14,12 @@
 #include <string.h>
 #include <stdbool.h>
 #include <math.h>
+#include <unistd.h>  // for chdir()
+#include <limits.h>  // for PATH_MAX
+
+#ifdef __APPLE__
+#include <mach-o/dyld.h>  // for _NSGetExecutablePath
+#endif
 
 // Framework includes
 #include "util/globals.h"
@@ -127,8 +133,104 @@ void CleanupFramework(void) {
     printf("Framework cleanup complete\n");
 }
 
+// On macOS, detect if we're running from a bundle and adjust working directory
+#if defined(__APPLE__)
+static bool SetupMacOSBundleResources(void) {
+    char execPath[PATH_MAX];
+    char bundlePath[PATH_MAX];
+    char currentPath[PATH_MAX];
+    uint32_t size = sizeof(execPath);
+    
+    // Get the current working directory for debugging
+    if (getcwd(currentPath, sizeof(currentPath)) != NULL) {
+        printf("Initial working directory: %s\n", currentPath);
+    }
+    
+    if (_NSGetExecutablePath(execPath, &size) == 0) {
+        printf("Executable path: %s\n", execPath);
+        
+        // Check if we're in a .app bundle
+        if (strstr(execPath, ".app/Contents/MacOS/") != NULL) {
+            // Get the full path to the Resources directory
+            strncpy(bundlePath, execPath, sizeof(bundlePath) - 1);
+            char *lastSlash = strrchr(bundlePath, '/');
+            if (lastSlash) {
+                *lastSlash = '\0';  // Remove executable name
+                char *macosDir = strstr(bundlePath, ".app/Contents/MacOS");
+                if (macosDir) {
+                    *macosDir = '\0';  // Remove .app/Contents/MacOS
+                    strncat(bundlePath, ".app/Contents/Resources", sizeof(bundlePath) - strlen(bundlePath) - 1);
+                    printf("Bundle detected! Resources directory should be: %s\n", bundlePath);
+                    
+                    if (chdir(bundlePath) == 0) {
+                        if (getcwd(currentPath, sizeof(currentPath)) != NULL) {
+                            printf("Changed working directory to: %s\n", currentPath);
+                        }
+                        
+                        // Verify critical resource paths exist
+                        const char *checkPaths[] = {
+                            "res",
+                            "res/fonts",
+                            "res/sprite",
+                            "res/audio",
+                            "options.ini"
+                        };
+                        
+                        bool allPathsExist = true;
+                        for (size_t i = 0; i < sizeof(checkPaths)/sizeof(checkPaths[0]); i++) {
+                            if (access(checkPaths[i], F_OK) == -1) {
+                                printf("Warning: %s not found in bundle Resources\n", checkPaths[i]);
+                                allPathsExist = false;
+                            } else {
+                                printf("✓ Found %s\n", checkPaths[i]);
+                            }
+                        }
+                        
+                        if (!allPathsExist) {
+                            printf("\nListing Resources directory contents:\n");
+                            system("ls -la");
+                            printf("\nListing res directory contents:\n");
+                            system("ls -la res");
+                        }
+                        
+                        return true; // Continue even if some paths are missing
+                    } else {
+                        perror("Failed to change to Resources directory");
+                    }
+                }
+            }
+        } else {
+            printf("Not running from a bundle, using current directory\n");
+        }
+    } else {
+        printf("Warning: Could not get executable path\n");
+    }
+    
+    return true; // Continue with current directory if anything fails
+}
+#endif
+
 int main(void) {
     printf("Starting Presto Framework v%s...\n", VERSION);
+    
+    // Get initial working directory for debugging
+    char initialPath[PATH_MAX] = {0};
+    if (getcwd(initialPath, sizeof(initialPath)) != NULL) {
+        printf("Initial working directory: %s\n", initialPath);
+    }
+    
+#if defined(__APPLE__)
+    // When running from a .app bundle, change to Resources directory BEFORE loading any resources
+    if (!SetupMacOSBundleResources()) {
+        fprintf(stderr, "Warning: Failed to set bundle resource path\n");
+    }
+#endif
+    
+    // Get working directory after potential bundle change
+    char workingPath[PATH_MAX] = {0};
+    if (getcwd(workingPath, sizeof(workingPath)) != NULL) {
+        printf("Working directory for resource loading: %s\n", workingPath);
+    }
     
     // Initialize data system (configuration loaded automatically)
     InitializeDataSystem();
