@@ -81,12 +81,15 @@ A high-performance, extensible Sonic-style game framework in C23, focusing on fa
 
 
 #### Mac
-1. Install [Raylib](I just installed via homebrew tbh)
+1. Install [Raylib] (You can install via Homebrew):
+    ```bash
+    brew install raylib
+    ```
 2. Clone the repository:
     ```bash
     git clone https://github.com/Dubnium32x/Presto-Framework.git
     ```
-3. Open the terminal app via spotlight (⌘+space) and change your directory to the cloned git
+3. Open the terminal app via spotlight (⌘space) and change your directory to the cloned git
 4. Build the project:
     ```bash
     make macapp
@@ -95,8 +98,8 @@ A high-performance, extensible Sonic-style game framework in C23, focusing on fa
     ```bash
     make run
     ```
-#### You can also use Cygwin, WSL, or a Linux VM for a more consistent development environment.
-##### Definitely a better idea to create a hackintosh or VM of one than it is to run this project from a real mac
+#### For both Windows and Mac, you can also use Cygwin, WSL, or a Linux VM for a more consistent development environment.
+##### It is definitely a better idea to create a hackintosh or VM of one than it is to run this project from a real Mac.
 
 ### Demo Controls
 - **Arrow Keys**: Move Sonic left/right
@@ -118,7 +121,7 @@ make help      # Shows all targets
 ## Documentation
 Comprehensive documentation is available in the [docs](docs) directory, covering framework architecture, API reference, and usage examples.
 
-We've also included the Sonic Physics Guide in markdown format for reference. Feel free to explore it [here](SPG/Sonic%20Physics%20Guide%20[PERSONAL].md).
+We've also included the Sonic Physics Guide in markdown format for reference. Feel free to explore it [here](docs/SPG/Sonic%20Physics%20Guide%20[PERSONAL].md).
 
 ## Contributing
 Contributions are welcome! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute.
