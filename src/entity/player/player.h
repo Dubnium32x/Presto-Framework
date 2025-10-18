@@ -95,18 +95,20 @@ typedef struct {
     float groundAngle; // In degrees
     bool isOnGround;
     bool isJumping;
+    bool hasJumped;
     bool isFalling;
     bool isRolling;
     bool isCrouching;
     bool isLookingUp;
     bool isSpindashing;
+    bool isSuper;
     bool isPeelOut;
     bool isFlying;
     bool isGliding;
     bool isClimbing;
     bool isHurt;
     bool isDead;
-    bool facingRight;
+    int facing; // 1 = right, -1 = left
     PlayerState state;
     PlayerIdleState idleState;
     PlayerGroundDirection groundDirection;
