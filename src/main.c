@@ -21,6 +21,11 @@
 #include <mach-o/dyld.h>  // for _NSGetExecutablePath
 #endif
 
+// Ensure PATH_MAX is defined on all platforms
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+
 // Framework includes
 #include "util/globals.h"
 #include "screens/init_screen.h"

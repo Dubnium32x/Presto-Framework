@@ -35,13 +35,6 @@
 #define PLAYER_WIDTH (PLAYER_WIDTH_RAD * 2) + 1
 #define PLAYER_HEIGHT (PLAYER_HEIGHT_RAD * 2) + 1
 
-Vector2 playerLeftBottomSensor;
-Vector2 playerRightBottomSensor;
-Vector2 playerLeftTopSensor;
-Vector2 playerRightTopSensor;
-Vector2 playerLeftCenterSensor;
-Vector2 playerRightCenterSensor;
-
 typedef enum {
     IDLE,
     WALK,
@@ -127,7 +120,7 @@ typedef struct {
     int blinkDuration; // Duration of a blink
     int jumpButtonHoldTimer; // Timer for how long the jump button has been held
     int slipAngleType; // Type of slip angle behavior
-    TilesetInfo** currentTileset; // Current tileset info for friction and other properties
+    TilesetInfo* currentTileset; // Current tileset info for friction and other properties
 } Player;
 
 /*
@@ -190,7 +183,8 @@ typedef struct {
 void Player_Init(Player* player, float startX, float startY);
 void Player_SetLevel(Player* player, TilesetInfo* tilesetInfo);
 void Player_SetSpawnPoint(Player* player, float x, float y, bool checkpoint);
-void Player_Update_Input(Player* player);
+void Player_UpdateInput(Player* player);
+InputBit GetPlayerInput(Player* player);
 void Player_Update(Player* player, float deltaTime);
 void Player_UpdatePhysics(Player* player, float deltaTime);
 void Player_UpdateGroundPhysics(Player* player, float deltaTime);
