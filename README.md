@@ -69,8 +69,15 @@ A high-performance, extensible Sonic-style game framework in C23, focusing on fa
     ```
 
 #### Windows
-1. Install [MinGW-w64](http://mingw-w64.org/doku.php) and ensure `gcc` and `g++` are in your PATH.
-2. Install [Raylib for Windows](https://github.com/raysan5/raylib/releases).
+1. Install [MSYS2](https://www.msys2.org/) and set up the environment.
+2. Install Raylib and MikMod via pacman:
+    ```bash
+    pacman -Syu
+    pacman -S mingw-w64-x86_64-libmikmod
+    pacman -S mingw-w64-x86_64-raylib
+    ```
+
+##### Be sure to restart the MSYS2 terminal after updating the package database!
 3. Clone the repository:
     ```bash
     git clone https://github.com/Dubnium32x/Presto-Framework.git
