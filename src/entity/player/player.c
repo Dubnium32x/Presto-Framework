@@ -19,57 +19,58 @@
 #define INPUT_LEFT (KEY_LEFT | DPAD_LEFT)
 #define INPUT_RIGHT (KEY_RIGHT | DPAD_RIGHT)
 
-void Player_Init(Player* player, float startX, float startY) {
-    player->position = (Vector2){ startX, startY };
-    player->velocity = (Vector2){ 0.0f, 0.0f };
-    player->groundAngle = 0.0f;
-    player->groundSpeed = 0.0f;
-    player->verticalSpeed = 0.0f;
-    player->hasJumped = false;
-    player->isOnGround = true;
-    player->isSpindashing = false;
-    player->isRolling = false;
-    player->isCrouching = false;
-    player->isLookingUp = false;
-    player->isFlying = false;
-    player->isGliding = false;
-    player->isPeelOut = false;
-    player->isClimbing = false;
-    player->isHurt = false;
-    player->isDead = false;
-    player->isSuper = false;
-    player->controlLockTimer = 0;
-    player->facing = 1; // Facing right
-    player->state = IDLE;
-    player->idleState = IDLE_NORMAL;
-    player->groundDirection = NONE;
-    player->isImpatient = false;
-    player->impatientTimer = 0.0f;
-    player->spindashCharge = 0;
-    player->idleTimer = 0.0f;
-    player->idleLookTimer = 0.0f;
-    player->sprite = NULL;
-    player->animationManager = NULL;
-    player->jumpButtonHoldTimer = 0;
-    player->slipAngleType = SONIC_1_2_CD;
-    player->currentTileset = NULL;
-    player->animationState = IDLE;
-    player->blinkTimer = 0;
-    player->blinkInterval = 300; // Blink every 300 frames
-    player->blinkDuration = 5;   // Blink lasts for 5 frames
-    player->invincibilityTimer = 0;
-    player->controlLockTimer = 0;
+Player Player_Init(float startX, float startY, Hitbox_t box) {
+    Player player = {0};
+
+    player.position = (Vector2){ startX, startY };
+    player.velocity = (Vector2){ 0.0f, 0.0f };
+    player.groundAngle = 0.0f;
+    player.groundSpeed = 0.0f;
+    player.verticalSpeed = 0.0f;
+    player.hasJumped = false;
+    player.isOnGround = true;
+    player.isSpindashing = false;
+    player.isRolling = false;
+    player.isCrouching = false;
+    player.isLookingUp = false;
+    player.isFlying = false;
+    player.isGliding = false;
+    player.isPeelOut = false;
+    player.isClimbing = false;
+    player.isHurt = false;
+    player.isDead = false;
+    player.isSuper = false;
+    player.controlLockTimer = 0;
+    player.facing = 1; // Facing right
+    player.state = IDLE;
+    player.idleState = IDLE_NORMAL;
+    player.groundDirection = NOINPUT;
+    player.isImpatient = false;
+    player.impatientTimer = 0.0f;
+    player.spindashCharge = 0;
+    player.idleTimer = 0.0f;
+    player.idleLookTimer = 0.0f;
+    player.sprite = NULL;
+    player.animationManager = NULL;
+    player.jumpButtonHoldTimer = 0;
+    player.slipAngleType = SONIC_1_2_CD;
+    player.currentTileset = NULL;
+    player.animationState = IDLE;
+    player.blinkTimer = 0;
+    player.blinkInterval = 300; // Blink every 300 frames
+    player.blinkDuration = 5;   // Blink lasts for 5 frames
+    player.invincibilityTimer = 0;
+    player.controlLockTimer = 0;
+
+    player.hitbox = box;
+
+    printf("Player Loaded! \n");
+
+    return player;
 }
 
 void Player_SetLevel(Player* player, TilesetInfo* tilesetInfo) {
     player->currentTileset = tilesetInfo;
-}
-
-void Player_SetSpawnPoint(Player* player, float x, float y, bool checkpoint) {
-    Player_Init(player, x, y);
-    if (checkpoint) {
-        // Additional logic for checkpoint spawn can be added here
-    }
 }
 
 InputBit GetPlayerInput(Player* player) {

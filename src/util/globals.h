@@ -6,6 +6,7 @@
 #include <raylib.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "../camera/game_camera.h"
 
 // Global constants
 #define VERSION "0.1.2"
@@ -14,6 +15,10 @@
 // Screen dimensions
 #define VIRTUAL_SCREEN_WIDTH 400
 #define VIRTUAL_SCREEN_HEIGHT 240
+
+#define TILE_SIZE 16
+
+extern GameCamera cam;
 
 extern int screenWidth;
 extern int screenHeight;
@@ -28,5 +33,9 @@ extern Font s1ClassicOpenCFont;
 extern Font sonicGameworldFont;
 
 extern Font fontFamily[3];
+
+typedef struct {
+    int x, y, w, h;
+} Hitbox_t;
 
 #endif // GLOBALS_H

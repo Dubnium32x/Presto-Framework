@@ -19,7 +19,7 @@ typedef enum {
     UI,
     NORMAL,
     DECOR,
-    OTHER,
+    OTHERS,
     NULL_TYPE
 } SpriteType;
 

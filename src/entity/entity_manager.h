@@ -8,6 +8,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "../util/globals.h"
+
 #define MAX_ENTITIES 100
 #define MAX_ENTITY_NAME_LENGTH 64
 
@@ -40,8 +42,8 @@ typedef struct {
     bool isActive;
     SpriteObject* sprite;
     IEntity* interface;
-    float width;
-    float height;
+    float width, height;
+    Hitbox_t hitbox;
 } Entity;
 
 typedef struct {

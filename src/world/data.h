@@ -2,11 +2,8 @@
 #ifndef DATA_H
 #define DATA_H
 
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include "raylib.h"
 #include "../util/globals.h"
 
 typedef enum {
