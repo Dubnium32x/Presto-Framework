@@ -41,6 +41,14 @@ sudo yum install libmikmod-devel
 sudo pacman -S libmikmod
 ```
 
+#### macOS (Homebrew)
+```bash
+brew install mikmod
+```
+
+#### Windows
+Download and build libmikmod from source or use a package manager like vcpkg.
+
 ## Quick Start
 
 ```c
