@@ -334,7 +334,7 @@ int main(void) {
     
     printf("Starting main game loop...\n");
 
-    // moveCamTo(&cam, (Vector2){0, 0});
+    // MoveCamTo(&cam, (Vector2){0, 0});
     
     // Main game loop
     while (!WindowShouldClose()) {

@@ -318,7 +318,7 @@ bool LoadModuleMusic(AudioManager* manager, const char* filePath) {
     if (manager == NULL || filePath == NULL) return false;
     if (!manager->isMusicEnabled) return false;
     
-    int track_id = ModuleLoad(&manager->modulePlayer, filePath);
+    int track_id = LoadModule(&manager->modulePlayer, filePath);
     return track_id >= 0;
 }
 

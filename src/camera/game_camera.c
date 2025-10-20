@@ -40,7 +40,7 @@ GameCamera GameCamera_Init(int xPos, int yPos, int tX, int tY, float zoom, float
     return camera;
 }
 
-void moveCamTo(GameCamera* cam, Vector2 newPos) {
+void MoveCamTo(GameCamera* cam, Vector2 newPos) {
     cam->position.x = newPos.x;
     cam->position.y = newPos.y;
 }

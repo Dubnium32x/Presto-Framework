@@ -48,7 +48,7 @@ void UpdateModulePlayer(ModulePlayer* player);
 void CleanupModulePlayer(ModulePlayer* player);
 
 // Module loading and playback
-int ModuleLoad(ModulePlayer* player, const char* filepath);
+int LoadModule(ModulePlayer* player, const char* filepath);
 bool PlayModule(ModulePlayer* player, int track_id, bool loop);
 bool PlayModuleByPath(ModulePlayer* player, const char* filepath, bool loop);
 void StopModule(ModulePlayer* player, int track_id);

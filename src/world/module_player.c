@@ -99,7 +99,7 @@ void CleanupModulePlayer(ModulePlayer* player) {
     printf("Module Player cleaned up\n");
 }
 
-int ModuleLoad(ModulePlayer* player, const char* filepath) {
+int LoadModule(ModulePlayer* player, const char* filepath) {
     if (player == NULL || !player->is_initialized || filepath == NULL) return -1;
     
     // Check if module is already loaded
@@ -180,7 +180,7 @@ bool PlayModuleByPath(ModulePlayer* player, const char* filepath, bool loop) {
     }
     
     // Load and play
-    int track_id = ModuleLoad(player, filepath);
+    int track_id = LoadModule(player, filepath);
     if (track_id < 0) return false;
     
     return PlayModule(player, track_id, loop);
@@ -342,7 +342,7 @@ void CrossfadeToModuleByPath(ModulePlayer* player, const char* filepath, bool lo
     if (player == NULL || filepath == NULL || duration <= 0.0f) return;
     
     // Load the target module
-    int track_id = ModuleLoad(player, filepath);
+    int track_id = LoadModule(player, filepath);
     if (track_id < 0) return;
     
     // Set loop flag

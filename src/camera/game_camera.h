@@ -43,6 +43,6 @@ typedef struct {
 } GameCamera;
 
 GameCamera GameCamera_Init(int xPos, int yPos, int tX, int tY, float zoom, float rot);
-void moveCamTo(GameCamera* cam, Vector2 newPos);
+void MoveCamTo(GameCamera* cam, Vector2 newPos);
 
 #endif // GAME_CAMERA_H
