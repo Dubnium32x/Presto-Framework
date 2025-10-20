@@ -77,7 +77,8 @@ A high-performance, extensible Sonic-style game framework in C23, focusing on fa
     pacman -S mingw-w64-x86_64-raylib
     ```
 
-##### Be sure to restart the MSYS2 terminal after updating the package database!
+- **Be sure to restart the MSYS2 terminal after updating the package database!**
+- **If required, run make in raylib/src to build raylib manually.**
 3. Clone the repository:
     ```bash
     git clone https://github.com/Dubnium32x/Presto-Framework.git
