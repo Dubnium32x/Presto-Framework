@@ -97,6 +97,67 @@ void Player_UpdateInput(Player* player) {
     bool jumpReleased = !player->isJumping && prevJump;
 }
 
+// Implementation of the physics update function
+void Player_UpdatePhysics(Player* player, float deltaTime) {
+    // TODO: Implement full physics
+    if (player->isOnGround) {
+        // Basic ground movement
+        if (IsKeyDown(INPUT_LEFT)) {
+            player->groundSpeed = fmaxf(player->groundSpeed - (ACCELERATION * deltaTime), -TOP_SPEED);
+        } else if (IsKeyDown(INPUT_RIGHT)) {
+            player->groundSpeed = fminf(player->groundSpeed + (ACCELERATION * deltaTime), TOP_SPEED);
+        }
+        // Apply friction
+        else if (player->groundSpeed != 0) {
+            float friction = FRICTION * deltaTime;
+            if (player->groundSpeed > 0) {
+                player->groundSpeed = fmaxf(0, player->groundSpeed - friction);
+            } else {
+                player->groundSpeed = fminf(0, player->groundSpeed + friction);
+            }
+        }
+    } else {
+        // Basic air movement
+        if (IsKeyDown(INPUT_LEFT)) {
+            player->velocity.x = fmaxf(player->velocity.x - (AIR_ACCELERATION * deltaTime), -AIR_TOP_SPEED);
+        } else if (IsKeyDown(INPUT_RIGHT)) {
+            player->velocity.x = fminf(player->velocity.x + (AIR_ACCELERATION * deltaTime), AIR_TOP_SPEED);
+        }
+        // Apply gravity
+        player->velocity.y += GRAVITY * deltaTime;
+    }
+}
+
+// Implementation of the animation update function
+void Player_UpdateAnimation(Player* player, float deltaTime) {
+    // TODO: Implement full animation system
+    // For now, just update basic state
+    if (player->isOnGround) {
+        if (fabsf(player->groundSpeed) > 0.1f) {
+            player->animationState = ANIM_WALK;
+            player->facing = (player->groundSpeed > 0) ? 1 : -1;
+        } else {
+            player->animationState = ANIM_IDLE;
+        }
+    } else {
+        player->animationState = ANIM_JUMP;
+    }
+}
+
+// Implementation of the position update function
+void Player_UpdatePosition(Player* player, float deltaTime) {
+    // TODO: Implement full position update with collision
+    if (player->isOnGround) {
+        float angleRad = player->groundAngle * DEG2RAD;
+        player->velocity.x = player->groundSpeed * cosf(angleRad);
+        player->velocity.y = player->groundSpeed * -sinf(angleRad);
+    }
+    
+    // Update position based on velocity
+    player->position.x += player->velocity.x * deltaTime;
+    player->position.y += player->velocity.y * deltaTime;
+}
+
 void Player_Update(Player* player, float deltaTime) {
     // Manage idle impatience timing here (use deltaTime available)
     if (player->state == IDLE) {

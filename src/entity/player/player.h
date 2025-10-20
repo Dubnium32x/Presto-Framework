@@ -36,6 +36,14 @@
 #define PLAYER_WIDTH (PLAYER_WIDTH_RAD * 2) + 1
 #define PLAYER_HEIGHT (PLAYER_HEIGHT_RAD * 2) + 1
 
+// Physics constants
+#define GRAVITY 9.81f
+#define ACCELERATION 8.0f
+#define TOP_SPEED 6.0f
+#define FRICTION 0.046875f
+#define AIR_ACCELERATION 2.0f
+#define AIR_TOP_SPEED 4.0f
+
 typedef enum {
     IDLE,
     WALK,

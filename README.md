@@ -87,9 +87,13 @@ A high-performance, extensible Sonic-style game framework in C23, focusing on fa
 
 
 #### Mac
-1. Install [Raylib] (You can install via Homebrew):
+1. Install Raylib - You can install via Homebrew
     ```bash
     brew install raylib
+    ```
+2. Install MikMod - Can also be installed via Homebrew
+    ```bash
+    brew install mikmod
     ```
 2. Clone the repository:
     ```bash

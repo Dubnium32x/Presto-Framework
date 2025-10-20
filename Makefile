@@ -44,14 +44,34 @@ else
     RAYLIB_LDFLAGS := $(RAYLIB_LIBDIR) -lraylib -lm -lpthread -ldl -lrt -lX11
 endif
 
-# Handle libmikmod
+# Handle libmikmod detection
 ifeq ($(MIKMOD_PKG),yes)
+    # Use pkg-config if available
     MIKMOD_CFLAGS := $(shell pkg-config --cflags libmikmod)
     MIKMOD_LDFLAGS := $(shell pkg-config --libs libmikmod)
+else ifeq ($(shell uname),Darwin)
+    # macOS-specific paths (check Homebrew)
+    ifneq ($(wildcard /opt/homebrew/include/mikmod.h),)
+        # Apple Silicon Homebrew
+        MIKMOD_CFLAGS := -I/opt/homebrew/include
+        MIKMOD_LDFLAGS := -L/opt/homebrew/lib -lmikmod
+    else ifneq ($(wildcard /usr/local/include/mikmod.h),)
+        # Intel Mac Homebrew
+        MIKMOD_CFLAGS := -I/usr/local/include
+        MIKMOD_LDFLAGS := -L/usr/local/lib -lmikmod
+    else
+        # macOS fallback paths
+        ifneq ($(wildcard /usr/include/mikmod.h),)
+            MIKMOD_CFLAGS := -I/usr/include
+            MIKMOD_LDFLAGS := -lmikmod
+        endif
+    endif
 else
-    # Fallback for libmikmod
-    MIKMOD_CFLAGS := 
-    MIKMOD_LDFLAGS := -lmikmod
+    # Default paths for other systems
+    ifneq ($(wildcard /usr/include/mikmod.h),)
+        MIKMOD_CFLAGS := -I/usr/include
+        MIKMOD_LDFLAGS := -lmikmod
+    endif
 endif
 
 # Final compiler flags
@@ -104,9 +124,22 @@ ifeq ($(MIKMOD_PKG),yes)
 	@echo "✓ Found libmikmod via pkg-config"
 	@echo "  CFLAGS: $(MIKMOD_CFLAGS)"
 	@echo "  LDFLAGS: $(MIKMOD_LDFLAGS)"
-else
-	@echo "✓ Found libmikmod (fallback)"
+else ifneq ($(MIKMOD_INCLUDE),)
+	@echo "✓ Found libmikmod at: $(MIKMOD_FOUND_PATH)"
+	@echo "  CFLAGS: $(MIKMOD_CFLAGS)"
 	@echo "  LDFLAGS: $(MIKMOD_LDFLAGS)"
+else
+	@echo "✗ libmikmod not found!"
+	@echo ""
+	@echo "Please install libmikmod:"
+	@if [ "$(shell uname)" = "Darwin" ]; then \
+		echo "On macOS:"; \
+		echo "  brew install libmikmod"; \
+	else \
+		echo "Ubuntu/Debian: sudo apt install libmikmod-dev"; \
+		echo "CentOS/RHEL:  sudo yum install libmikmod-devel"; \
+		echo "Arch Linux:   sudo pacman -S libmikmod"; \
+	fi
 endif
 
 # Default goal: build directly when running `make`
@@ -247,8 +280,12 @@ $(WINDOWS_OUT): $(ALL_SRCS)
 # flags will be used; otherwise fallback framework flags are appended.
 
 MAC_CC ?= clang
-MAC_CFLAGS ?= -O2 -std=c2x -Wall -Wextra $(RAYLIB_CFLAGS) -Isrc
-MAC_LDFLAGS ?= $(RAYLIB_LDFLAGS) -framework Cocoa -framework OpenGL -framework IOKit -framework CoreVideo -lm
+# Add Homebrew include paths for Apple Silicon and Intel Macs
+MAC_EXTRA_INCLUDES = -I/opt/homebrew/include -I/usr/local/include
+MAC_EXTRA_LIBDIRS = -L/opt/homebrew/lib -L/usr/local/lib
+
+MAC_CFLAGS ?= -O2 -std=c2x -Wall -Wextra $(RAYLIB_CFLAGS) $(MIKMOD_CFLAGS) $(MAC_EXTRA_INCLUDES) -Isrc
+MAC_LDFLAGS ?= $(MAC_EXTRA_LIBDIRS) $(RAYLIB_LDFLAGS) $(MIKMOD_LDFLAGS) -framework Cocoa -framework OpenGL -framework IOKit -framework CoreVideo -lm
 
 MAC_OUT = $(BINDIR)/presto-framework-mac
 
