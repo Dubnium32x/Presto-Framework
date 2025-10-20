@@ -17,6 +17,7 @@
 #include "../../sprite/spritesheet_splitter.h"
 #include "../../world/audio_manager.h"
 #include "../../world/input.h"
+#include "animations/animations.h"
 
 // Skid constants
 #define SKID_MIN_SPEED 2.5f
@@ -111,6 +112,7 @@ typedef struct {
     float idleTimer; // Time spent idle
     float idleLookTimer; // Time spent looking in idle state
     SpriteObject* sprite;
+    PlayerAnimationState animationState;
     AnimationManager* animationManager;
     //PlayerAnimations animations;
     int controlLockTimer; // Frames to lock controls

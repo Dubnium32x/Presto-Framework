@@ -53,6 +53,7 @@ void Player_Init(Player* player, float startX, float startY) {
     player->jumpButtonHoldTimer = 0;
     player->slipAngleType = SONIC_1_2_CD;
     player->currentTileset = NULL;
+    player->animationState = IDLE;
     player->blinkTimer = 0;
     player->blinkInterval = 300; // Blink every 300 frames
     player->blinkDuration = 5;   // Blink lasts for 5 frames
@@ -94,4 +95,29 @@ void Player_UpdateInput(Player* player) {
     // Additional input handling logic can be added here
     bool jumpPressed = player->isJumping && !prevJump;
     bool jumpReleased = !player->isJumping && prevJump;
+}
+
+void Player_Update(Player* player, float deltaTime) {
+    // Manage idle impatience timing here (use deltaTime available)
+    if (player->state == IDLE) {
+        player->idleTimer += deltaTime;
+        if (!player->isImpatient && player->idleTimer >= IDLE_IMPATIENCE_LOOK_TIME) {
+            player->isImpatient = true;
+            player->idleState = IMPATIENT_LOOK;
+            player->animationState = ANIM_IMPATIENT_LOOK;
+        } else if (player->isImpatient && player->idleState == IMPATIENT_LOOK && player->idleTimer >= (IDLE_IMPATIENCE_TIME + IDLE_IMPATIENCE_LOOK_TIME)) {
+            player->idleState = IMPATIENT_ANIMATION;
+            player->animationState = ANIM_IMPATIENT;
+        }
+    } else {
+        // Reset impatience when not idle
+        player->idleTimer = 0.0f;
+        player->isImpatient = false;
+        player->idleState = IDLE_NORMAL;
+    }
+
+    Player_UpdateInput(player);
+    Player_UpdatePhysics(player, deltaTime);
+    Player_UpdateAnimation(player, deltaTime);
+    Player_UpdatePosition(player, deltaTime);
 }

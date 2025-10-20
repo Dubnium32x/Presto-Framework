@@ -319,7 +319,7 @@ int main(void) {
     
     // Set initial screen
     // For the demo, jump directly to the level demo screen
-    SetCurrentScreen(&screenManager, SCREEN_INIT);
+    SetCurrentScreen(&screenManager, SCREEN_DEBUG1);
     
     printf("Starting main game loop...\n");
     
