@@ -37,10 +37,16 @@
 #include "world/sprite_font_manager.h"
 #include "world/input.h"
 #include "world/data.h"
+#include "util/level_loader.h"
+#include "entity/player/player.h"
+
+GameCamera cam;
+Player player;
 
 // Global variables (defined in globals.h)
-int screenWidth = 400 * 2;  // Default window size
-int screenHeight = 240 * 2;
+const int scrMult = 2;
+int screenWidth = 400 * scrMult;  // Default window size
+int screenHeight = 240 * scrMult;
 // Configuration variables moved to data system
 
 // Audio settings
@@ -70,6 +76,10 @@ Vector2 GetMousePositionVirtual(void) {
     float virtualMouseY = (mouseScreenPos.y - destY) / scale;
 
     return (Vector2){virtualMouseX, virtualMouseY};
+}
+
+void initializeGame(int x, int y, float zoom, float rot) {
+    cam = GameCamera_Init(x, y, 0, 0, zoom, rot);
 }
 
 // Load audio settings from options.ini
@@ -224,12 +234,12 @@ int main(void) {
         printf("Initial working directory: %s\n", initialPath);
     }
     
-#if defined(__APPLE__)
-    // When running from a .app bundle, change to Resources directory BEFORE loading any resources
-    if (!SetupMacOSBundleResources()) {
-        fprintf(stderr, "Warning: Failed to set bundle resource path\n");
-    }
-#endif
+    #if defined(__APPLE__)
+        // When running from a .app bundle, change to Resources directory BEFORE loading any resources
+        if (!SetupMacOSBundleResources()) {
+            fprintf(stderr, "Warning: Failed to set bundle resource path\n");
+        }
+    #endif
     
     // Get working directory after potential bundle change
     char workingPath[PATH_MAX] = {0};
@@ -260,9 +270,7 @@ int main(void) {
     
     InitWindow(screenWidth, screenHeight, GAME_TITLE " " VERSION);
     
-    if (isFullscreen) {
-        ToggleBorderlessWindowed();
-    }
+    if (isFullscreen) { ToggleBorderlessWindowed(); }
     
     SetTargetFPS(60);
     SetExitKey(KEY_NULL); // Disable ESC key to close window
@@ -304,6 +312,9 @@ int main(void) {
         sonicGameworldFont = GetFontDefault();
         printf("Warning: Could not load presto-numbersB font, using default\n");
     }
+
+    initializeGame(510, 510, 1.0f, 0.0f);
+    player = Player_Init(510, 510, (Hitbox_t){0, 0, 20, 20});
     
     // Initialize screen manager
     ScreenManager screenManager;
@@ -322,6 +333,8 @@ int main(void) {
     SetCurrentScreen(&screenManager, SCREEN_DEBUG1);
     
     printf("Starting main game loop...\n");
+
+    // moveCamTo(&cam, (Vector2){0, 0});
     
     // Main game loop
     while (!WindowShouldClose()) {
@@ -375,10 +388,14 @@ int main(void) {
             // Optional: Display FPS and debug info
             if (isDebugMode) {
                 DrawFPS(10, 10);
-                DrawText(TextFormat("Virtual Mouse: %.1f, %.1f", 
-                    GetMousePositionVirtual().x, GetMousePositionVirtual().y), 10, 30, 10, LIME);
-                DrawText(TextFormat("Window Size: %dx%d (Scale: %d)", 
-                    GetScreenWidth(), GetScreenHeight(), windowSize), 10, 50, 10, LIME);
+                DrawText(TextFormat("Virtual Mouse: %f, %f", GetMousePositionVirtual().x, GetMousePositionVirtual().y), 10, 100, 20, GRAY);
+                DrawText(TextFormat("Window Size: %dx%d (Scale: %d)", GetScreenWidth(), GetScreenHeight(), windowSize), 10, 130, 20, GRAY);
+                DrawText(TextFormat("Camera Pos: %f, %f", cam.position.x, cam.position.y), 10, 160, 20, GRAY);
+                DrawText(TextFormat("Player Pos: %f, %f", player.position.x, player.position.y), 10, 190, 20, GRAY);
+
+                int minX = (player.position.x + player.hitbox.x - cam.position.x);
+                int minY = (player.position.y + player.hitbox.y - cam.position.y);
+                DrawRectangleLines(minX * 2, minY * 2, player.hitbox.w, player.hitbox.h, BLACK);
             }
             
         EndDrawing();

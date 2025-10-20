@@ -9,12 +9,8 @@
 #include "../world/generated_heightmaps.h"
 
 // Simple camera for panning
-static Camera2D cam = {0};
-static LevelData level = {0};
-static Texture2D tilesetTex = {0};
-
-// Config
-static const int TILE_SIZE = 16; // matches heightmap tile width/height
+LevelData level;
+Texture2D tilesetTex;
 
 static void DrawTileLayer(Tile** layer, int width, int height, Texture2D tiles);
 
@@ -29,28 +25,30 @@ void LevelDemo_Init(void) {
     if (tilesetTex.id == 0) {
         TraceLog(LOG_WARNING, "Failed to load tileset texture; tiles won't render");
     }
-
-    // Setup camera
-    cam.target = (Vector2){ 0, 0 };
-    cam.offset = (Vector2){ 0, 0 };
-    cam.rotation = 0.0f;
-    cam.zoom = 1.0f;
 }
 
 void LevelDemo_Update(float dt) {
     // Basic camera controls
     const float speed = 120.0f;
-    if (IsKeyDown(KEY_RIGHT)) cam.target.x += speed * dt;
-    if (IsKeyDown(KEY_LEFT))  cam.target.x -= speed * dt;
-    if (IsKeyDown(KEY_DOWN))  cam.target.y += speed * dt;
-    if (IsKeyDown(KEY_UP))    cam.target.y -= speed * dt;
+    if (IsKeyDown(KEY_RIGHT)) cam.position.x += speed * dt;
+    if (IsKeyDown(KEY_LEFT))  cam.position.x -= speed * dt;
+    if (IsKeyDown(KEY_DOWN))  cam.position.y += speed * dt;
+    if (IsKeyDown(KEY_UP))    cam.position.y -= speed * dt;
 
     if (IsKeyPressed(KEY_EQUAL)) cam.zoom *= 1.125f;
     if (IsKeyPressed(KEY_MINUS)) cam.zoom /= 1.125f;
 }
 
 void LevelDemo_Draw(void) {
-    BeginMode2D(cam);
+    Camera2D newCam = {0};
+    newCam.offset.x = cam.targetPos.x;
+    newCam.offset.y = cam.targetPos.y;
+    newCam.rotation = cam.rotation;
+    newCam.target.x = cam.position.x;
+    newCam.target.y = cam.position.y;
+    newCam.zoom     = cam.zoom;
+
+    BeginMode2D(newCam);
     ClearBackground((Color){ 80, 160, 220, 255 });
 
     // Draw ground layers back-to-front

@@ -5,9 +5,9 @@
 #include <string.h>
 #include <errno.h>
 #include "raylib.h"
-#include "../util/globals.h"   
+#include "globals.h"   
+#include "math_utils.h"
 #include "../world/level_list.h"
-#include "../util/math_utils.h"
 
 // Declare external reference to g_levels and g_levelCount if not already declared in included headers
 extern LevelMetaData g_levels[MAX_LEVELS];

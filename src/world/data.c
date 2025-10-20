@@ -5,7 +5,7 @@
 #include <string.h>
 
 // Define all global configuration variables
-bool isDebugMode = false;
+bool isDebugMode = true;
 bool isMusicEnabled = true;
 bool isSoundEnabled = true;
 bool isFullscreen = false;

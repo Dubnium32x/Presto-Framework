@@ -7,6 +7,8 @@ CC = gcc
 RAYLIB_PKG := $(shell pkg-config --exists raylib 2>/dev/null && echo "yes" || echo "no")
 MIKMOD_PKG := $(shell pkg-config --exists libmikmod 2>/dev/null && echo "yes" || echo "no")
 
+COPY_RES = res
+
 ifeq ($(RAYLIB_PKG),yes)
     # Use pkg-config if available
     RAYLIB_CFLAGS := $(shell pkg-config --cflags raylib)
@@ -357,4 +359,3 @@ macapp: mac
 	@echo ".app bundle created at $(MAC_APP)"
 	@echo "Resource path structure:"
 	@ls -R $(MAC_APP)/Contents/Resources/
-

@@ -19,6 +19,8 @@
 #include "../../world/input.h"
 #include "animations/animations.h"
 
+#include "../../util/globals.h"
+
 // Skid constants
 #define SKID_MIN_SPEED 2.5f
 #define SKID_DECEL_FACTOR 0.5f
@@ -78,7 +80,7 @@ typedef enum {
 } PlayerIdleState;
 
 typedef enum {
-    NONE,
+    NOINPUT,
     DOWN,
     DOWN_RIGHT,
     RIGHT,
@@ -131,6 +133,8 @@ typedef struct {
     int jumpButtonHoldTimer; // Timer for how long the jump button has been held
     int slipAngleType; // Type of slip angle behavior
     TilesetInfo* currentTileset; // Current tileset info for friction and other properties
+
+    Hitbox_t hitbox;
 } Player;
 
 /*
@@ -190,7 +194,7 @@ typedef struct {
     a lot of functions, but we can start with the basics and build up from there.
 */
 
-void Player_Init(Player* player, float startX, float startY);
+Player Player_Init(float startX, float startY, Hitbox_t box);
 void Player_SetLevel(Player* player, TilesetInfo* tilesetInfo);
 void Player_SetSpawnPoint(Player* player, float x, float y, bool checkpoint);
 void Player_UpdateInput(Player* player);

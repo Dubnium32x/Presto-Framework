@@ -1,0 +1,8 @@
+﻿The FontStruction “SONiC Classic Open C”
+(https://fontstruct.com/fontstructions/show/2664652) by “vania 5617sonfan”
+is licensed under a Creative Commons Attribution Share Alike license
+(http://creativecommons.org/licenses/by-sa/3.0/).
+“SONiC Classic Open C” was originally cloned (copied) from the FontStruction
+“SONiC Classic Open” (https://fontstruct.com/fontstructions/show/1835490)
+by Vienna Binders, which is licensed under a Creative Commons Attribution Share
+Alike license (http://creativecommons.org/licenses/by-sa/3.0/).
