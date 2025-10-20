@@ -3,6 +3,7 @@
 #define AUDIO_MANAGER_H
 
 #include "raylib.h"
+#include "module_player.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -53,6 +54,10 @@ typedef struct {
     float pendingMusicDelay;
     float pendingMusicDelayTimer;
     bool isPendingMusicDelayed;
+    
+    // Module player for tracker music (XM, IT, S3M, etc.)
+    ModulePlayer modulePlayer;
+    bool useModulePlayer;
 } AudioManager;
 
 void InitAudioManager(AudioManager* manager);
@@ -84,4 +89,19 @@ bool IsVOXEnabled(AudioManager* manager);
 bool IsAmbienceEnabled(AudioManager* manager);
 
 void UnloadAllAudio(AudioManager* manager);
+
+// Module player functions (XM, IT, S3M, MOD, etc.)
+bool LoadModuleMusic(AudioManager* manager, const char* filePath);
+bool PlayModuleMusic(AudioManager* manager, const char* filePath, float volume, bool loop);
+void StopModuleMusic(AudioManager* manager);
+void SetModuleMusicVolume(AudioManager* manager, float volume);
+float GetModuleMusicVolume(AudioManager* manager);
+bool IsModuleMusicPlaying(AudioManager* manager);
+void FadeOutModuleMusic(AudioManager* manager, float duration);
+void CrossfadeToModuleMusic(AudioManager* manager, const char* filePath, float volume, bool loop, float duration);
+bool IsModuleFile(const char* filePath);
+const char* GetModulePlayerInfo(AudioManager* manager);
+void SetModulePlayerEnabled(AudioManager* manager, bool enabled);
+bool IsModulePlayerEnabled(AudioManager* manager);
+
 #endif // AUDIO_MANAGER_H

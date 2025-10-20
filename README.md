@@ -13,6 +13,7 @@ A high-performance, extensible Sonic-style game framework in C23, focusing on fa
 - Smooth camera following, dynamic zoom, and parallax backgrounds.
 - Entity Component System (ECS) for flexible game object management.
 - Level loading, transitions, and state handling.
+- **Module Music Player**: Built-in support for XM, IT, S3M, MOD, and other tracker formats via libmikmod.
 - Efficient handling of textures, sounds, and assets.
 - Optional scripting for rapid prototyping (Lua or similar).
 - In-game debug overlay, profiling, and logging.
@@ -24,6 +25,7 @@ A high-performance, extensible Sonic-style game framework in C23, focusing on fa
 ### Requirements
 - GCC with C23 support (GCC 14+ recommended)
 - Raylib graphics library
+- libmikmod (for module music support)
 - Make build system
 
 ### Installation
@@ -31,7 +33,11 @@ A high-performance, extensible Sonic-style game framework in C23, focusing on fa
 #### Linux
 1. Install required dependencies:
     ```bash
-    sudo apt-get install build-essential gcc-14 g++-14 libraylib-dev mingw-w64
+    sudo apt-get install build-essential gcc-14 g++-14 libraylib-dev libmikmod-dev mingw-w64
+    ```
+    Or use the automated installer:
+    ```bash
+    make install-mikmod  # Installs libmikmod for module music support
     ```
 2. Clone the repository:
     ```bash

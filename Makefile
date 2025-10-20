@@ -5,6 +5,7 @@ CC = gcc
 
 # Try to detect raylib using pkg-config first
 RAYLIB_PKG := $(shell pkg-config --exists raylib 2>/dev/null && echo "yes" || echo "no")
+MIKMOD_PKG := $(shell pkg-config --exists libmikmod 2>/dev/null && echo "yes" || echo "no")
 
 ifeq ($(RAYLIB_PKG),yes)
     # Use pkg-config if available
@@ -43,10 +44,20 @@ else
     RAYLIB_LDFLAGS := $(RAYLIB_LIBDIR) -lraylib -lm -lpthread -ldl -lrt -lX11
 endif
 
+# Handle libmikmod
+ifeq ($(MIKMOD_PKG),yes)
+    MIKMOD_CFLAGS := $(shell pkg-config --cflags libmikmod)
+    MIKMOD_LDFLAGS := $(shell pkg-config --libs libmikmod)
+else
+    # Fallback for libmikmod
+    MIKMOD_CFLAGS := 
+    MIKMOD_LDFLAGS := -lmikmod
+endif
+
 # Final compiler flags
-CFLAGS = -Wall -Wextra -std=c2x -O2 $(RAYLIB_CFLAGS) -Isrc
-DEBUG_CFLAGS = -Wall -Wextra -std=c2x -g -DDEBUG $(RAYLIB_CFLAGS) -Isrc
-LDFLAGS = $(RAYLIB_LDFLAGS)
+CFLAGS = -Wall -Wextra -std=c2x -O2 $(RAYLIB_CFLAGS) $(MIKMOD_CFLAGS) -Isrc
+DEBUG_CFLAGS = -Wall -Wextra -std=c2x -g -DDEBUG $(RAYLIB_CFLAGS) $(MIKMOD_CFLAGS) -Isrc
+LDFLAGS = $(RAYLIB_LDFLAGS) $(MIKMOD_LDFLAGS)
 
 # Directories
 SRCDIR = src
@@ -86,6 +97,16 @@ else
 	@echo "   - ~/raylib/src"
 	@echo "   - ./raylib/src"
 	@false
+endif
+	@echo ""
+	@echo "Checking for libmikmod..."
+ifeq ($(MIKMOD_PKG),yes)
+	@echo "✓ Found libmikmod via pkg-config"
+	@echo "  CFLAGS: $(MIKMOD_CFLAGS)"
+	@echo "  LDFLAGS: $(MIKMOD_LDFLAGS)"
+else
+	@echo "✓ Found libmikmod (fallback)"
+	@echo "  LDFLAGS: $(MIKMOD_LDFLAGS)"
 endif
 
 # Default goal: build directly when running `make`
@@ -141,6 +162,26 @@ install-raylib:
 	@echo "✓ raylib installed to $(HOME)/raylib"
 	@echo "  You can now run 'make' to build the project"
 
+# Install libmikmod for module music support
+install-mikmod:
+	@echo "Installing libmikmod..."
+	@if command -v apt >/dev/null 2>&1; then \
+		echo "Using apt to install libmikmod..."; \
+		sudo apt update && sudo apt install libmikmod-dev libmikmod3; \
+	elif command -v yum >/dev/null 2>&1; then \
+		echo "Using yum to install libmikmod..."; \
+		sudo yum install libmikmod-devel; \
+	elif command -v pacman >/dev/null 2>&1; then \
+		echo "Using pacman to install libmikmod..."; \
+		sudo pacman -S libmikmod; \
+	else \
+		echo "Package manager not detected. Please install libmikmod manually."; \
+		echo "Ubuntu/Debian: sudo apt install libmikmod-dev libmikmod3"; \
+		echo "CentOS/RHEL: sudo yum install libmikmod-devel"; \
+		echo "Arch: sudo pacman -S libmikmod"; \
+	fi
+	@echo "✓ libmikmod installation completed"
+
 # Environment diagnostics (checks raylib and prints detected flags)
 doctor: check-raylib
 
@@ -159,13 +200,14 @@ help:
 	@echo "  clean        - Remove build artifacts"
 	@echo "  check-raylib - Check raylib installation"
 	@echo "  install-raylib - Install raylib from source"
+	@echo "  install-mikmod - Install libmikmod for module music support"
 	@echo "  framework    - Framework development (WIP)"
 	@echo "  mac          - Build macOS binary (uses clang/frameworks)"
 	@echo "  help         - Show this help message"
 	@echo "  doctor       - Run environment checks (raylib detection)"
 	@echo "  raylib-check - Alias for check-raylib"
 
-.PHONY: all debug run run-debug clean directories framework install-raylib check-raylib help
+.PHONY: all debug run run-debug clean directories framework install-raylib install-mikmod check-raylib help
 
 # -----------------------------
 # Cross-compile for Windows

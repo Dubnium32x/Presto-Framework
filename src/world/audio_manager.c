@@ -1,5 +1,6 @@
 // Audio Manager
 #include "audio_manager.h"
+#include "module_player.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,6 +30,14 @@ void InitAudioManager(AudioManager* manager) {
     manager->pendingMusicDelay = 0.0f;
     manager->pendingMusicDelayTimer = 0.0f;
     manager->isPendingMusicDelayed = false;
+    manager->useModulePlayer = false;
+
+    // Initialize module player
+    if (InitModulePlayer(&manager->modulePlayer)) {
+        printf("Module player initialized successfully\n");
+    } else {
+        printf("Warning: Failed to initialize module player\n");
+    }
 
     for (int i = 0; i < MAX_SOUNDS; i++) {
         manager->sounds[i].type = SFX; // Default type
@@ -44,6 +53,9 @@ void InitAudioManager(AudioManager* manager) {
 
 void UpdateAudioManager(AudioManager* manager) {
     if (manager == NULL) return;
+
+    // Update module player
+    UpdateModulePlayer(&manager->modulePlayer);
 
     // Update fading out music
     if (manager->isFadingOut) {
@@ -269,4 +281,128 @@ bool IsVOXEnabled(AudioManager* manager) {
 
 bool IsAmbienceEnabled(AudioManager* manager) {
     return manager ? manager->isAmbienceEnabled : false;
+}
+
+void UnloadAllAudio(AudioManager* manager) {
+    if (manager == NULL) return;
+    
+    // Stop and unload all regular audio
+    StopMusic(manager);
+    StopAllSFX(manager);
+    
+    // Unload sounds
+    for (size_t i = 0; i < manager->sound_count; i++) {
+        if (manager->sounds[i].sound.frameCount > 0) {
+            UnloadSound(manager->sounds[i].sound);
+        }
+    }
+    
+    // Unload music
+    for (size_t i = 0; i < manager->music_count; i++) {
+        if (manager->music[i].music.ctxData != NULL) {
+            UnloadMusicStream(manager->music[i].music);
+        }
+    }
+    
+    // Cleanup module player
+    CleanupModulePlayer(&manager->modulePlayer);
+    
+    // Reset counters
+    manager->sound_count = 0;
+    manager->music_count = 0;
+}
+
+// Module player integration functions
+
+bool LoadModuleMusic(AudioManager* manager, const char* filePath) {
+    if (manager == NULL || filePath == NULL) return false;
+    if (!manager->isMusicEnabled) return false;
+    
+    int track_id = LoadModule(&manager->modulePlayer, filePath);
+    return track_id >= 0;
+}
+
+bool PlayModuleMusic(AudioManager* manager, const char* filePath, float volume, bool loop) {
+    if (manager == NULL || filePath == NULL) return false;
+    if (!manager->isMusicEnabled) return false;
+    
+    // Stop regular music if playing
+    if (manager->isMusicPlaying) {
+        StopMusic(manager);
+    }
+    
+    // Set module player volume based on music volume settings
+    float finalVolume = volume * manager->musicVolume * manager->masterVolume;
+    SetModuleMasterVolume(&manager->modulePlayer, finalVolume);
+    
+    bool success = PlayModuleByPath(&manager->modulePlayer, filePath, loop);
+    if (success) {
+        manager->useModulePlayer = true;
+    }
+    return success;
+}
+
+void StopModuleMusic(AudioManager* manager) {
+    if (manager == NULL) return;
+    StopCurrentModule(&manager->modulePlayer);
+    manager->useModulePlayer = false;
+}
+
+void SetModuleMusicVolume(AudioManager* manager, float volume) {
+    if (manager == NULL) return;
+    float finalVolume = volume * manager->musicVolume * manager->masterVolume;
+    SetModuleMasterVolume(&manager->modulePlayer, finalVolume);
+}
+
+float GetModuleMusicVolume(AudioManager* manager) {
+    if (manager == NULL) return 0.0f;
+    return GetModuleMasterVolume(&manager->modulePlayer);
+}
+
+bool IsModuleMusicPlaying(AudioManager* manager) {
+    if (manager == NULL) return false;
+    return IsAnyModulePlaying(&manager->modulePlayer);
+}
+
+void FadeOutModuleMusic(AudioManager* manager, float duration) {
+    if (manager == NULL) return;
+    int currentTrack = GetCurrentModuleTrack(&manager->modulePlayer);
+    if (currentTrack >= 0) {
+        FadeOutModule(&manager->modulePlayer, currentTrack, duration);
+    }
+}
+
+void CrossfadeToModuleMusic(AudioManager* manager, const char* filePath, float volume, bool loop, float duration) {
+    if (manager == NULL || filePath == NULL) return;
+    if (!manager->isMusicEnabled) return;
+    
+    // Set volume
+    float finalVolume = volume * manager->musicVolume * manager->masterVolume;
+    SetModuleMasterVolume(&manager->modulePlayer, finalVolume);
+    
+    // Perform crossfade
+    CrossfadeToModuleByPath(&manager->modulePlayer, filePath, loop, duration);
+    manager->useModulePlayer = true;
+}
+
+bool IsModuleFile(const char* filePath) {
+    return IsModuleFileSupported(filePath);
+}
+
+const char* GetModulePlayerInfo(AudioManager* manager) {
+    (void)manager; // Suppress unused parameter warning
+    return GetModulePlayerVersion();
+}
+
+void SetModulePlayerEnabled(AudioManager* manager, bool enabled) {
+    if (manager == NULL) return;
+    SetModulePlayerEnabledState(&manager->modulePlayer, enabled);
+    if (!enabled) {
+        manager->useModulePlayer = false;
+    }
+}
+
+bool IsModulePlayerEnabled(AudioManager* manager) {
+    if (manager == NULL) return false;
+    return IsModulePlayerEnabledState(&manager->modulePlayer);
 }
