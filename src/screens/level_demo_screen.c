@@ -90,19 +90,30 @@ static void DrawTileLayer(Tile** layer, int width, int height, Texture2D tiles) 
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             int rawId = layer[y][x].tileId;
-            if (rawId <= 0) continue;
-            // rawId may be a global gid (>= firstgid). Normalize to tileset-local 1-based id.
-            int localId = rawId;
-            // If rawId looks like a global gid (>= firstgid and >> columns), normalize by firstgid.
-            if (rawId >= level.firstgid && rawId > (int)(level.firstgid + tiles.width / TILE_SIZE)) {
-                localId = rawId - level.firstgid + 1;
-            }
+            if (rawId == 0) continue;
+
+            uint32_t uRawId = (uint32_t)rawId;
+            bool flipH = (uRawId & FLIPPED_HORIZONTALLY_FLAG) != 0;
+            bool flipV = (uRawId & FLIPPED_VERTICALLY_FLAG) != 0;
+            bool flipD = (uRawId & FLIPPED_DIAGONALLY_FLAG) != 0;
+
+            uint32_t gid = uRawId & ~FLIPPED_ALL_FLAGS_MASK;
+            if (gid == 0) continue;
+
+            int localId = (int)gid - level.firstgid + 1;
             int idx = localId - 1;
+
             int sx = (idx % columns) * TILE_SIZE;
             int sy = (idx / columns) * TILE_SIZE;
+
             Rectangle src = { (float)sx, (float)sy, (float)TILE_SIZE, (float)TILE_SIZE };
+            
+            if (flipH) { src.x += TILE_SIZE; src.width  = -src.width;  }
+            if (flipV) { src.y += TILE_SIZE; src.height = -src.height; }
+
             Rectangle dst = { (float)(x * TILE_SIZE), (float)(y * TILE_SIZE), (float)TILE_SIZE, (float)TILE_SIZE };
-            DrawTexturePro(tiles, src, dst, (Vector2){0,0}, 0.0f, WHITE);
+
+            DrawTexturePro(tiles, src, dst, (Vector2){0, 0}, 0.0f, WHITE);
         }
     }
 }

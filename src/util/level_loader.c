@@ -56,9 +56,7 @@ Tile CreateTileFromId(int tileId) {
     Tile tile = CreateEmptyTile();
     
     // Handle -1 and 0 as empty tiles
-    if (tileId <= 0) {
-        return tile;
-    }
+    if (tileId == 0) return tile;
     
     tile.tileId = tileId; // Keep raw gid-relative (1-based within tileset) for drawing/collision mapping
     // Collision and height profiles are looked up via TileCollision using tileset metadata; flags default false.
@@ -169,8 +167,10 @@ Tile** LoadTileLayer(const char* csvPath, int* outWidth, int* outHeight) {
             if (endp == p) break;
             p = endp;
             int tileId = 0;
-            if (val < 0) {
-                tileId = 0; // -1 => empty
+            if (val == -1) {
+                tileId = 0;
+            } else if (val < 0) {
+                tileId = (int)val;
             } else if (hasMinusOne) {
                 // Local zero-based index exported: add +1 to make it 1-based local
                 tileId = (int)val + 1;
@@ -360,8 +360,7 @@ void PrecomputeTileProfiles(LevelData* level) {
         
         for (int y = 0; y < level->height; y++) {
             for (int x = 0; x < level->width; x++) {
-                Tile tile = layer[y][x];
-                int rawTileId = tile.tileId;
+                int rawTileId = layer[y][x].tileId;
                 
                 // Create key string
                 char key[64];
