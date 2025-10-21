@@ -251,7 +251,7 @@ void TitleCardCamera_Draw(void) {
     DrawRectanglePro(spinningSquareDest, spinningSquareOrigin, spinningRectRotation, BLUE);
 
     // Draw zone name at top (placeholder text for now)
-    const char* zoneName = "Zone Name";
+    const char* zoneName = "";
     int zoneNameWidth = MeasureText(zoneName, 20);
     DrawText(zoneName, 
              (int)(zoneNameCurrentPos.x - zoneNameWidth/2), 
@@ -259,7 +259,7 @@ void TitleCardCamera_Draw(void) {
              20, WHITE);
 
     // Draw main zone text (center)
-    const char* zoneText = "ATLANTIC HEIGHTS";
+    const char* zoneText = "ATLANTIC HIGHWAY";
     int zoneTextWidth = MeasureText(zoneText, 24);
     DrawText(zoneText, 
              (int)(zoneTextCurrentPos.x - zoneTextWidth/2), 
