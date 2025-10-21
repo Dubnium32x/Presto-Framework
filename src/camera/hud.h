@@ -15,15 +15,15 @@ typedef struct {
     Texture2D hudSprites[HUD_SPRITE_COUNT];
 } HUD;
 
-int totalMilliseconds;
-int minutes = totalMilliseconds / 60000;
-int seconds = (totalMilliseconds / 1000) % 60;
-int milliseconds = totalMilliseconds % 1000;
-const char* timeString = TextFormat("%02d:%02d.%03d", minutes, seconds, milliseconds);
+extern int totalMilliseconds;
+extern int minutes;
+extern int seconds;
+extern int milliseconds;
+extern const char* timeString;
 
 // Function declarations for HUD management
 void InitHUD();
-void UpdateHUD();
+void UpdateHUD(float deltaTime);
 void UpdateValues(int scoreDelta, int livesDelta, int ringsDelta);
 void DrawHUD();
 void UnloadHUD();

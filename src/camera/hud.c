@@ -6,6 +6,12 @@
 #include "../world/sprite_font_manager.h"
 
 HUD gameHUD;
+int totalMilliseconds = 0;
+int minutes = 0;
+int seconds = 0;
+int milliseconds = 0;
+const char* timeString = "";
+
 void InitHUD() {
     memset(&gameHUD, 0, sizeof(HUD));
     // Load HUD sprites here if needed

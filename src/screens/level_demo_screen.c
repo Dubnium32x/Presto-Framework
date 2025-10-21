@@ -7,6 +7,8 @@
 
 #include "../util/level_loader.h"
 #include "../world/generated_heightmaps.h"
+#include "../camera/title_card.h"
+#include "../world/audio_manager.h"
 
 // Simple camera for panning
 LevelData level;
@@ -25,9 +27,19 @@ void LevelDemo_Init(void) {
     if (tilesetTex.id == 0) {
         TraceLog(LOG_WARNING, "Failed to load tileset texture; tiles won't render");
     }
+
+    // Initialize title card system
+    TitleCardCamera_Init();
+
+    // Play module music for the level
+    extern AudioManager g_audioManager;
+    PlayModuleMusic(&g_audioManager, "res/audio/music/modules/atlantishighway.it", 1.0f, true);
 }
 
 void LevelDemo_Update(float dt) {
+    // Update title card system first
+    TitleCardCamera_Update(dt);
+
     // Basic camera controls
     const float speed = 120.0f;
     if (IsKeyDown(KEY_RIGHT)) cam.position.x += speed * dt;
@@ -72,6 +84,15 @@ void LevelDemo_Draw(void) {
 
     EndMode2D();
 
+    // Draw back fade first (behind everything)
+    TitleCardCamera_DrawBackFade();
+
+    // Draw title card overlay (screen space, not world space)
+    TitleCardCamera_Draw();
+    
+    // Draw front fade last (on top of everything)
+    TitleCardCamera_DrawFrontFade();
+
     // HUD
     DrawText("Level Demo: Arrow keys to pan, +/- to zoom", 8, 8, 10, WHITE);
     DrawText(TextFormat("Level: %s  %dx%d", level.levelName ? level.levelName : "LEVEL_0", level.width, level.height), 8, 22, 10, WHITE);
@@ -80,6 +101,10 @@ void LevelDemo_Draw(void) {
 void LevelDemo_Unload(void) {
     if (tilesetTex.id) UnloadTexture(tilesetTex);
     FreeLevelData(&level);
+    TitleCardCamera_Unload();
+    // Stop module music when level ends
+    extern AudioManager g_audioManager;
+    StopModuleMusic(&g_audioManager);
 }
 
 static void DrawTileLayer(Tile** layer, int width, int height, Texture2D tiles) {

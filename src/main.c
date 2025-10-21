@@ -60,6 +60,9 @@ Font s1ClassicOpenCFont = {0};
 Font sonicGameworldFont = {0};
 Font fontFamily[3] = {0};
 
+// Global audio manager instance
+AudioManager g_audioManager;
+
 // Function to get mouse position in virtual screen coordinates
 Vector2 GetMousePositionVirtual(void) {
     Vector2 mouseScreenPos = GetMousePosition();
@@ -134,6 +137,9 @@ bool InitializeFramework(void) {
         printf("Warning: Failed to initialize audio device\n");
         return false;
     }
+
+    // Initialize global audio manager
+    InitAudioManager(&g_audioManager);
     
     printf("Basic framework systems initialized successfully\n");
     return true;
@@ -327,10 +333,12 @@ int main(void) {
     RegisterScreen(&screenManager, SCREEN_OPTIONS, OptionsScreen_Init, OptionsScreen_Update, OptionsScreen_Draw, OptionsScreen_Unload);
     RegisterScreen(&screenManager, SCREEN_ANIM_DEMO, AnimDemo_Init, AnimDemo_Update, AnimDemo_Draw, AnimDemo_Unload);
     RegisterScreen(&screenManager, SCREEN_DEBUG1, LevelDemo_Init, LevelDemo_Update, LevelDemo_Draw, LevelDemo_Unload);
-    
+    RegisterScreen(&screenManager, SCREEN_DEBUG2, LevelDemo_Init, LevelDemo_Update, LevelDemo_Draw, LevelDemo_Unload);
+    RegisterScreen(&screenManager, SCREEN_GAMEPLAY, LevelDemo_Init, LevelDemo_Update, LevelDemo_Draw, LevelDemo_Unload);
+
     // Set initial screen
     // For the demo, jump directly to the level demo screen
-    SetCurrentScreen(&screenManager, SCREEN_DEBUG1);
+    SetCurrentScreen(&screenManager, SCREEN_INIT);
     
     printf("Starting main game loop...\n");
 
@@ -356,6 +364,9 @@ int main(void) {
         
         // Update framework systems (simplified for now)
         // TODO: Add back framework system updates when they're properly implemented
+
+            // Update audio manager (required for module music playback)
+            UpdateAudioManager(&g_audioManager);
         
         // Update screen manager
         UpdateScreenManager(&screenManager, deltaTime);

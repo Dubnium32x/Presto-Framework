@@ -19,6 +19,7 @@
 #define TILE_SIZE 16
 
 extern GameCamera cam;
+extern bool isTitleCardActive;
 
 extern int screenWidth;
 extern int screenHeight;
@@ -33,6 +34,10 @@ extern Font s1ClassicOpenCFont;
 extern Font sonicGameworldFont;
 
 extern Font fontFamily[3];
+
+// Global audio manager
+#include "../world/audio_manager.h"
+extern AudioManager g_audioManager;
 
 typedef struct {
     int x, y, w, h;
