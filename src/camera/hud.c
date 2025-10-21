@@ -26,9 +26,11 @@ void UpdateValues(int scoreDelta, int livesDelta, int ringsDelta) {
 void DrawHUD() {
     // Draw HUD elements here using gameHUD data
     // Example: Draw score, lives, rings, and time
+    // Draw the text and the numbers separately using the sprite font manager
     DrawDiscoveryText(TextFormat("Score: %d", gameHUD.score), (Vector2){10, 10}, 1.0f, WHITE);
     DrawDiscoveryText(TextFormat("Lives: %d", gameHUD.lives), (Vector2){10, 40}, 1.0f, WHITE);
-    DrawDiscoveryText(TextFormat("Rings: %d", gameHUD.rings), (Vector2){10, 70}, 1.0f, WHITE);
+    DrawDiscoveryText(TextFormat("Rings: %d", gameHUD.rings), (Vector2){10, 70}, 1.0f, WHITE); 
+
     int totalMilliseconds = (int)gameHUD.time;
     int minutes = totalMilliseconds / 60000;
     int seconds = (totalMilliseconds / 1000) % 60;
