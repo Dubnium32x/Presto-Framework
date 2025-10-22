@@ -259,12 +259,11 @@ void TitleCardCamera_Draw(void) {
              20, WHITE);
 
     // Draw main zone text (center)
-    const char* zoneText = "ATLANTIC HIGHWAY";
+    const char* zoneText = "ATLANTIS HIGHWAY";
     int zoneTextWidth = MeasureText(zoneText, 24);
-    DrawText(zoneText, 
-             (int)(zoneTextCurrentPos.x - zoneTextWidth/2), 
-             (int)zoneTextCurrentPos.y, 
-             24, YELLOW);
+    DrawTextEx(sonicGameworldFont, zoneText, 
+               (Vector2){ zoneTextCurrentPos.x - zoneTextWidth / 2, zoneTextCurrentPos.y }, 
+               24, 1, YELLOW);
 
     // Draw ACT texture (bottom right)
     if (actText.id != 0) {

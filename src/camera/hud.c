@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 #include "../world/sprite_font_manager.h"
+#include "../entity/player/player.h"
+#include "../util/globals.h"
 
 HUD gameHUD;
 int totalMilliseconds = 0;
@@ -30,18 +32,51 @@ void UpdateValues(int scoreDelta, int livesDelta, int ringsDelta) {
 }
 
 void DrawHUD() {
-    // Draw HUD elements here using gameHUD data
-    // Example: Draw score, lives, rings, and time
-    // Draw the text and the numbers separately using the sprite font manager
-    DrawDiscoveryText(TextFormat("Score: %d", gameHUD.score), (Vector2){10, 10}, 1.0f, WHITE);
-    DrawDiscoveryText(TextFormat("Lives: %d", gameHUD.lives), (Vector2){10, 40}, 1.0f, WHITE);
-    DrawDiscoveryText(TextFormat("Rings: %d", gameHUD.rings), (Vector2){10, 70}, 1.0f, WHITE); 
-
+    // Draw HUD elements in classic Sonic layout
+    // Top left: SCORE, RINGS, TIME
+    DrawDiscoveryText("SCORE", (Vector2){10, 10}, 1.0f, YELLOW);
+    DrawDiscoveryText(TextFormat("%d", gameHUD.score), (Vector2){10, 25}, 1.0f, WHITE);
+    
+    DrawDiscoveryText("RINGS", (Vector2){10, 50}, 1.0f, YELLOW);
+    DrawDiscoveryText(TextFormat("%d", gameHUD.rings), (Vector2){10, 65}, 1.0f, WHITE);
+    
+    DrawDiscoveryText("TIME", (Vector2){10, 90}, 1.0f, YELLOW);
     int totalMilliseconds = (int)gameHUD.time;
     int minutes = totalMilliseconds / 60000;
     int seconds = (totalMilliseconds / 1000) % 60;
-    int milliseconds = totalMilliseconds % 1000;
-    DrawDiscoveryText(TextFormat("Time: %02d:%02d.%03d", minutes, seconds, milliseconds), (Vector2){10, 100}, 1.0f, WHITE);
+    DrawDiscoveryText(TextFormat("%d:%02d", minutes, seconds), (Vector2){10, 105}, 1.0f, WHITE);
+    
+    // Bottom: Lives using small Sonic font
+    DrawSmallSonicText(TextFormat("SONIC * %d", gameHUD.lives), (Vector2){10, VIRTUAL_SCREEN_HEIGHT - 25}, 1.0f, YELLOW);
+}
+
+void DrawDebugHUD(void* playerPtr) {
+    Player* player = (Player*)playerPtr;
+    if (player == NULL) return;
+    
+    // Debug info on the right side
+    int debugX = VIRTUAL_SCREEN_WIDTH - 120;
+    int debugY = 10;
+    
+    DrawDiscoveryText("DEBUG", (Vector2){debugX, debugY}, 1.0f, RED);
+    debugY += 20;
+    
+    DrawSmallSonicText(TextFormat("X: %.1f", player->position.x), (Vector2){debugX, debugY}, 1.0f, WHITE);
+    debugY += 12;
+    
+    DrawSmallSonicText(TextFormat("Y: %.1f", player->position.y), (Vector2){debugX, debugY}, 1.0f, WHITE);
+    debugY += 12;
+    
+    DrawSmallSonicText(TextFormat("VX: %.1f", player->velocity.x), (Vector2){debugX, debugY}, 1.0f, WHITE);
+    debugY += 12;
+    
+    DrawSmallSonicText(TextFormat("VY: %.1f", player->velocity.y), (Vector2){debugX, debugY}, 1.0f, WHITE);
+    debugY += 12;
+    
+    DrawSmallSonicText(TextFormat("GRD: %s", player->isOnGround ? "YES" : "NO"), (Vector2){debugX, debugY}, 1.0f, WHITE);
+    debugY += 12;
+    
+    DrawSmallSonicText(TextFormat("ANG: %.1f", player->groundAngle), (Vector2){debugX, debugY}, 1.0f, WHITE);
 }
 
 void UnloadHUD() {

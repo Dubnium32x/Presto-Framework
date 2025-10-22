@@ -47,7 +47,7 @@ void InitScreen_Init(void) {
 
 void InitScreen_Update(float deltaTime) {
     // Print debug info (assuming you have a debug print function)
-    printf("initState=%d initPhase=%d\n", *initState, *currentPhase);
+    // printf("initState=%d initPhase=%d\n", *initState, *currentPhase);
     
     if (*initState == INIT_DISCLAIMER) {
         // Fade in text and background

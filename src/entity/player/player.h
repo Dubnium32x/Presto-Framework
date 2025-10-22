@@ -67,6 +67,7 @@ typedef enum {
     SWIM,
     MONKEYBARS,
     WALLJUMP,
+    SPRING_RISE,
     SLIDE,
     HURT,
     DEAD
@@ -97,9 +98,11 @@ typedef struct {
     float groundSpeed;
     float verticalSpeed;
     float groundAngle; // In degrees
+    int playerRotation; // In degrees
     bool isOnGround;
     bool isJumping;
     bool hasJumped;
+    bool jumpPressed; // Added for jump input tracking
     bool isFalling;
     bool isRolling;
     bool isCrouching;
@@ -112,6 +115,13 @@ typedef struct {
     bool isClimbing;
     bool isHurt;
     bool isDead;
+    
+    // Input tracking fields
+    bool inputLeft;
+    bool inputRight;
+    bool inputUp;
+    bool inputDown;
+    
     int facing; // 1 = right, -1 = left
     PlayerState state;
     PlayerIdleState idleState;
@@ -209,6 +219,7 @@ void Player_UpdateAnimation(Player* player, float deltaTime);
 void Player_UpdatePosition(Player* player, float deltaTime);
 void Player_HandleCollisionModePhysics(Player* player, float deltaTime);
 void Player_ApplySlopeFactor(Player* player);
+void Player_ApplyRotationBasedOnGroundAngle(Player* player);
 void Player_PredictSlopePosition(Player* player, float* predictedX, float* predictedY, float deltaTime);
 bool Player_IsNextToWallInDirection(Player* player, int direction);
 bool Player_IsOnSteepSlope(Player* player);
@@ -218,20 +229,24 @@ bool Player_WantsToJump(Player* player);
 bool Player_WantsToSpindash(Player* player);
 bool Player_WantsToPeelOut(Player* player);
 bool Player_WantsToRun(Player* player);
+bool Player_WantsToBeIdle(Player* player);
 float Player_GetSlopeMovementModifier(Player* player);
 void Player_ApplyFriction(Player* player, float friction);
 void Player_ApplyGravity(Player* player, float gravity);
+void Player_ApplySlopeFactor(Player* player);
+void Player_UpdateSpeedsFromGroundSpeed(Player* player);
 void Player_ApplyGroundDirection(Player* player);
 void Player_StartJump(Player* player);
 void Player_Jump(Player* player);
 void Player_ReleaseJump(Player* player);
 void Player_StartSpindash(Player* player);
+void Player_StartSkid(Player* player);
 void Player_ChargeSpindash(Player* player);
 void Player_ReleaseSpindash(Player* player);
 void Player_StartPeelOut(Player* player);
+void Player_ReleasePeelout(Player* player);
 void Player_SpringBounce(Player* player, float bounceVelocity);
 void Player_UpdateIdleState(Player* player, float deltaTime);
-void Player_SetState(Player* player, PlayerState newState);
 void Player_SetIdleState(Player* player, PlayerIdleState newIdleState);
 void Player_FaceDirection(Player* player, bool faceRight);
 void Player_TakeDamage(Player* player);
@@ -239,7 +254,7 @@ void Player_Respawn(Player* player, float startX, float startY);
 void Player_Draw(Player* player);
 void Player_Unload(Player* player);
 void Player_ShouldLockCamera(Player *player, bool lock);
-void Player_CheckHorizontalCollision(float oldX, float targetX);
-void Player_CheckVerticalCollision(float oldY, float targetY);
+bool Player_CheckHorizontalCollision(float oldX, float targetX);
+bool Player_CheckVerticalCollision(float oldY, float targetY);
 
 #endif

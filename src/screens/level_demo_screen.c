@@ -9,10 +9,15 @@
 #include "../world/generated_heightmaps.h"
 #include "../camera/title_card.h"
 #include "../world/audio_manager.h"
+#include "../camera/hud.h"
+#include "../entity/player/player.h"
+#include "../world/input.h"
 
 // Simple camera for panning
 LevelData level;
 Texture2D tilesetTex;
+Player gamePlayer;
+bool playerInitialized = false;
 
 static void DrawTileLayer(Tile** layer, int width, int height, Texture2D tiles);
 
@@ -30,6 +35,17 @@ void LevelDemo_Init(void) {
 
     // Initialize title card system
     TitleCardCamera_Init();
+    
+    // Initialize HUD
+    InitHUD();
+    StartTimer();
+    
+    // Initialize player
+    gamePlayer = Player_Init(100.0f, 400.0f, (Hitbox_t){0, 0, 20, 20});
+    playerInitialized = true;
+    
+    // Set initial HUD values
+    UpdateValues(0, 3, 0); // Start with 3 lives
 
     // Play module music for the level
     extern AudioManager g_audioManager;
@@ -39,8 +55,25 @@ void LevelDemo_Init(void) {
 void LevelDemo_Update(float dt) {
     // Update title card system first
     TitleCardCamera_Update(dt);
+    
+    // Update HUD
+    UpdateHUD(dt);
+    
+    // Update player if initialized
+    if (playerInitialized) {
+        Player_Update(&gamePlayer, dt);
+        
+        // Make camera follow player
+        float targetX = gamePlayer.position.x - VIRTUAL_SCREEN_WIDTH / 2;
+        float targetY = gamePlayer.position.y - VIRTUAL_SCREEN_HEIGHT / 2;
+        
+        // Smooth camera movement
+        float cameraSpeed = 5.0f;
+        cam.position.x += (targetX - cam.position.x) * cameraSpeed * dt;
+        cam.position.y += (targetY - cam.position.y) * cameraSpeed * dt;
+    }
 
-    // Basic camera controls
+    // Basic camera controls (for debugging)
     const float speed = 120.0f;
     if (IsKeyDown(KEY_RIGHT)) cam.position.x += speed * dt;
     if (IsKeyDown(KEY_LEFT))  cam.position.x -= speed * dt;
@@ -68,6 +101,11 @@ void LevelDemo_Draw(void) {
     if (level.groundLayer2) DrawTileLayer(level.groundLayer2, level.width, level.height, tilesetTex);
     if (level.groundLayer3) DrawTileLayer(level.groundLayer3, level.width, level.height, tilesetTex);
 
+    // Draw player if initialized
+    if (playerInitialized) {
+        Player_Draw(&gamePlayer);
+    }
+    
     // Optional: draw collision tiles semi-transparent for debug
     if (level.collisionLayer) {
         Color tint = (Color){255, 0, 0, 100};
@@ -90,18 +128,32 @@ void LevelDemo_Draw(void) {
     // Draw title card overlay (screen space, not world space)
     TitleCardCamera_Draw();
     
+    // Draw HUD (screen space)
+    DrawHUD();
+    
+    // Draw debug HUD if player is initialized
+    if (playerInitialized) {
+        DrawDebugHUD(&gamePlayer);
+    }
+    
     // Draw front fade last (on top of everything)
     TitleCardCamera_DrawFrontFade();
-
-    // HUD
-    DrawText("Level Demo: Arrow keys to pan, +/- to zoom", 8, 8, 10, WHITE);
-    DrawText(TextFormat("Level: %s  %dx%d", level.levelName ? level.levelName : "LEVEL_0", level.width, level.height), 8, 22, 10, WHITE);
 }
 
 void LevelDemo_Unload(void) {
     if (tilesetTex.id) UnloadTexture(tilesetTex);
     FreeLevelData(&level);
     TitleCardCamera_Unload();
+    
+    // Unload HUD
+    UnloadHUD();
+    
+    // Unload player if initialized
+    if (playerInitialized) {
+        Player_Unload(&gamePlayer);
+        playerInitialized = false;
+    }
+    
     // Stop module music when level ends
     extern AudioManager g_audioManager;
     StopModuleMusic(&g_audioManager);

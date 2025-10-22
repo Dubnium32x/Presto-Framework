@@ -6,6 +6,9 @@
 #include <stdio.h>
 #include <string.h>
 
+// Forward declaration to avoid circular dependency
+struct Player;
+
 #define HUD_SPRITE_COUNT 10
 
 typedef struct {
@@ -26,6 +29,7 @@ void InitHUD();
 void UpdateHUD(float deltaTime);
 void UpdateValues(int scoreDelta, int livesDelta, int ringsDelta);
 void DrawHUD();
+void DrawDebugHUD(void* player);
 void UnloadHUD();
 void StartTimer();
 void StopTimer();

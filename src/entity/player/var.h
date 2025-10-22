@@ -46,6 +46,8 @@ extern int facing; // 1 = right, -1 = left
 // Physics constants - jumping state
 #define INITIAL_JUMP_VELOCITY -7.5f
 #define RELEASE_JUMP_VELOCITY -4.0f
+#define JUMP_HOLD_VELOCITY_INCREASE 0.1f
+#define MAX_JUMP_HOLD_TIME 0.25f
 
 // Physics constants - rolling state
 #define ROLLING_FRICTION 0.046875f
@@ -88,6 +90,19 @@ extern int facing; // 1 = right, -1 = left
 #define FALL_ANGLE_START_S3 75
 #define FALL_ANGLE_END_S3 286
 
+// Speed reduction
+#define UPHILL_SPEED_REDUCTION SLOPE_FACTOR_NORMAL + 0.1f
+#define DOWNHILL_SPEED_INCREASE SLOPE_FACTOR_NORMAL + 0.1f
+
+// Spindash constants
+#define SPINDASH_BASE_SPEED 6.0f
+#define SPINDASH_CONTROL_LOCK_TIME 0.05f
+
+// Peelout constants
+#define PEELOUT_ACCELERATION 0.5f
+#define PEELOUT_TOP_SPEED 10.0f
+#define PEELOUT_HOLD_TIME 0.5f
+
 typedef enum {
     SONIC_1_2_CD,
     SONIC_3K
@@ -126,6 +141,36 @@ static inline float GroundAngleRadians() {
         return 0.0f;
     }
     return radians;
+}
+
+static inline float GetAngleFromHexDirection(int hexDir) {
+    switch (hexDir) {
+        case ANGLE_RIGHT: return 0.0f;
+        case ANGLE_DOWN_RIGHT: return 45.0f;
+        case ANGLE_DOWN: return 90.0f;
+        case ANGLE_DOWN_LEFT: return 135.0f;
+        case ANGLE_LEFT: return 180.0f;
+        case ANGLE_UP_LEFT: return 225.0f;
+        case ANGLE_UP: return 270.0f;
+        case ANGLE_UP_RIGHT: return 315.0f;
+        default: return 0.0f;
+    }
+}
+
+static inline float GetHexDirectionFromAngle(float angle) {
+    angle = fmodf(angle, 360.0f);
+    if (angle < 0) angle += 360.0f;
+
+    if (angle >= 337.5f || angle < 22.5f) return ANGLE_RIGHT;
+    else if (angle >= 22.5f && angle < 67.5f) return ANGLE_DOWN_RIGHT;
+    else if (angle >= 67.5f && angle < 112.5f) return ANGLE_DOWN;
+    else if (angle >= 112.5f && angle < 157.5f) return ANGLE_DOWN_LEFT;
+    else if (angle >= 157.5f && angle < 202.5f) return ANGLE_LEFT;
+    else if (angle >= 202.5f && angle < 247.5f) return ANGLE_UP_LEFT;
+    else if (angle >= 247.5f && angle < 292.5f) return ANGLE_UP;
+    else if (angle >= 292.5f && angle < 337.5f) return ANGLE_UP_RIGHT;
+
+    return ANGLE_RIGHT; // Default case
 }
 
 static inline void UpdateSpeedsFromGroundSpeed() {
