@@ -254,20 +254,29 @@ void DrawPrestoNumbersA(const char* text, Vector2 position, float scale, Color t
         char c = text[i];
         int glyphIndex = -1;
         
-        // Map characters to glyph indices (Sonic-style font layout)
-        // Based on typical Sonic font ordering: 0,1,2,3,4,5,6,7,8,9,:,',",dash,slash
+        // Map characters to glyph indices (actual font layout)
+        // Font A: 0='  1=? 2=? 3=? 4=? 5=9 6=8 7=7 8=6 9=5 10=4 11=3 12=2 13=1 (no 0?)
         if (c >= '0' && c <= '9') {
-            glyphIndex = 9 - (c - '0'); // Reverse order: '0'->9, '1'->8, etc.
-        } else if (c == ':') {
-            glyphIndex = 2; // Colon 
-        } else if (c == '.') {
-            glyphIndex = 3; // Period  
-        } else if (c == '-') {
-            glyphIndex = 0; // Dash at index 0
+            if (c == '1') glyphIndex = 13;
+            else if (c == '2') glyphIndex = 12;
+            else if (c == '3') glyphIndex = 11;
+            else if (c == '4') glyphIndex = 10;
+            else if (c == '5') glyphIndex = 9;
+            else if (c == '6') glyphIndex = 8;
+            else if (c == '7') glyphIndex = 7;
+            else if (c == '8') glyphIndex = 6;
+            else if (c == '9') glyphIndex = 5;
+            // '0' might be in indices 1-4 somewhere
+        } else if (c == '\'') {
+            glyphIndex = 0; // Apostrophe at index 0
         } else if (c == '/') {
-            glyphIndex = 1; // Slash at index 1
-        } else if (c == '\"') {
-            glyphIndex = 4; // Quote
+            glyphIndex = 1; // Try slash at index 1
+        } else if (c == '.') {
+            glyphIndex = 2; // Try period at index 2
+        } else if (c == '-') {
+            glyphIndex = 3; // Try dash at index 3
+        } else if (c == ':') {
+            glyphIndex = 4; // Try colon at index 4
         }
         
         if (glyphIndex >= 0 && glyphIndex < 14) {
@@ -290,20 +299,29 @@ void DrawPrestoNumbersB(const char* text, Vector2 position, float scale, Color t
         char c = text[i];
         int glyphIndex = -1;
         
-        // Map characters to glyph indices (Sonic-style font layout)
-        // Based on typical Sonic font ordering: 0,1,2,3,4,5,6,7,8,9,:,',",dash,slash
+        // Map characters to glyph indices (actual font layout for font B)
+        // Similar pattern but with 15 files (0-14)
         if (c >= '0' && c <= '9') {
-            glyphIndex = 14 - (c - '0'); // Reverse order for font B: '0'->14, '1'->13, etc.
-        } else if (c == ':') {
-            glyphIndex = 2; // Colon at index 2
-        } else if (c == '.') {
-            glyphIndex = 3; // Period at index 3
-        } else if (c == '-') {
-            glyphIndex = 0; // Dash at index 0
+            if (c == '0') glyphIndex = 14;
+            else if (c == '1') glyphIndex = 13;
+            else if (c == '2') glyphIndex = 12;
+            else if (c == '3') glyphIndex = 11;
+            else if (c == '4') glyphIndex = 10;
+            else if (c == '5') glyphIndex = 9;
+            else if (c == '6') glyphIndex = 8;
+            else if (c == '7') glyphIndex = 7;
+            else if (c == '8') glyphIndex = 6;
+            else if (c == '9') glyphIndex = 5;
+        } else if (c == '\'') {
+            glyphIndex = 0; // Apostrophe at index 0
         } else if (c == '/') {
-            glyphIndex = 1; // Slash at index 1
-        } else if (c == '"') {
-            glyphIndex = 4; // Quote at index 4
+            glyphIndex = 1; // Try slash at index 1
+        } else if (c == '.') {
+            glyphIndex = 2; // Try period at index 2
+        } else if (c == '-') {
+            glyphIndex = 3; // Try dash at index 3
+        } else if (c == ':') {
+            glyphIndex = 4; // Try slash at index 4
         }
         
         if (glyphIndex >= 0 && glyphIndex < 15) {

@@ -215,6 +215,7 @@ void TitleCardCamera_Update(float deltaTime) {
             if (timer >= 1.5f) { // Exit animation duration
                 titleCardState = TITLE_CARD_STATE_INACTIVE;
                 isTitleCardActive = false;
+                StartTimer(); // Restart game timer after title card
             }
             break;
         default:

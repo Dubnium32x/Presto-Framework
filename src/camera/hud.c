@@ -48,9 +48,10 @@ void DrawHUD() {
     int totalMilliseconds = (int)gameHUD.time;
     int minutes = totalMilliseconds / 60000;
     int seconds = (totalMilliseconds / 1000) % 60;
+    int milliseconds = (totalMilliseconds % 1000) / 10; // Two digits
     DrawPrestoNumbersB(TextFormat("%d", gameHUD.score), (Vector2){10 + 54, 10}, 1.0f, WHITE);
     DrawPrestoNumbersB(TextFormat("%d", gameHUD.rings), (Vector2){10 + 54, 40}, 1.0f, WHITE);
-    DrawPrestoNumbersB(TextFormat("%d:%02d", minutes, seconds), (Vector2){10 + 54, 70}, 1.0f, WHITE);
+    DrawPrestoNumbersB(TextFormat("%d:%02d:%02d", minutes, seconds, milliseconds), (Vector2){10 + 54, 70}, 1.0f, WHITE);
     // Bottom: Lives using small Sonic font
     DrawSmallSonicText(TextFormat("SONIC * %d", gameHUD.lives), (Vector2){10, VIRTUAL_SCREEN_HEIGHT - 25}, 1.0f, YELLOW);
 }

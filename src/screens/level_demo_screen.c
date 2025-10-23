@@ -38,7 +38,6 @@ void LevelDemo_Init(void) {
     
     // Initialize HUD
     InitHUD();
-    StartTimer();
     
     // Initialize player
     gamePlayer = Player_Init(100.0f, 400.0f, (Hitbox_t){0, 0, 20, 20});
@@ -122,14 +121,14 @@ void LevelDemo_Draw(void) {
 
     EndMode2D();
 
+    // Draw the HUD behind the second fade  
+    DrawHUD();
+
     // Draw back fade first (behind everything)
     TitleCardCamera_DrawBackFade();
 
     // Draw title card overlay (screen space, not world space)
     TitleCardCamera_Draw();
-    
-    // Draw HUD (screen space)
-    DrawHUD();
     
     // Draw debug HUD if player is initialized
     if (playerInitialized) {
