@@ -47,7 +47,6 @@ Player player;
 const int scrMult = 2;
 int screenWidth = 400 * scrMult;  // Default window size
 int screenHeight = 240 * scrMult;
-// Configuration variables moved to data system
 
 // Audio settings
 bool musicEnabled = true;
@@ -416,6 +415,9 @@ int main(void) {
     printf("Shutting down...\n");
     
     UnloadScreenManager(&screenManager);
+    
+    // Cleanup sprite font manager
+    CleanupSpriteFontManager();
     
     // Unload fonts
     if (s1TitleFont.texture.id != 0) UnloadFont(s1TitleFont);

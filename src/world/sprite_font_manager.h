@@ -67,5 +67,6 @@ void DrawPrestoNumbersA(const char* text, Vector2 position, float scale, Color t
 void DrawPrestoNumbersB(const char* text, Vector2 position, float scale, Color tint);
 void UnloadPrestoNumbersFontA();
 void UnloadPrestoNumbersFontB();
+void CleanupSpriteFontManager();
 
 #endif // SPRITE_FONT_MANAGER_H
