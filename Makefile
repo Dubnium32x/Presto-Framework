@@ -156,13 +156,13 @@ directories:
 build: directories $(MAIN_OUT) $(WINDOWS_OUT)
 
 $(MAIN_OUT): $(ALL_SRCS)
-	$(CC) $(CFLAGS) $(ALL_SRCS) -o $(MAIN_OUT) $(LDFLAGS)
+	$(CC) $(CFLAGS) $(ALL_SRCS) -o $(MAIN_OUT) $(LDFLAGS) -lm
 
 # Build main demo (debug)
 debug: directories $(DEBUG_OUT)
 
 $(DEBUG_OUT): $(ALL_SRCS)
-	$(CC) $(DEBUG_CFLAGS) $(ALL_SRCS) -o $(DEBUG_OUT) $(LDFLAGS)
+	$(CC) $(DEBUG_CFLAGS) $(ALL_SRCS) -o $(DEBUG_OUT) $(LDFLAGS) -lm
 
 # Run the demo
 run: $(MAIN_OUT)
