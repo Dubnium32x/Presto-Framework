@@ -1,6 +1,7 @@
 // Player script
 // ... oh boy...
 // This is going to be a long one...
+// ᏥᏌ ᎦᎶᏁᏛ, this'll be fun - Birb64
 
 #include "player.h"
 #include "raylib.h"
@@ -14,13 +15,14 @@
 #include <string.h>
 #include <stdio.h>
 
-#define BUTTON_JUMP KEY_SPACE
-#define BUTTON_DOWN KEY_DOWN
-#define BUTTON_UP KEY_UP
-#define INPUT_DOWN KEY_DOWN
-#define INPUT_UP KEY_UP
-#define INPUT_LEFT KEY_LEFT
-#define INPUT_RIGHT KEY_RIGHT
+// these are better represented as arrays, so I made them that 👍 - Birb64
+#define BUTTON_JUMP (KEY_SPACE)
+#define BUTTON_DOWN (KEY_DOWN)
+#define BUTTON_UP (KEY_UP)
+#define INPUT_DOWN (KEY_DOWN)
+#define INPUT_UP (KEY_UP)
+#define INPUT_LEFT (KEY_LEFT)
+#define INPUT_RIGHT (KEY_RIGHT)
 
 // Missing constants
 #define STEEP_SLOPE_ANGLE 45.0f
@@ -36,10 +38,12 @@
 #define INVINCIBILITY_DURATION 2.0f
 #define HURT_CONTROL_LOCK_TIME 0.3f
 
+// literally no fucking reeason this should be here. - Birb64
+
 // Stub function for checking if key is held - replace with actual implementation
-bool IsKeyHeld(int key) {
-    return IsKeyDown(key); // Simple implementation
-}
+// bool IsKeyHeld(int key) {
+//     return IsKeyDown(key); // Simple implementation
+// }
 
 // Stub function for collision detection - replace with actual implementation
 // Hook into the currently-loaded level from level_demo_screen.c
@@ -120,18 +124,46 @@ void Player_SetLevel(Player* player, TilesetInfo* tilesetInfo) {
     player->currentTileset = tilesetInfo;
 }
 
-InputBit GetPlayerInput(Player* player) {
-    (void)player; // Suppress unused parameter warning
-    InputBit input = 0;
-    if (IsKeyDown(INPUT_UP)) input |= 1;
-    if (IsKeyDown(INPUT_DOWN)) input |= 2;
-    if (IsKeyDown(INPUT_LEFT)) input |= 4;
-    if (IsKeyDown(INPUT_RIGHT)) input |= 8;
-    if (IsKeyDown(BUTTON_JUMP)) input |= 16;
-    return input;
+
+// Last time something was this useless, the curb your enthusiasm theme played - Birb64
+// InputBit GetPlayerInput(Player* player) {
+//     (void)player; // Suppress unused parameter warning
+//     InputBit input = 0;
+//     if (IsKeyDown(INPUT_UP)) input |= 1;
+//     if (IsKeyDown(INPUT_DOWN)) input |= 2;
+//     if (IsKeyDown(INPUT_LEFT)) input |= 4;
+//     if (IsKeyDown(INPUT_RIGHT)) input |= 8;
+//     if (IsKeyDown(BUTTON_JUMP)) input |= 16;
+//     return input;
+// }
+
+// 🙏 finally, a float for all to use and see - Birb64
+float angleRad(Player* player){
+    return player->groundAngle * (PI / 180.0f);
 }
 
-void Player_UpdateInput(Player* player) {
+// I'm merging all the player update shit into here
+void Player_Update(Player* player, float deltaTime) {
+    // Manage idle impatience timing here (use deltaTime available)
+    if (player->state == IDLE) {
+        player->idleTimer += deltaTime;
+        if (!player->isImpatient && player->idleTimer >= IDLE_IMPATIENCE_LOOK_TIME) {
+            player->isImpatient = true;
+            player->idleState = IMPATIENT_LOOK;
+            player->animationState = ANIM_IMPATIENT_LOOK;
+        } else if (player->isImpatient && player->idleState == IMPATIENT_LOOK && player->idleTimer >= (IDLE_IMPATIENCE_TIME + IDLE_IMPATIENCE_LOOK_TIME)) {
+            player->idleState = IMPATIENT_ANIMATION;
+            player->animationState = ANIM_IMPATIENT;
+        }
+    } else {
+        // Reset impatience when not idle
+        player->idleTimer = 0.0f;
+        player->isImpatient = false;
+        player->idleState = IDLE_NORMAL;
+    }
+
+    
+    #pragma region UpdateInput
     bool prevJump = player->isJumping;
 
     // Read input
@@ -143,11 +175,8 @@ void Player_UpdateInput(Player* player) {
     player->inputRight = IsKeyDown(INPUT_RIGHT);
     player->inputDown = IsKeyDown(INPUT_DOWN);
     player->inputUp = IsKeyDown(INPUT_UP);
-}
-
-// Implementation of the physics update function
-void Player_UpdatePhysics(Player* player, float deltaTime) {
-    (void)deltaTime; // Physics runs in pixel-per-frame units (SPG-style)
+    #pragma endregion
+    #pragma region UpdatePhysics
     if (player->isOnGround) {
         // Ground movement (per-frame units)
         if (IsKeyDown(INPUT_LEFT)) {
@@ -170,11 +199,9 @@ void Player_UpdatePhysics(Player* player, float deltaTime) {
         // Gravity per frame
         player->velocity.y += GRAVITY;
     }
-}
-
-// Implementation of the animation update function
-void Player_UpdateAnimation(Player* player, float deltaTime) {
-    // TODO: Implement full animation system
+    #pragma endregion
+    #pragma region UpdateAnimation
+       // TODO: Implement full animation system
     // For now, just update basic state
     if (player->isOnGround) {
         if (fabsf(player->groundSpeed) > 0.1f) {
@@ -186,19 +213,15 @@ void Player_UpdateAnimation(Player* player, float deltaTime) {
     } else {
         player->animationState = ANIM_JUMP;
     }
-}
-
-// Implementation of the position update function
-void Player_UpdatePosition(Player* player, float deltaTime) {
-    // TODO: Implement full position update with collision
+    #pragma endregion
+    #pragma region UpdatePosition
+        // TODO: Implement full position update with collision
     if (player->isOnGround) {
-        float angleRad = player->groundAngle * DEG2RAD;
-        player->velocity.x = player->groundSpeed * cosf(angleRad);
-        player->velocity.y = player->groundSpeed * -sinf(angleRad);
+        player->velocity.x = player->groundSpeed * cosf(angleRad(player));
+        player->velocity.y = player->groundSpeed * -sinf(angleRad(player));
     }
     
     // Update position based on velocity
-    (void)deltaTime; // pixel-per-frame integration
     player->position.x += player->velocity.x;
     player->position.y += player->velocity.y;
 
@@ -219,49 +242,66 @@ void Player_UpdatePosition(Player* player, float deltaTime) {
             player->velocity.y = 0;
         }
     }
-}
-
-void Player_Update(Player* player, float deltaTime) {
-    // Manage idle impatience timing here (use deltaTime available)
-    if (player->state == IDLE) {
-        player->idleTimer += deltaTime;
-        if (!player->isImpatient && player->idleTimer >= IDLE_IMPATIENCE_LOOK_TIME) {
-            player->isImpatient = true;
-            player->idleState = IMPATIENT_LOOK;
-            player->animationState = ANIM_IMPATIENT_LOOK;
-        } else if (player->isImpatient && player->idleState == IMPATIENT_LOOK && player->idleTimer >= (IDLE_IMPATIENCE_TIME + IDLE_IMPATIENCE_LOOK_TIME)) {
-            player->idleState = IMPATIENT_ANIMATION;
-            player->animationState = ANIM_IMPATIENT;
-        }
-    } else {
-        // Reset impatience when not idle
-        player->idleTimer = 0.0f;
-        player->isImpatient = false;
-        player->idleState = IDLE_NORMAL;
-    }
-
-    Player_UpdateInput(player);
-    Player_UpdatePhysics(player, deltaTime);
-    Player_UpdateAnimation(player, deltaTime);
-    Player_UpdatePosition(player, deltaTime);
+    #pragma endregion
 }
 
 void Player_UpdateGroundPhysics(Player* player, float deltaTime) {
-    // Update ground speed based on input and friction
-    Player_ApplySlopeFactor(player);
-    Player_UpdateSpeedsFromGroundSpeed(player);
-    Player_ApplyRotationBasedOnGroundAngle(player);
-    Player_ApplySlopeFactor(player);
-    Player_ApplyFriction(player, FRICTION_SPEED);
-    Player_ApplyGroundDirection(player);
-}
+    #pragma region ApplySlopeFactor
+    if (!player->isOnGround) return;
 
-void Player_ApplyGroundDirection(Player* player) {
-    /*
-        Apply ground direction to modify ground speed.
-        Ground direction is determined by player input and facing direction.
-    */
+    if (fabsf(player->groundAngle) < 1.0f) return;
 
+    float slopeFactor = SLOPE_FACTOR_NORMAL;
+
+    if (isnan(angleRad(player))) { angleRad(player) == 0.0f;}
+    float speedAdjustment = slopeFactor * sinf(angleRad(player));
+
+    player->groundSpeed -= speedAdjustment;
+    #pragma endregion
+    #pragma region UpdateSpeedsFromGroundSpeed
+        if (player->isOnGround) {
+        player->velocity.x = player->groundSpeed * cosf(angleRad(player));
+        player->velocity.y = player->groundSpeed * -sinf(angleRad(player));
+    } else {
+        player->velocity.x = 0;
+        player->velocity.y = 0;
+    }
+    #pragma endregion
+    #pragma region ApplyRotationBasedOnGroundAngle
+    if (!player->isOnGround) return;
+
+    // Rotate player sprite based on ground angle
+    switch (player->groundDirection) {
+        case RIGHT:
+            player->playerRotation = GetAngleFromHexDirection(ANGLE_RIGHT);
+            break;
+        case LEFT:
+            player->playerRotation = GetAngleFromHexDirection(ANGLE_LEFT);
+            break;
+        case UP_RIGHT:
+            player->playerRotation = GetAngleFromHexDirection(ANGLE_UP_RIGHT);
+            break;
+        case UP_LEFT:
+            player->playerRotation = GetAngleFromHexDirection(ANGLE_UP_LEFT);
+            break;
+        case DOWN_RIGHT:
+            player->playerRotation = GetAngleFromHexDirection(ANGLE_DOWN_RIGHT);
+            break;
+        case DOWN_LEFT:
+            player->playerRotation = GetAngleFromHexDirection(ANGLE_DOWN_LEFT);
+            break;
+        case UP:
+            player->playerRotation = GetAngleFromHexDirection(ANGLE_UP);
+            break;
+        case DOWN:
+            player->playerRotation = GetAngleFromHexDirection(ANGLE_DOWN);
+            break;
+        default:
+            break;
+    }
+    #pragma endregion
+    Player_ApplyFriction(player, FRICTION);
+    #pragma region ApplyGroundDirection
     switch (player->groundDirection) {
         case DOWN:
             player->playerRotation = ANGLE_DOWN;
@@ -295,92 +335,16 @@ void Player_ApplyGroundDirection(Player* player) {
     if (player->isOnGround == false) return; // Only apply on ground
     if (player->groundDirection == NOINPUT) return; // No input, no adjustment needed
 
-    float angleRad = player->groundAngle * (PI / 180.0f);
 
     float hexAngle = GetHexDirectionFromAngle(player->groundAngle);
 
     // Additional logic can be added here to handle hexagonal ground directions
     // and their effects on player movement and physics.
-}
-
-void Player_UpdateSpeedsFromGroundSpeed(Player* player) {
-    if (player->isOnGround) {
-        float angleRad = player->groundAngle * (PI / 180.0f);
-        player->velocity.x = player->groundSpeed * cosf(angleRad);
-        player->velocity.y = player->groundSpeed * -sinf(angleRad);
-    } else {
-        player->velocity.x = 0;
-        player->velocity.y = 0;
-    }
-}
-
-void Player_ApplySlopeFactor(Player* player) {
-    if (!player->isOnGround) return;
-
-    if (fabsf(player->groundAngle) < 1.0f) return;
-
-    float slopeFactor = SLOPE_FACTOR_NORMAL;
-
-    float angleRad = player->groundAngle * (PI / 180.0f);
-    if (isnan(angleRad)) { angleRad = 0.0f;}
-    float speedAdjustment = slopeFactor * sinf(angleRad);
-
-    player->groundSpeed -= speedAdjustment;
-}
-
-void Player_ApplyRotationBasedOnGroundAngle(Player* player) {
-    if (!player->isOnGround) return;
-
-    // Rotate player sprite based on ground angle
-    switch (player->groundDirection) {
-        case RIGHT:
-            player->playerRotation = GetAngleFromHexDirection(ANGLE_RIGHT);
-            break;
-        case LEFT:
-            player->playerRotation = GetAngleFromHexDirection(ANGLE_LEFT);
-            break;
-        case UP_RIGHT:
-            player->playerRotation = GetAngleFromHexDirection(ANGLE_UP_RIGHT);
-            break;
-        case UP_LEFT:
-            player->playerRotation = GetAngleFromHexDirection(ANGLE_UP_LEFT);
-            break;
-        case DOWN_RIGHT:
-            player->playerRotation = GetAngleFromHexDirection(ANGLE_DOWN_RIGHT);
-            break;
-        case DOWN_LEFT:
-            player->playerRotation = GetAngleFromHexDirection(ANGLE_DOWN_LEFT);
-            break;
-        case UP:
-            player->playerRotation = GetAngleFromHexDirection(ANGLE_UP);
-            break;
-        case DOWN:
-            player->playerRotation = GetAngleFromHexDirection(ANGLE_DOWN);
-            break;
-        default:
-            break;
-    }
-}
-
-void Player_UpdateRollingPhysics(Player* player, float deltaTime) {
-    // Additional rolling physics can be implemented here
-    float slopeFactor = SLOPE_FACTOR_NORMAL;
-
-    if (player->isRolling) {
-        float groundSpeedSign  = (player->groundSpeed >= 0) ? 1.0f : -1.0f;
-        float angleRad = player->groundAngle * (PI / 180.0f);
-        float slopeSign = (sinf(angleRad) >= 0) ? 1.0f : -1.0f;
-
-        if (groundSpeedSign == slopeSign) {
-            slopeFactor = SLOPE_FACTOR_ROLLUP;
-        } else {
-            slopeFactor = SLOPE_FACTOR_ROLLDOWN;
-        }
-    }
+#pragma endregion
 }
 
 void Player_ApplyFriction(Player* player, float friction) {
-    // Make sure to apply friction based off x speed and y speed!
+// Make sure to apply friction based off x speed and y speed!
     // For example if you're speeding towards a wall at an angle, friction should slow you down in both x and y directions
     if (player->isOnGround) {
         if (player->groundSpeed > 0) {
@@ -397,7 +361,21 @@ void Player_ApplyFriction(Player* player, float friction) {
         }
     }
 }
+void Player_UpdateRollingPhysics(Player* player, float deltaTime) {
+    // Additional rolling physics can be implemented here
+    float slopeFactor = SLOPE_FACTOR_NORMAL;
 
+    if (player->isRolling) {
+        float groundSpeedSign  = (player->groundSpeed >= 0) ? 1.0f : -1.0f;
+        float slopeSign = (sinf(angleRad(player)) >= 0) ? 1.0f : -1.0f;
+
+        if (groundSpeedSign == slopeSign) {
+            slopeFactor = SLOPE_FACTOR_ROLLUP;
+        } else {
+            slopeFactor = SLOPE_FACTOR_ROLLDOWN;
+        }
+    }
+}
 
 
 void Player_PredictSlopePosition(Player* player, float* predictedX, float* predictedY, float deltaTime) {
@@ -407,11 +385,10 @@ void Player_PredictSlopePosition(Player* player, float* predictedX, float* predi
         return;
     }
 
-    float angleRad = player->groundAngle * (PI / 180.0f);
     float predictedGroundSpeed = player->groundSpeed;
 
-    float predictedVelocityX = predictedGroundSpeed * cosf(angleRad);
-    float predictedVelocityY = predictedGroundSpeed * -sinf(angleRad);
+    float predictedVelocityX = predictedGroundSpeed * cosf(angleRad(player));
+    float predictedVelocityY = predictedGroundSpeed * -sinf(angleRad(player));
 
     *predictedX = player->position.x + predictedVelocityX * deltaTime;
     *predictedY = player->position.y + predictedVelocityY * deltaTime;
@@ -448,7 +425,7 @@ void Player_UpdateState(Player* player, float deltaTime) {
             player->state = WALK;
         } else if (fabsf(player->groundSpeed) >= 4.0f) {
             player->state = RUN;
-        } else if (Player_WantsToBeIdle(player)) {
+        } else if (Player_IsOnSteepSlope(player)) {
             player->state = IDLE;
         }
     }
@@ -530,13 +507,12 @@ float Player_GetSlopeMovementModifier(Player* player) {
         return 1.0f;
     }
 
-    float angleRad = player->groundAngle * (PI / 180.0f);
-    float slopeSign = (sinf(angleRad));
+    float slopeSign = (sinf(angleRad(player)));
     float movementSign = (player->groundSpeed >= 0) ? 1.0f : -1.0f;
 
     bool goingUpHill = (slopeSign > 0 && movementSign > 0) || (slopeSign < 0 && movementSign < 0);
 
-    float slopeIntensity = fabsf(sinf(angleRad));
+    float slopeIntensity = fabsf(sinf(angleRad(player)));
 
     if (goingUpHill) {
         return 1.0f - (slopeIntensity * 0.25f);
@@ -745,14 +721,14 @@ void Player_TakeDamage(Player* player) {
         // Additional logic for reducing rings or lives can be added here
     }
 }
-
-bool Player_WantsToBeIdle(Player* player) {
-    // If Ground angle is too steep, don't go to idle
-    if (Player_IsOnSteepSlope(player)) {
-        return false;
-    }
-    return true;
-}
+// whole purpose to just exist 🥀 - Birb64
+// bool Player_WantsToBeIdle(Player* player) {
+//     // If Ground angle is too steep, don't go to idle
+//     if (Player_IsOnSteepSlope(player)) {
+//         return false;
+//     }
+//     return true;
+// }
 
 bool Player_WantsToJump(Player* player) {
     if (!player->isOnGround || player->controlLockTimer > 0) return false;
