@@ -91,6 +91,7 @@ Player Player_Init(float startX, float startY) {
     player.playerSensors.topRight = (Vector2){startX + PLAYER_WIDTH / 2, startY - PLAYER_HEIGHT / 2};
     player.playerSensors.bottomLeft = (Vector2){startX - PLAYER_WIDTH / 2, startY + PLAYER_HEIGHT / 2};
     player.playerSensors.bottomRight = (Vector2){startX + PLAYER_WIDTH / 2, startY + PLAYER_HEIGHT / 2};
+    return player;
 }
 
 void Player_Update(Player* player, float dt) {
@@ -254,7 +255,7 @@ void Player_Update(Player* player, float dt) {
         playerRot = 0;
     }
     
-    // Update player velocity
+    // Update player velocity (based on ground motion along surface)
     xVel = xSpeed;
     yVel = ySpeed;
         
@@ -415,6 +416,11 @@ void Player_Update(Player* player, float dt) {
         }
     }
 
+    // Commit velocity to position
+    player->velocity.x = xVel;
+    player->velocity.y = yVel;
+    player->position.x += player->velocity.x;
+    player->position.y += player->velocity.y;
 }
 
 void Player_Draw(Player* player) {

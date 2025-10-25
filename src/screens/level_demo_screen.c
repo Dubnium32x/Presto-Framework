@@ -16,8 +16,8 @@
 // Simple camera for panning
 LevelData level;
 Texture2D tilesetTex;
-Player gamePlayer;
-bool playerInitialized = false;
+// Use the global player instance defined in main.c
+extern Player player;
 
 static void DrawTileLayer(Tile** layer, int width, int height, Texture2D tiles);
 
@@ -39,9 +39,8 @@ void LevelDemo_Init(void) {
     // Initialize HUD
     InitHUD();
     
-    // Initialize player
-    gamePlayer = Player_Init(100.0f, 400.0f);
-    playerInitialized = true;
+    // Player is initialized in main.c; ensure camera starts centered on player
+    MoveCamTo(&cam, (Vector2){ player.position.x, player.position.y });
     
     // Set initial HUD values
     UpdateValues(0, 3, 0); // Start with 3 lives
@@ -67,12 +66,17 @@ void LevelDemo_Update(float dt) {
 
     if (IsKeyPressed(KEY_EQUAL)) cam.zoom *= 1.125f;
     if (IsKeyPressed(KEY_MINUS)) cam.zoom /= 1.125f;
+
+    // Update player and have camera follow
+    Player_Update(&player, dt);
+    MoveCamTo(&cam, (Vector2){ player.position.x, player.position.y });
 }
 
 void LevelDemo_Draw(void) {
     Camera2D newCam = {0};
-    newCam.offset.x = cam.targetPos.x;
-    newCam.offset.y = cam.targetPos.y;
+    // Center camera on screen
+    newCam.offset.x = VIRTUAL_SCREEN_WIDTH * 0.5f;
+    newCam.offset.y = VIRTUAL_SCREEN_HEIGHT * 0.5f;
     newCam.rotation = cam.rotation;
     newCam.target.x = cam.position.x;
     newCam.target.y = cam.position.y;
@@ -100,6 +104,9 @@ void LevelDemo_Draw(void) {
         }
     }
 
+    // Draw player in world space
+    Player_Draw(&player);
+
     EndMode2D();
 
     // Draw the HUD behind the second fade  
@@ -111,10 +118,8 @@ void LevelDemo_Draw(void) {
     // Draw title card overlay (screen space, not world space)
     TitleCardCamera_Draw();
     
-    // Draw debug HUD if player is initialized
-    if (playerInitialized) {
-        DrawDebugHUD(&gamePlayer);
-    }
+    // Draw debug HUD for the player
+    DrawDebugHUD(&player);
     
     // Draw front fade last (on top of everything)
     TitleCardCamera_DrawFrontFade();

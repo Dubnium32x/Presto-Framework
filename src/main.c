@@ -318,8 +318,9 @@ int main(void) {
     }
 
     //initializeGame(, , , );
-    cam = GameCamera_Init(510, 510, 0, 0, 1.0f, 0.0f);
-    player = Player_Init(510, 510); //(Hitbox_t){0, 0, 20, 20}
+    cam = GameCamera_Init(510, 510, VIRTUAL_SCREEN_WIDTH/2, VIRTUAL_SCREEN_HEIGHT/2, 1.0f, 0.0f);
+    // Start the player near center; camera will follow and keep centered
+    player = Player_Init(VIRTUAL_SCREEN_WIDTH * 0.5f, VIRTUAL_SCREEN_HEIGHT * 0.5f);
 
     
     // Initialize screen manager
@@ -367,8 +368,7 @@ int main(void) {
 
             // Update audio manager (required for module music playback)
             UpdateAudioManager(&g_audioManager);
-            Player_Update(&player, deltaTime);
-            MoveCamTo(&cam, (Vector2){player.position.x, player.position.y});
+            // Player update and camera follow happen within the current screen (LevelDemo_Update)
         // Update screen manager
         UpdateScreenManager(&screenManager, deltaTime);
         
@@ -409,7 +409,7 @@ int main(void) {
                 int minY = (player.position.y + player.hitbox.y - cam.position.y);
                 DrawRectangleLines(minX * 2, minY * 2, player.hitbox.w, player.hitbox.h, BLACK);
             }
-            Player_Draw(&player);
+            // Player is drawn by the current screen inside the virtual render pass
         EndDrawing();
     }
     
