@@ -81,6 +81,16 @@ void DrawDebugHUD(void* playerPtr) {
     
     DrawSmallSonicText(TextFormat("GRD: %s", player->isOnGround ? "YES" : "NO"), (Vector2){debugX, debugY}, 1.0f, WHITE);
     debugY += 12;
+
+    // Input flags (to debug input pipeline)
+    DrawSmallSonicText(TextFormat("L:%s R:%s U:%s D:%s J:%s",
+        player->inputLeft ? "1" : "0",
+        player->inputRight ? "1" : "0",
+        player->inputUp ? "1" : "0",
+        player->inputDown ? "1" : "0",
+        player->jumpPressed ? "1" : "0"
+    ), (Vector2){debugX, debugY}, 1.0f, WHITE);
+    debugY += 12;
     
 }
 

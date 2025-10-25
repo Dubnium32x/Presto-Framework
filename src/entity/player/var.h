@@ -8,6 +8,7 @@
 #include <string.h>
 #include <math.h>
 #include "../../util/math_utils.h"
+#include "../../util/globals.h"
 
 // Player variables
 extern float playerX;
@@ -29,7 +30,9 @@ extern int facing; // 1 = right, -1 = left
 
 // Player box dimensions
 #define PLAYER_WIDTH_RAD 6
-#define PLAYER_HEIGHT_RAD 16
+#define PLAYER_HEIGHT_RAD 17
+#define PLAYER_WIDTH ((PLAYER_WIDTH_RAD * 2) + 1)
+#define PLAYER_HEIGHT ((PLAYER_HEIGHT_RAD * 2) + 1)
 #define PLAYER_MAX_COLLISION_POINTS 6
 
 // Physics constants - running state
@@ -40,7 +43,7 @@ extern int facing; // 1 = right, -1 = left
 
 // Physics constants - air state
 #define AIR_ACCELERATION_SPEED 0.09375f
-#define GRAVITY_FORCE = 0.21875f
+#define GRAVITY_FORCE 0.21875f
 #define TOP_Y_SPEED 16.0f
 
 // Physics constants - jumping state
@@ -68,16 +71,19 @@ extern int facing; // 1 = right, -1 = left
 #define SUPER_AIR_ACCELERATION_SPEED 0.1875f
 #define SUPER_ROLLING_FRICTION 0.09375f
 
-// Angle constants
-#define ANGLE_RIGHT 0
+// Angle constants (in Sonic's hex angle system: 256 units = 360 degrees)
+#define SONIC_ANGLE_MAX 256
+#define SONIC_TO_DEG_FACTOR (360.0f / SONIC_ANGLE_MAX)
+#define DEG_TO_SONIC_FACTOR (SONIC_ANGLE_MAX / 360.0f)
+
+#define ANGLE_DOWN 0
+#define ANGLE_UP 128
+#define ANGLE_RIGHT 64
+#define ANGLE_LEFT 192
 #define ANGLE_DOWN_RIGHT 32
-#define ANGLE_DOWN 64
 #define ANGLE_DOWN_LEFT 96
-#define ANGLE_LEFT 128
-#define ANGLE_UP_LEFT 160
-#define ANGLE_UP 192
 #define ANGLE_UP_RIGHT 224
-#define ANGLE_MAX 256
+#define ANGLE_UP_LEFT 160
 
 // Slope angle constants
 #define SLIP_ANGLE_START 46
@@ -95,13 +101,39 @@ extern int facing; // 1 = right, -1 = left
 #define DOWNHILL_SPEED_INCREASE SLOPE_FACTOR_NORMAL + 0.1f
 
 // Spindash constants
-#define SPINDASH_BASE_SPEED 6.0f
+#define SPINDASH_BASE_SPEED 4.0f
+#define SPINDASH_MAX_CHARGE 6
+#define SPINDASH_SPEED_PER_CHARGE 1.0f
+#define SPINDASH_MAX_SPEED (SPINDASH_BASE_SPEED + (SPINDASH_MAX_CHARGE * SPINDASH_SPEED_PER_CHARGE))
+#define SPINDASH_CHARGE_DECAY_RATE 0.1f
 #define SPINDASH_CONTROL_LOCK_TIME 0.05f
 
 // Peelout constants
 #define PEELOUT_ACCELERATION 0.5f
 #define PEELOUT_TOP_SPEED 10.0f
 #define PEELOUT_HOLD_TIME 0.5f
+
+// Timing constants
+#define SECONDS_TO_FRAMES(seconds) ((int)((seconds) * 60.0f))
+#define FRAMES_TO_SECONDS(frames) ((float)(frames) / 60.0f)
+
+// Position conversion constants
+#define WORLD_TO_TILE_X(worldX) ((int)((worldX) / TILE_SIZE))
+#define WORLD_TO_TILE_Y(worldY) ((int)((worldY) / TILE_SIZE))
+#define TILE_TO_WORLD_X(tileX) ((float)(tileX) * TILE_SIZE)
+#define TILE_TO_WORLD_Y(tileY) ((float)(tileY) * TILE_SIZE)
+
+// Define player state threshold constants
+#define PLAYER_WALK_SPEED_MIN 0.1f
+#define PLAYER_RUN_SPEED_MIN 4.0f
+#define PLAYER_SPRINT_SPEED_MIN 7.0f
+#define PLAYER_SUPER_SPEED_MIN 12.0f
+
+// Physics calculation constants
+#define MIN_SPEED_THRESHOLD 0.01f
+#define GROUND_ANGLE_THRESHOLD 1.0f
+#define SLOPE_MOVEMENT_UPHILL_FACTOR 0.25f
+#define SLOPE_MOVEMENT_DOWNHILL_FACTOR 0.5f
 
 typedef enum {
     SONIC_1_2_CD,
@@ -136,7 +168,7 @@ static inline float GroundAngleRadians() {
     if(isnan(groundAngle) || groundAngle < -180.0f || groundAngle > 180.0f) {
         return 0.0f;
     }
-    float radians = groundAngle * (PI / 180.0f);
+    float radians = groundAngle * DEG2RAD;
     if (isnan(radians)) {
         return 0.0f;
     }
@@ -180,7 +212,7 @@ static inline void UpdateSpeedsFromGroundSpeed() {
 }
 
 static inline void UpdateGroundSpeedFromSpeeds() {
-    if (fabsf(playerSpeedX) < 0.01f && (fabsf(playerSpeedY) < 0.01f)) {
+    if (fabsf(playerSpeedX) < MIN_SPEED_THRESHOLD && (fabsf(playerSpeedY) < MIN_SPEED_THRESHOLD)) {
         playerSpeedX = 0;
         return;
     }
@@ -188,7 +220,7 @@ static inline void UpdateGroundSpeedFromSpeeds() {
     float angleRad = GroundAngleRadians();
     groundSpeed = (cosf(angleRad) * playerSpeedX) - (sinf(angleRad) * playerSpeedY);
 
-    if (isnan(groundSpeed) || fabsf(groundSpeed) < 0.01f) {
+    if (isnan(groundSpeed) || fabsf(groundSpeed) < MIN_SPEED_THRESHOLD) {
         groundSpeed = 0;
     }
 }
@@ -205,7 +237,7 @@ static inline bool ShouldSlipOnSlope() {
 static inline void ApplySlopeFactor() {
     if (!isOnGround) return;
 
-    if (fabsf(groundAngle) < 1.0f) return;
+    if (fabsf(groundAngle) < GROUND_ANGLE_THRESHOLD) return;
 
     float slopeFactor = SLOPE_FACTOR_NORMAL;
 
@@ -236,7 +268,7 @@ static inline void ApplySlopeFactor() {
 }
 
 static inline float GetSlopeMovementModifier() {
-    if (!isOnGround || fabsf(groundAngle) < 1.0f) {
+    if (!isOnGround || fabsf(groundAngle) < GROUND_ANGLE_THRESHOLD) {
         return 1.0f;
     }
 
@@ -249,10 +281,36 @@ static inline float GetSlopeMovementModifier() {
     float slopeIntensity = fabsf(sinf(angleRad));
 
     if (goingUpHill) {
-        return 1.0f - (slopeIntensity * 0.25f);
+        return 1.0f - (slopeIntensity * SLOPE_MOVEMENT_UPHILL_FACTOR);
     } else {
-        return 1.0f + (slopeIntensity * 0.5f);
+        return 1.0f + (slopeIntensity * SLOPE_MOVEMENT_DOWNHILL_FACTOR);
     }
+}
+
+// Utility functions using constants
+static inline Vector2 GetPlayerTilePosition() {
+    return (Vector2){ WORLD_TO_TILE_X(playerX), WORLD_TO_TILE_Y(playerY) };
+}
+
+static inline Rectangle GetPlayerScreenBounds() {
+    return (Rectangle){
+        playerX - PLAYER_WIDTH_RAD,
+        playerY - PLAYER_HEIGHT_RAD,
+        (float)PLAYER_WIDTH,
+        (float)PLAYER_HEIGHT
+    };
+}
+
+static inline bool IsPlayerMovingSignificantly() {
+    return fabsf(playerSpeedX) > MIN_SPEED_THRESHOLD || fabsf(playerSpeedY) > MIN_SPEED_THRESHOLD;
+}
+
+static inline float SonicAngleToRadians(int sonicAngle) {
+    return (sonicAngle * SONIC_TO_DEG_FACTOR) * DEG2RAD;
+}
+
+static inline int RadiansToSonicAngle(float radians) {
+    return (int)((radians * RAD2DEG) * DEG_TO_SONIC_FACTOR);
 }
 
 static inline void DebugPrint() {

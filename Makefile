@@ -116,6 +116,10 @@ else
 	@echo "   - /usr/local/include and /usr/local/lib"
 	@echo "   - ~/raylib/src"
 	@echo "   - ./raylib/src"
+	@echo ""
+	@echo "If you built raylib from source and see this message, you may need to set PKG_CONFIG_PATH so pkg-config can find raylib.pc:"
+	@echo "  export PKG_CONFIG_PATH=\"/path/to/raylib/pc/files:$$PKG_CONFIG_PATH\""
+	@echo "See the README.md for more details."
 	@false
 endif
 	@echo ""

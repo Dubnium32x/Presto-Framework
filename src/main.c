@@ -319,7 +319,7 @@ int main(void) {
     }
 
     initializeGame(510, 510, 1.0f, 0.0f);
-    player = Player_Init(510, 510, (Hitbox_t){0, 0, 20, 20});
+    player = PlayerInit(510.0f, 510.0f);
     
     // Initialize screen manager
     ScreenManager screenManager;

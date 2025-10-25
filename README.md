@@ -119,6 +119,47 @@ A high-performance, extensible Sonic-style game framework in C23, focusing on fa
 #### For both Windows and Mac, you can also use Cygwin, WSL, or a Linux VM for a more consistent development environment.
 ##### It is definitely a better idea to create a hackintosh or VM of one than it is to run this project from a real Mac.
 
+## Raylib Integration (Portable)
+
+This project uses [Raylib](https://www.raylib.com/) for graphics. To ensure portability and easy setup, it is recommended to install Raylib with `pkg-config` support. This allows the build system to automatically detect Raylib's include and library paths.
+
+### Recommended Installation (Linux)
+
+- **Via package manager (preferred):**
+  ```sh
+  sudo apt install libraylib-dev
+  ```
+  This will install Raylib and its `pkg-config` file, making it available system-wide.
+
+- **From source:**
+  1. Clone Raylib:
+     ```sh
+     git clone https://github.com/raysan5/raylib.git ~/raylib
+     cd ~/raylib
+     make PLATFORM=PLATFORM_DESKTOP
+     sudo make install
+     ```
+  2. If you do not want to install system-wide, ensure the `raylib.pc` file is in a directory listed in your `PKG_CONFIG_PATH`:
+     ```sh
+     export PKG_CONFIG_PATH="$HOME/raylib/src:$PKG_CONFIG_PATH"
+     ```
+
+### Troubleshooting
+
+If you see errors like `Package 'raylib' not found`, make sure:
+- Raylib is installed with `pkg-config` support.
+- The `raylib.pc` file is in a directory listed in your `PKG_CONFIG_PATH`.
+
+You can check detection with:
+```sh
+pkg-config --cflags raylib && pkg-config --libs raylib
+```
+
+If you need to specify a custom Raylib path, set `PKG_CONFIG_PATH` before building:
+```sh
+export PKG_CONFIG_PATH="/path/to/raylib/pc/files:$PKG_CONFIG_PATH"
+```
+
 ### Demo Controls
 - **Arrow Keys**: Move Sonic left/right
 - **Z/X/C**: Jump, Roll, Spin Dash
