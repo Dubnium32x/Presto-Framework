@@ -40,7 +40,7 @@ void LevelDemo_Init(void) {
     InitHUD();
     
     // Initialize player
-    gamePlayer = PlayerInit(100.0f, 400.0f);
+    gamePlayer = Player_Init(100.0f, 400.0f);
     playerInitialized = true;
     
     // Set initial HUD values
@@ -57,21 +57,14 @@ void LevelDemo_Update(float dt) {
     
     // Update HUD
     UpdateHUD(dt);
-    
-    // Update player physics and input
-    if (playerInitialized) {
-        PlayerUpdate(&gamePlayer, dt);
-        PlayerAssignSensors(&gamePlayer);
-        
-        // Make camera follow player
-        cam.position.x = gamePlayer.position.x;
-        cam.position.y = gamePlayer.position.y;
-        // Center the camera in the virtual render target space
-        cam.targetPos.x = VIRTUAL_SCREEN_WIDTH / 2.0f;
-        cam.targetPos.y = VIRTUAL_SCREEN_HEIGHT / 2.0f;
-    }
 
-    // Camera zoom controls (for debugging)
+    // Basic camera controls (for debugging)
+    const float speed = 120.0f;
+    if (IsKeyDown(KEY_RIGHT)) cam.position.x += speed * dt;
+    if (IsKeyDown(KEY_LEFT))  cam.position.x -= speed * dt;
+    if (IsKeyDown(KEY_DOWN))  cam.position.y += speed * dt;
+    if (IsKeyDown(KEY_UP))    cam.position.y -= speed * dt;
+
     if (IsKeyPressed(KEY_EQUAL)) cam.zoom *= 1.125f;
     if (IsKeyPressed(KEY_MINUS)) cam.zoom /= 1.125f;
 }
@@ -92,11 +85,6 @@ void LevelDemo_Draw(void) {
     if (level.groundLayer1) DrawTileLayer(level.groundLayer1, level.width, level.height, tilesetTex);
     if (level.groundLayer2) DrawTileLayer(level.groundLayer2, level.width, level.height, tilesetTex);
     if (level.groundLayer3) DrawTileLayer(level.groundLayer3, level.width, level.height, tilesetTex);
-    
-    // Draw player
-    if (playerInitialized) {
-        PlayerDraw(&gamePlayer);
-    }
     
     // Optional: draw collision tiles semi-transparent for debug
     if (level.collisionLayer) {

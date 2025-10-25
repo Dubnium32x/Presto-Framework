@@ -32,6 +32,7 @@
 // Input constants
 #define SPINDASH_CHARGE_MAX 7
 #define SPINDASH_MIN_SPEED 6.0f
+#define SPINDASH_SPEED_PER_CHARGE 1.5f
 
 // Player dimensions
 #define PLAYER_WIDTH ((PLAYER_WIDTH_RAD * 2) + 1)
@@ -222,15 +223,6 @@ typedef struct {
     a lot of functions, but we can start with the basics and build up from there.
 */
 
-// Player function declarations
 Player PlayerInit(float startX, float startY);
-void PlayerUpdate(Player* player, float dt);
-void PlayerDraw(Player* player);
-void PlayerAssignSensors(Player* player);
-void PlayerUnload(Player* player);
 void PlayerDrawSensorLines(Player* player);
-
-// Utility functions
-float GetGroundAngleForTile(Vector2 position);
-
 #endif
