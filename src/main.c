@@ -81,7 +81,6 @@ Vector2 GetMousePositionVirtual(void) {
 }
 
 void initializeGame(int x, int y, float zoom, float rot) {
-    cam = GameCamera_Init(x, y, 0, 0, zoom, rot);
 }
 
 // Load audio settings from options.ini
@@ -318,8 +317,10 @@ int main(void) {
         printf("Warning: Could not load presto-numbersB font, using default\n");
     }
 
-    initializeGame(510, 510, 1.0f, 0.0f);
-    player = Player_Init(510, 510, (Hitbox_t){0, 0, 20, 20});
+    //initializeGame(, , , );
+    cam = GameCamera_Init(510, 510, 0, 0, 1.0f, 0.0f);
+    player = Player_Init(510, 510); //(Hitbox_t){0, 0, 20, 20}
+
     
     // Initialize screen manager
     ScreenManager screenManager;
@@ -341,7 +342,7 @@ int main(void) {
     
     printf("Starting main game loop...\n");
 
-    // MoveCamTo(&cam, (Vector2){0, 0});
+    //MoveCamTo(&cam, (Vector2){0, 0});
     
     // Main game loop
     while (!WindowShouldClose()) {
@@ -366,7 +367,8 @@ int main(void) {
 
             // Update audio manager (required for module music playback)
             UpdateAudioManager(&g_audioManager);
-        
+            Player_Update(&player, deltaTime);
+            MoveCamTo(&cam, (Vector2){player.position.x, player.position.y});
         // Update screen manager
         UpdateScreenManager(&screenManager, deltaTime);
         
@@ -407,7 +409,7 @@ int main(void) {
                 int minY = (player.position.y + player.hitbox.y - cam.position.y);
                 DrawRectangleLines(minX * 2, minY * 2, player.hitbox.w, player.hitbox.h, BLACK);
             }
-            
+            Player_Draw(&player);
         EndDrawing();
     }
     

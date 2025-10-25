@@ -44,6 +44,7 @@ bool TileCollision_IsEmptyTile(int tileId) {
     return tileId == -1 || TileCollision_GetActualTileId(tileId) == 0;
 }
 
+// HitboxRotation definition : 0 = 0°, 1 = 90°, 2 = 180°, 3 = 270° - Birb64 u_int8_t HitboxRotation
 TileHeightProfile TileCollision_GetTileHeightProfile(int rawTileId, const char* layerName, TilesetInfo* tilesets, int tilesetCount) {
     int actualTileId = TileCollision_GetActualTileId(rawTileId);
 

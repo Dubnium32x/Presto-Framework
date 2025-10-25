@@ -13,19 +13,22 @@
 
     Let's hope the rest of the code is as easy to create from scratch.
 */
+//ᏥᏌ ᎦᎶᏁᏛ, here we go again... - Birb64
 
 #include "player.h"
 #include "raylib.h"
 #include "var.h"
+#include "../../world/tile_collision.h"
 
 static void PlayerAssignSensors(Player* player);
 static void PlayerUpdate(Player* player, float dt);
 static void PlayerDraw(Player* player);
 static void PlayerUnload(Player* player);
 
+// 😄 Hey! would you look at that! Now this is useful
 #define JUMP_BUTTON KEY_Z | KEY_X | KEY_C | BUTTON_A | BUTTON_B | BUTTON_X
 
-Player PlayerInit(float startX, float startY) {
+Player Player_Init(float startX, float startY) {
     Player player;
     player.position = (Vector2){startX, startY};
     player.velocity = (Vector2){0, 0};
@@ -90,7 +93,7 @@ Player PlayerInit(float startX, float startY) {
     player.playerSensors.bottomRight = (Vector2){startX + PLAYER_WIDTH / 2, startY + PLAYER_HEIGHT / 2};
 }
 
-static void PlayerUpdate(Player* player, float dt) {
+void Player_Update(Player* player, float dt) {
     /*
         We will start by organizing this into categories for clarity.
         - Input handling
@@ -99,7 +102,7 @@ static void PlayerUpdate(Player* player, float dt) {
         - State transitions
         - Animation updates
     */
-
+    
     // Input Handling
     if (IsKeyDown(KEY_LEFT)) {
         player->inputLeft = true;
@@ -142,8 +145,8 @@ static void PlayerUpdate(Player* player, float dt) {
         We do this by getting the groundAngle attached to the tileID 
 
     */
-    player->groundAngles.bottomLeftAngle = GetGroundAngleForTile(player->playerSensors.bottomLeft);
-    player->groundAngles.bottomRightAngle = GetGroundAngleForTile(player->playerSensors.bottomRight);
+    //player->groundAngles.bottomLeftAngle = TileCollision_GetTileGroundAngle(player->playerSensors.bottomLeft., player->playerSensors.bottomLeft);
+    //player->groundAngles.bottomRightAngle = TileCollision_GetTileGroundAngle(player->playerSensors.bottomRight);
 
     if (player->groundAngles.bottomLeftAngle > player->groundAngles.bottomRightAngle) {
         player->groundAngle = player->groundAngles.bottomLeftAngle;
@@ -414,8 +417,8 @@ static void PlayerUpdate(Player* player, float dt) {
 
 }
 
-static void PlayerDraw(Player* player) {
-    // Draw player here
+void Player_Draw(Player* player) {
+    DrawCircleV(player->position, 10, RED); // Placeholder for player drawing
 }
 
 static void PlayerUnload(Player* player) {

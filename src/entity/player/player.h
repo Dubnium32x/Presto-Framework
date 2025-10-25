@@ -223,6 +223,8 @@ typedef struct {
     a lot of functions, but we can start with the basics and build up from there.
 */
 
-Player PlayerInit(float startX, float startY);
+Player Player_Init(float startX, float startY);
 void PlayerDrawSensorLines(Player* player);
+void Player_Update(Player* player, float dt);
+void Player_Draw(Player* player);
 #endif
