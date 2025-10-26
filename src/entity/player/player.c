@@ -214,6 +214,8 @@ void Player_Update(Player* player, float dt) {
             player->playerSensors.bottomLeft = (Vector2){player->position.x - PLAYER_HEIGHT_RAD, player->position.y + PLAYER_WIDTH_RAD};
             player->playerSensors.bottomRight = (Vector2){player->position.x - PLAYER_HEIGHT_RAD, player->position.y - PLAYER_WIDTH_RAD};
             break;
+        default:
+            break;
     }
 
     // Update player sensors based on new position and angle
@@ -255,9 +257,12 @@ void Player_Update(Player* player, float dt) {
         playerRot = 0;
     }
     
-    // Update player velocity (based on ground motion along surface)
-    xVel = xSpeed;
-    yVel = ySpeed;
+    // Only apply ground-based velocity when actually on ground
+    // In air, preserve existing momentum and let air physics handle changes
+    if (player->isOnGround) {
+        xVel = xSpeed;
+        yVel = ySpeed;
+    }
         
     // Apply gravity if enabled
     if (player->isGravityApplied) {
@@ -392,27 +397,45 @@ void Player_Update(Player* player, float dt) {
             }
         }
     } else {
-        // Process air physics here
-        // Update velocity based on ground angle when jumping
+        // Process air physics here - preserve existing xVel for air momentum
+        // Don't overwrite xVel with ground-based xSpeed when in air
+        
+        // Apply gravity based on launch angle
         if (player->groundAngle != 0 && player->hasJumped) {
-            xSpeed += GRAVITY_FORCE * sinf(player->groundAngle);
-            yVel += GRAVITY_FORCE * cosf(player->groundAngle);
-        } else if (player->hasJumped && player->groundAngle == 0) {
+            xVel += GRAVITY_FORCE * sinf(player->groundAngle) * dt;
+            yVel += GRAVITY_FORCE * cosf(player->groundAngle) * dt;
+        } else if (yVel > TOP_Y_SPEED) {
+            yVel = TOP_Y_SPEED;
+        } else {
             yVel += GRAVITY_FORCE;
         }
 
-        // Apply air acceleration, deceleration, and friction here now that we are in the air
-        if (!player->isSuper) {
-            if (player->facing == 1 && player->inputRight) {
-                xVel += AIR_ACCELERATION_SPEED;
-            } else if (player->facing == -1 && player->inputLeft) {
-                xVel -= AIR_ACCELERATION_SPEED;
-            } else if (player->facing == 1 && player->inputLeft) {
-                xVel -= AIR_ACCELERATION_SPEED;
-            } else if (player->facing == -1 && player->inputRight) {
-                xVel += AIR_ACCELERATION_SPEED;
+        // Apply air acceleration and drag
+        if (player->inputRight && xVel < TOP_SPEED) {
+            xVel += AIR_ACCELERATION_SPEED * dt;
+        } else if (player->inputLeft && xVel > -TOP_SPEED) {
+            xVel -= AIR_ACCELERATION_SPEED * dt;
+        }
+        
+        // Apply air drag when no input or opposing input
+        if (!player->inputLeft && !player->inputRight) {
+            // Natural air resistance - gradual deceleration
+            if (xVel > 0) {
+                xVel -= AIR_DRAG_FORCE * dt;
+                if (xVel < 0) xVel = 0;  // Don't overshoot to opposite direction
+            } else if (xVel < 0) {
+                xVel += AIR_DRAG_FORCE * dt;
+                if (xVel > 0) xVel = 0;  // Don't overshoot to opposite direction
             }
-
+        } else if ((player->inputLeft && xVel > 0) || (player->inputRight && xVel < 0)) {
+            // Opposing input - faster deceleration
+            if (xVel > 0) {
+                xVel -= AIR_ACCELERATION_SPEED * dt;
+                if (xVel < 0) xVel = 0;
+            } else if (xVel < 0) {
+                xVel += AIR_ACCELERATION_SPEED * dt;
+                if (xVel > 0) xVel = 0;
+            }
         }
     }
 

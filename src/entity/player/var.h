@@ -40,6 +40,7 @@ extern int facing; // 1 = right, -1 = left
 
 // Physics constants - air state
 #define AIR_ACCELERATION_SPEED 0.09375f
+#define AIR_DRAG_FORCE 0.03125f  // Gradual air resistance when no input
 #define GRAVITY_FORCE 0.21875f
 #define TOP_Y_SPEED 16.0f
 

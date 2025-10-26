@@ -42,16 +42,16 @@ void DrawHUD() {
     // Draw HUD elements in classic Sonic layout
     // Top left: SCORE, RINGS, TIME
     DrawTextureEx(scoreText, (Vector2){9, 10}, 0.0f, 1.0f, WHITE);
-    DrawTextureEx(timeText, (Vector2){9, 30}, 0.0f, 1.0f, WHITE);
-    DrawTextureEx(ringsText, (Vector2){9, 50}, 0.0f, 1.0f, WHITE);
+    DrawTextureEx(ringsText, (Vector2){9, 40}, 0.0f, 1.0f, WHITE);
+    DrawTextureEx(timeText, (Vector2){9, 70}, 0.0f, 1.0f, WHITE);
 
     int totalMilliseconds = (int)gameHUD.time;
     int minutes = totalMilliseconds / 60000;
     int seconds = (totalMilliseconds / 1000) % 60;
     int milliseconds = (totalMilliseconds % 1000) / 10; // Two digits
     DrawPrestoNumbersB(TextFormat("%d", gameHUD.score), (Vector2){10 + 54, 10}, 1.0f, WHITE);
-    DrawPrestoNumbersB(TextFormat("%d", gameHUD.rings), (Vector2){10 + 54, 50}, 1.0f, WHITE);
-    DrawPrestoNumbersB(TextFormat("%d-%02d:%02d", minutes, seconds, milliseconds), (Vector2){10 + 54, 30}, 1.0f, WHITE);
+    DrawPrestoNumbersB(TextFormat("%d", gameHUD.rings), (Vector2){10 + 54, 40}, 1.0f, WHITE);
+    DrawPrestoNumbersB(TextFormat("%d:%02d:%02d", minutes, seconds, milliseconds), (Vector2){10 + 54, 70}, 1.0f, WHITE);
     // Bottom: Lives using small Sonic font
     DrawSmallSonicText(TextFormat("SONIC * %d", gameHUD.lives), (Vector2){10, VIRTUAL_SCREEN_HEIGHT - 25}, 1.0f, YELLOW);
 }
