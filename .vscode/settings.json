@@ -10,7 +10,17 @@
     "player.h": "c",
     "globals.h": "c",
     "level_list.h": "c",
-    "math_utils.h": "c"
+    "math_utils.h": "c",
+    "__bit_reference": "c",
+    "__node_handle": "c",
+    "bitset": "c",
+    "deque": "c",
+    "limits": "c",
+    "locale": "c",
+    "optional": "c",
+    "ratio": "c",
+    "vector": "c",
+    "audio_manager.h": "c"
   },
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "g++",

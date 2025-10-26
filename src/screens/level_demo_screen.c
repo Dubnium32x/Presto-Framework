@@ -12,9 +12,9 @@
 #include "../camera/hud.h"
 #include "../entity/player/player.h"
 #include "../world/input.h"
+#include "../util/globals.h"
 
 // Simple camera for panning
-LevelData level;
 Texture2D tilesetTex;
 // Use the global player instance defined in main.c
 extern Player player;
@@ -25,7 +25,11 @@ void LevelDemo_Init(void) {
     // Load level from the provided folder
     // Expecting CSVs like LEVEL_0_Ground_1.csv etc in this directory
     const char* levelFolder = "res/data/levels/LEVEL_0";
-    level = LoadCompleteLevel(levelFolder);
+    // Free any existing level data first
+    FreeLevelData(&currentLevel);
+    // Load the new level into the existing struct
+    LevelData newLevel = LoadCompleteLevel(levelFolder);
+    memcpy(&currentLevel, &newLevel, sizeof(LevelData));
 
     // Load the visual tileset texture used by the level
     tilesetTex = LoadTexture("res/sprite/spritesheet/tileset/SPGSolidTileHeightCollision.png");
@@ -86,18 +90,18 @@ void LevelDemo_Draw(void) {
     ClearBackground((Color){ 80, 160, 220, 255 });
 
     // Draw ground layers back-to-front
-    if (level.groundLayer1) DrawTileLayer(level.groundLayer1, level.width, level.height, tilesetTex);
-    if (level.groundLayer2) DrawTileLayer(level.groundLayer2, level.width, level.height, tilesetTex);
-    if (level.groundLayer3) DrawTileLayer(level.groundLayer3, level.width, level.height, tilesetTex);
+    if (currentLevel.groundLayer1) DrawTileLayer(currentLevel.groundLayer1, currentLevel.width, currentLevel.height, tilesetTex);
+    if (currentLevel.groundLayer2) DrawTileLayer(currentLevel.groundLayer2, currentLevel.width, currentLevel.height, tilesetTex);
+    if (currentLevel.groundLayer3) DrawTileLayer(currentLevel.groundLayer3, currentLevel.width, currentLevel.height, tilesetTex);
     
     // Optional: draw collision tiles semi-transparent for debug
-    if (level.collisionLayer) {
+    if (currentLevel.collisionLayer) {
         Color tint = (Color){255, 0, 0, 100};
         // Temporarily reuse draw with a tint by changing global draw color
         // We'll just draw rectangles as overlay to show occupied cells
-        for (int y = 0; y < level.height; y++) {
-            for (int x = 0; x < level.width; x++) {
-                if (level.collisionLayer[y][x].tileId > 0) {
+        for (int y = 0; y < currentLevel.height; y++) {
+            for (int x = 0; x < currentLevel.width; x++) {
+                if (currentLevel.collisionLayer[y][x].tileId > 0) {
                     DrawRectangleLines(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE, tint);
                 }
             }
@@ -127,7 +131,7 @@ void LevelDemo_Draw(void) {
 
 void LevelDemo_Unload(void) {
     if (tilesetTex.id) UnloadTexture(tilesetTex);
-    FreeLevelData(&level);
+    FreeLevelData(&currentLevel);
     TitleCardCamera_Unload();
     
     // Unload HUD
@@ -156,7 +160,7 @@ static void DrawTileLayer(Tile** layer, int width, int height, Texture2D tiles) 
             uint32_t gid = uRawId & ~FLIPPED_ALL_FLAGS_MASK;
             if (gid == 0) continue;
 
-            int localId = (int)gid - level.firstgid + 1;
+            int localId = (int)gid - currentLevel.firstgid + 1;
             int idx = localId - 1;
 
             int sx = (idx % columns) * TILE_SIZE;

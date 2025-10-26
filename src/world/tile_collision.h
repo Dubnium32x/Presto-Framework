@@ -21,6 +21,7 @@
 // Debug flag for tile angles
 #define DEBUG_TILE_ANGLE 1
 
+
 typedef struct {
     int groundHeights[16];
     bool isSolidBlock;
@@ -39,5 +40,6 @@ bool TileCollision_IsEmptyTile(int tileId);
 TileHeightProfile TileCollision_GetTileHeightProfile(int rawTileId, const char* layerName, TilesetInfo* tilesets, int tilesetCount);
 bool TileCollision_IsSemiSolidTop(int rawTileId, int rawTileIdAbove, const char* layerName, TilesetInfo* tilesets, int tilesetCount);
 float TileCollision_GetTileGroundAngle(int rawTileId, const char* layerName, TilesetInfo* tilesets, int tilesetCount);
+
 
 #endif // TILE_COLLISION_H

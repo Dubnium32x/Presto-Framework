@@ -25,8 +25,29 @@ static void PlayerUpdate(Player* player, float dt);
 static void PlayerDraw(Player* player);
 static void PlayerUnload(Player* player);
 
-// 😄 Hey! would you look at that! Now this is useful
+    // While velocity can determine where the player is going globally, if we are on a slope, things are little more interesting.
+    // The yearn variables work just like the X and Y velocity, except can be influenced by the angle of the player
+    // float xYearn(Player* player){
+    //     get{
+    //         return player->velocity.x * cosf(player->groundAngle);
+    //     }
+    //     set{
+    //         player->velocity.x = value / cosf(player->groundAngle);
+    //     }
+    // };
+    // float yYearn(Player* player){
+    //     get{
+    //         return player->velocity.y * cosf(player->groundAngle);
+    //     }
+    //     set{
+    //         player->velocity.y = value / cosf(player->groundAngle);
+    //     }
+    // };
+
+
 #define JUMP_BUTTON KEY_Z | KEY_X | KEY_C | BUTTON_A | BUTTON_B | BUTTON_X
+
+
 
 Player Player_Init(float startX, float startY) {
     Player player;
@@ -103,7 +124,7 @@ void Player_Update(Player* player, float dt) {
         - State transitions
         - Animation updates
     */
-    
+    #pragma region input_handling
     // Input Handling
     if (IsKeyDown(KEY_LEFT)) {
         player->inputLeft = true;
@@ -139,6 +160,7 @@ void Player_Update(Player* player, float dt) {
     if (!player->inputLeft && !player->inputRight && !player->inputUp && !player->inputDown) {
         noInput = true;
     }
+    #pragma endregion
 
     // Collision detection
     /*
@@ -219,6 +241,7 @@ void Player_Update(Player* player, float dt) {
     }
 
     // Update player sensors based on new position and angle
+    #pragma region sensor_positions
     player->playerSensors.center.x += player->velocity.x;
     player->playerSensors.center.y += player->velocity.y;
     player->playerSensors.right.x += player->velocity.x;
@@ -233,6 +256,7 @@ void Player_Update(Player* player, float dt) {
     player->playerSensors.bottomLeft.y += player->velocity.y;
     player->playerSensors.bottomRight.x += player->velocity.x;
     player->playerSensors.bottomRight.y += player->velocity.y;
+    #pragma endregion
 
     // Physics and movement
     /*
@@ -305,7 +329,15 @@ void Player_Update(Player* player, float dt) {
         // The SPG says that the timer will count down while the player is on the ground.
         // Once the timer reaches 0, the player will be able to move again.
     }
-
+    
+    
+    if(player->playerSensors.bottomLeft.y > TileCollision_GetTileHeightProfile(currentLevel.collisionLayer[(int)player->playerSensors.bottomLeft.x][(int)player->playerSensors.bottomLeft.y].tileId, (const char*)'Collision', currentLevel.tilesets, currentLevel.tilesetCount).groundHeights[0]){
+        player->isOnGround = false;
+    }
+    else{
+        player->isOnGround = true;
+    }
+    
     // So what's next?
     // Ground Physics
     // Check if the player is on the ground

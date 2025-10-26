@@ -70,6 +70,9 @@ typedef struct {
     int profileCapacity;
 } LevelData;
 
+
+extern LevelData currentLevel;
+
 // Core loading functions
 LevelData LoadCompleteLevel(const char* levelPath);
 LevelData LoadCompleteLevelWithFormat(const char* levelPath, bool useJSON);

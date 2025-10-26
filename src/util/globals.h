@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "../camera/game_camera.h"
+#include "../util/level_loader.h"
+#include "../world/audio_manager.h"
 
 // Global constants
 #define VERSION "0.1.2"
@@ -35,8 +37,8 @@ extern Font sonicGameworldFont;
 
 extern Font fontFamily[3];
 
+
 // Global audio manager
-#include "../world/audio_manager.h"
 extern AudioManager g_audioManager;
 
 typedef struct {

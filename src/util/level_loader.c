@@ -3,6 +3,7 @@
 #include <math.h>
 
 bool levelInitialized = false;
+LevelData currentLevel;
 
 // Hash map helpers for profile storage
 static const int PROFILE_INITIAL_CAPACITY = 256;
@@ -407,7 +408,9 @@ LevelData LoadCompleteLevel(const char* levelPath) {
 }
 
 LevelData LoadCompleteLevelWithFormat(const char* levelPath, bool useJSON) {
-    LevelData level = {0};
+    // Initialize everything to NULL/0 to prevent double frees
+    LevelData level;
+    memset(&level, 0, sizeof(LevelData));
     
     // Set defaults
     level.levelName = strdup("Unnamed Level");
