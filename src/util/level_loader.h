@@ -18,10 +18,10 @@ extern bool levelInitialized;
 
 typedef struct {
     int tileId;
+    //int collisionId
     bool isSolid;
     bool isPlatform;
     bool isHazard;
-    int heightProfile;
     uint8_t flipFlags;
 } Tile;
 

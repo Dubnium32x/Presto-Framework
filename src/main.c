@@ -143,12 +143,10 @@ bool InitializeFramework(void) {
     return true;
 }
 
-// Cleanup framework systems
+// Cleanup all framework systems
 void CleanupFramework(void) {
     printf("Cleaning up framework systems...\n");
     
-    // Unload all audio before closing the audio device
-    UnloadAllAudio(&g_audioManager);
     CloseAudioDevice();
     
     printf("Framework cleanup complete\n");

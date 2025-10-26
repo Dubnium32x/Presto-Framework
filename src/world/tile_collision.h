@@ -22,22 +22,10 @@
 #define DEBUG_TILE_ANGLE 1
 
 
-typedef struct {
-    int groundHeights[16];
-    bool isSolidBlock;
-    bool isPlatform;
-    bool isSlope;
-} TileHeightProfile;
-
-// TileHeightProfile creation functions
-TileHeightProfile TileHeightProfile_Empty(void);
-TileHeightProfile TileHeightProfile_SolidBlock(void);
-TileHeightProfile TileHeightProfile_Custom(const int* heights, bool platform);
-
 // Tile collision functions
 int TileCollision_GetActualTileId(int rawTileId);
 bool TileCollision_IsEmptyTile(int tileId);
-TileHeightProfile TileCollision_GetTileHeightProfile(int rawTileId, const char* layerName, TilesetInfo* tilesets, int tilesetCount);
+int* TileCollision_GetHWMap(int tileId, const char* layerName);
 bool TileCollision_IsSemiSolidTop(int rawTileId, int rawTileIdAbove, const char* layerName, TilesetInfo* tilesets, int tilesetCount);
 float TileCollision_GetTileGroundAngle(int rawTileId, const char* layerName, TilesetInfo* tilesets, int tilesetCount);
 
