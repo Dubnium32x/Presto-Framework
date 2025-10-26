@@ -43,7 +43,7 @@ def compute_widthmap(tile_img):
         col_width = 0
         # scan from left to right
         for x in range(15, -1, -1):
-            if is_solid_pixel(pixels[y, x]):
+            if is_solid_pixel(pixels[x, y]):
                 col_width += 1
             else:
                 # once we hit transparent right, break to count only contiguous solid from left
