@@ -135,7 +135,8 @@ void Player_Update(Player* player, float dt) {
         player->inputDown = false;
     }
 
-    if (IsKeyDown(JUMP_BUTTON)) {
+    // Jump keys: Z, X, C, Space
+    if (IsKeyDown(KEY_Z) || IsKeyDown(KEY_X) || IsKeyDown(KEY_C) || IsKeyDown(KEY_SPACE)) {
         player->jumpPressed = true;
     } else {
         player->jumpPressed = false;
@@ -273,6 +274,32 @@ void Player_Update(Player* player, float dt) {
         yVel += ySpeed;
     }
         
+    // Jump initiation and hold behavior
+    if (player->jumpPressed && player->isOnGround && !player->hasJumped) {
+        // Start jump: set upward velocity
+        yVel = INITIAL_JUMP_VELOCITY;
+        player->isOnGround = false;
+        player->isFalling = false;
+        player->hasJumped = true;
+        player->jumpButtonHoldTimer = 0.0f;
+    }
+
+    // If jump is being held while already jumped, extend upward velocity for a short window
+    if (player->hasJumped && player->jumpPressed) {
+        player->jumpButtonHoldTimer += dt;
+        if (player->jumpButtonHoldTimer < MAX_JUMP_HOLD_TIME) {
+            // Apply a small upward impulse while holding jump
+            yVel += -JUMP_HOLD_VELOCITY_INCREASE;
+        }
+    }
+
+    // If jump released early, clamp upward velocity to a release velocity (short hop)
+    if (player->hasJumped && !player->jumpPressed && player->jumpButtonHoldTimer > 0.0f && player->jumpButtonHoldTimer < MAX_JUMP_HOLD_TIME) {
+        if (yVel < RELEASE_JUMP_VELOCITY) {
+            yVel = RELEASE_JUMP_VELOCITY;
+        }
+    }
+
     // Apply gravity if enabled
     if (player->isGravityApplied) {
         yVel += GRAVITY_FORCE;

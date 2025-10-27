@@ -80,9 +80,6 @@ Vector2 GetMousePositionVirtual(void) {
     return (Vector2){virtualMouseX, virtualMouseY};
 }
 
-void initializeGame(int x, int y, float zoom, float rot) {
-}
-
 // Load audio settings from options.ini
 void LoadAudioSettings(void) {
     FILE* file = fopen("options.ini", "r");

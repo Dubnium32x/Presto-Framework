@@ -159,7 +159,7 @@ typedef struct {
     int blinkTimer; // Timer for blinking effect
     int blinkInterval; // Interval between blinks
     int blinkDuration; // Duration of a blink
-    int jumpButtonHoldTimer; // Timer for how long the jump button has been held
+    float jumpButtonHoldTimer; // Timer for how long the jump button has been held (seconds)
     int slipAngleType; // Type of slip angle behavior
     TilesetInfo* currentTileset; // Current tileset info for friction and other properties
 
