@@ -13,6 +13,5 @@
 extern const int TILESET_WIDTHMAPS[][TILE_HEIGHT];
 
 // Tileset name
-extern const char* TILESET_NAME;
-
+int* GetTileWidthMap(int tileId);
 #endif // GENERATED_WIDTHMAPS_H

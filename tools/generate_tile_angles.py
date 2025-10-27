@@ -1,0 +1,275 @@
+#!/usr/bin/env python3
+"""
+generate_tile_angles.py - Generate hexangle values for tiles from height/width maps
+"""
+
+import sys
+import os
+import math
+
+def calculate_heightmap_angle(heightmap):
+    """Calculate angle from heightmap data using gradient analysis."""
+    # Skip empty or flat tiles
+    if all(h == heightmap[0] for h in heightmap):
+        return 0
+    
+    # Calculate overall slope from start to end
+    start_height = heightmap[0]
+    end_height = heightmap[-1]
+    
+    # Find the effective run (horizontal distance with actual change)
+    run = len(heightmap) - 1  # 15 pixels for 16-element array
+    rise = end_height - start_height
+    
+    if run == 0:
+        return 0
+    
+    # Calculate the gradient (rise over run)
+    gradient = rise / run
+    
+    # Convert gradient to angle in degrees
+    angle_degrees = math.degrees(math.atan(gradient))
+    
+    # Convert degrees to hexangles (256 units = 360 degrees)
+    hexangle = int((angle_degrees / 360.0) * 256)
+    
+    # Handle negative angles (slopes going down from left to right)
+    if hexangle < 0:
+        hexangle += 256
+    
+    # For reverse slopes (negative gradients), add 128 as specified
+    if gradient < 0:
+        hexangle += 128
+        hexangle = hexangle % 256
+    
+    return hexangle
+
+def calculate_widthmap_angle(widthmap):
+    """Calculate angle from widthmap data using gradient analysis."""
+    # Skip empty or flat tiles
+    if all(w == widthmap[0] for w in widthmap):
+        return 64  # 90 degrees for vertical walls
+    
+    # Calculate overall slope from top to bottom
+    start_width = widthmap[0]  
+    end_width = widthmap[-1]
+    
+    # Find the effective run (vertical distance with actual change)
+    run = len(widthmap) - 1  # 15 pixels for 16-element array
+    rise = end_width - start_width
+    
+    if run == 0:
+        return 64  # Default to vertical
+    
+    # Calculate the gradient (rise over run)
+    gradient = rise / run
+    
+    # Convert gradient to angle in degrees
+    angle_degrees = math.degrees(math.atan(gradient))
+    
+    # For width maps, we rotate 90 degrees to convert from horizontal to vertical orientation
+    angle_degrees += 90
+    
+    # Convert degrees to hexangles (256 units = 360 degrees)
+    hexangle = int((angle_degrees / 360.0) * 256)
+    
+    # Handle angles outside 0-255 range
+    hexangle = hexangle % 256
+    
+    # For reverse slopes (negative gradients), add 128 as specified
+    if gradient < 0:
+        hexangle += 128
+        hexangle = hexangle % 256
+    
+    return hexangle
+
+def load_heightmaps(file_path):
+    """Load heightmaps from C file."""
+    heightmaps = []
+    with open(file_path, 'r') as f:
+        content = f.read()
+        
+    # Extract the array data between braces
+    start_marker = "const int TILESET_HEIGHTMAPS[][TILE_WIDTH] = {"
+    end_marker = "};"
+    
+    start_idx = content.find(start_marker)
+    if start_idx == -1:
+        raise ValueError("Could not find heightmap data")
+    
+    start_idx += len(start_marker)
+    end_idx = content.find(end_marker, start_idx)
+    
+    array_content = content[start_idx:end_idx]
+    
+    # Parse each tile's heightmap
+    lines = array_content.split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith('//'):
+            continue
+            
+        if line.startswith('{'):
+            # Extract numbers from this line
+            values_str = line.split('{')[1].split('}')[0]
+            values = [int(x.strip()) for x in values_str.split(',') if x.strip()]
+            heightmaps.append(values)
+    
+    return heightmaps
+
+def load_widthmaps(file_path):
+    """Load widthmaps from C file."""
+    widthmaps = []
+    with open(file_path, 'r') as f:
+        content = f.read()
+        
+    # Extract the array data between braces
+    start_marker = "const int TILESET_WIDTHMAPS[][TILE_HEIGHT] = {"
+    end_marker = "};"
+    
+    start_idx = content.find(start_marker)
+    if start_idx == -1:
+        raise ValueError("Could not find widthmap data")
+    
+    start_idx += len(start_marker)
+    end_idx = content.find(end_marker, start_idx)
+    
+    array_content = content[start_idx:end_idx]
+    
+    # Parse each tile's widthmap
+    lines = array_content.split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith('//'):
+            continue
+            
+        if line.startswith('{'):
+            # Extract numbers from this line
+            values_str = line.split('{')[1].split('}')[0]
+            values = [int(x.strip()) for x in values_str.split(',') if x.strip()]
+            widthmaps.append(values)
+    
+    return widthmaps
+
+def write_angle_files(header_path, source_path, height_angles, width_angles):
+    """Write angle data as C header and source files."""
+    
+    # Write header file
+    with open(header_path, 'w') as f:
+        f.write('// Auto-generated tile angles file\n')
+        f.write('// Generated by tools/generate_tile_angles.py\n\n')
+        f.write('#ifndef GENERATED_TILE_ANGLES_H\n')
+        f.write('#define GENERATED_TILE_ANGLES_H\n\n')
+        f.write('#include <stdint.h>\n\n')
+
+        f.write(f'#define TILESET_TILE_COUNT {len(height_angles)}\n\n')
+
+        f.write('// Tile angles from heightmaps (floor/ceiling collision)\n')
+        f.write('extern const int TILESET_HEIGHT_ANGLES[];\n\n')
+        
+        f.write('// Tile angles from widthmaps (wall collision)\n')
+        f.write('extern const int TILESET_WIDTH_ANGLES[];\n\n')
+        
+        f.write('#endif // GENERATED_TILE_ANGLES_H\n')
+
+    # Write source file  
+    with open(source_path, 'w') as f:
+        f.write('// Auto-generated tile angles file\n')
+        f.write('// Generated by tools/generate_tile_angles.py\n\n')
+        f.write('#include "generated_tile_angles.h"\n\n')
+
+        f.write('const int TILESET_HEIGHT_ANGLES[] = {\n')
+        for i, angle in enumerate(height_angles):
+            f.write(f'    {angle:3d}')
+            if i < len(height_angles) - 1:
+                f.write(',')
+            if i < 10 or i % 20 == 0:  # Add comments for first few and every 20th tile
+                f.write(f'  // Tile {i}')
+            f.write('\n')
+        f.write('};\n\n')
+
+        f.write('const int TILESET_WIDTH_ANGLES[] = {\n')
+        for i, angle in enumerate(width_angles):
+            f.write(f'    {angle:3d}')
+            if i < len(width_angles) - 1:
+                f.write(',')
+            if i < 10 or i % 20 == 0:  # Add comments for first few and every 20th tile
+                f.write(f'  // Tile {i}')
+            f.write('\n')
+        f.write('};\n')
+
+def main():
+    if len(sys.argv) < 4:
+        print("Usage: generate_tile_angles.py <heightmaps.c> <widthmaps.c> <output-basename>")
+        print("Example: generate_tile_angles.py src/world/generated_heightmaps.c src/world/generated_heightmaps_WIDTH.c src/world/generated_tile_angles")
+        sys.exit(1)
+
+    heightmaps_path = sys.argv[1]
+    widthmaps_path = sys.argv[2]
+    out_basename = sys.argv[3]
+    
+    if not os.path.exists(heightmaps_path):
+        print(f"Error: Heightmaps file '{heightmaps_path}' does not exist")
+        sys.exit(1)
+        
+    if not os.path.exists(widthmaps_path):
+        print(f"Error: Widthmaps file '{widthmaps_path}' does not exist")
+        sys.exit(1)
+
+    # Load the data
+    print(f"Loading heightmaps from {heightmaps_path}")
+    heightmaps = load_heightmaps(heightmaps_path)
+    
+    print(f"Loading widthmaps from {widthmaps_path}")
+    widthmaps = load_widthmaps(widthmaps_path)
+    
+    print(f"Processing {len(heightmaps)} heightmaps and {len(widthmaps)} widthmaps")
+
+    # Calculate angles
+    height_angles = []
+    width_angles = []
+    
+    for i, heightmap in enumerate(heightmaps):
+        angle = calculate_heightmap_angle(heightmap)
+        height_angles.append(angle)
+        if i < 5:  # Debug first few tiles
+            print(f"Tile {i} heightmap {heightmap} -> angle {angle}")
+    
+    for i, widthmap in enumerate(widthmaps):
+        angle = calculate_widthmap_angle(widthmap)
+        width_angles.append(angle)
+        if i < 5:  # Debug first few tiles
+            print(f"Tile {i} widthmap {widthmap} -> angle {angle}")
+
+    # Write output files
+    header_path = out_basename + '.h'
+    source_path = out_basename + '.c'
+    
+    write_angle_files(header_path, source_path, height_angles, width_angles)
+    
+    print(f"Generated {header_path} and {source_path}")
+    print(f"Processed {len(height_angles)} height angles and {len(width_angles)} width angles")
+
+if __name__ == '__main__':
+    main()
+
+    # Add C helper function for tile angle lookup
+    def append_get_tile_angle_function(header_path, source_path):
+        # Append prototype to header
+        with open(header_path, 'a') as f:
+            f.write('\n#ifdef __cplusplus\nextern "C" {\n#endif\n')
+            f.write('uint8_t GetTileAngle(int tileId);\n')
+            f.write('#ifdef __cplusplus\n}\n#endif\n')
+
+        # Append implementation to source
+        with open(source_path, 'a') as f:
+            f.write('\n#include <stdint.h>\n')
+            f.write('uint8_t GetTileAngle(int tileId) {\n')
+            f.write('    if (tileId < 0 || tileId >= TILESET_TILE_COUNT) return 0;\n')
+            f.write('    return (uint8_t)TILESET_HEIGHT_ANGLES[tileId];\n')
+            f.write('}\n')
+
+    # After generating files, append the function
+    append_get_tile_angle_function(header_path, source_path)

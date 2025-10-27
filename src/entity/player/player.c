@@ -20,30 +20,15 @@
 #include "var.h"
 #include "../../world/tile_collision.h"
 
+// Returns -1 for negative, 1 for positive, 0 for zero
+static inline int sign(float x) {
+    return (x > 0) - (x < 0);
+}
+
 static void PlayerAssignSensors(Player* player);
 static void PlayerUpdate(Player* player, float dt);
 static void PlayerDraw(Player* player);
 static void PlayerUnload(Player* player);
-
-    // While velocity can determine where the player is going globally, if we are on a slope, things are little more interesting.
-    // The yearn variables work just like the X and Y velocity, except can be influenced by the angle of the player
-    // float xYearn(Player* player){
-    //     get{
-    //         return player->velocity.x * cosf(player->groundAngle);
-    //     }
-    //     set{
-    //         player->velocity.x = value / cosf(player->groundAngle);
-    //     }
-    // };
-    // float yYearn(Player* player){
-    //     get{
-    //         return player->velocity.y * cosf(player->groundAngle);
-    //     }
-    //     set{
-    //         player->velocity.y = value / cosf(player->groundAngle);
-    //     }
-    // };
-
 
 #define JUMP_BUTTON KEY_Z | KEY_X | KEY_C | BUTTON_A | BUTTON_B | BUTTON_X
 
@@ -161,7 +146,7 @@ void Player_Update(Player* player, float dt) {
         noInput = true;
     }
     #pragma endregion
-
+    #pragma region collision_detection
     // Collision detection
     /*
         First we need to gather the groundAngle for both bottom left and bottom right.
@@ -239,7 +224,7 @@ void Player_Update(Player* player, float dt) {
         default:
             break;
     }
-
+    #pragma end region
     // Update player sensors based on new position and angle
     #pragma region sensor_positions
     player->playerSensors.center.x += player->velocity.x;
@@ -284,13 +269,13 @@ void Player_Update(Player* player, float dt) {
     // Only apply ground-based velocity when actually on ground
     // In air, preserve existing momentum and let air physics handle changes
     if (player->isOnGround) {
-        xVel = xSpeed;
-        yVel = ySpeed;
+        xVel += xSpeed;
+        yVel += ySpeed;
     }
         
     // Apply gravity if enabled
     if (player->isGravityApplied) {
-        yVel += GRAVITY_FORCE * dt;
+        yVel += GRAVITY_FORCE;
         player->velocity.y = yVel;
     } else if (yVel >= TOP_Y_SPEED) {
         yVel = TOP_Y_SPEED;
@@ -330,14 +315,6 @@ void Player_Update(Player* player, float dt) {
         // Once the timer reaches 0, the player will be able to move again.
     }
     
-    
-    if(player->playerSensors.bottomLeft.y > TileCollision_GetTileHeightProfile(currentLevel.collisionLayer[(int)player->playerSensors.bottomLeft.x][(int)player->playerSensors.bottomLeft.y].tileId, (const char*)'Collision', currentLevel.tilesets, currentLevel.tilesetCount).groundHeights[0]){
-        player->isOnGround = false;
-    }
-    else{
-        player->isOnGround = true;
-    }
-    
     // So what's next?
     // Ground Physics
     // Check if the player is on the ground
@@ -353,6 +330,9 @@ void Player_Update(Player* player, float dt) {
             if (xVel > 0) {
                 xVel = 0;
             }
+        } else {
+            // Apply no friction if the player is not moving
+            xVel = 0;
         }
 
         if (player->isSuper) {
@@ -428,6 +408,18 @@ void Player_Update(Player* player, float dt) {
                 }
             }
         }
+
+        // Slope physics based on groundAngle
+        if (abs(groundAngle) >= 23 && abs(groundAngle) < 45) {
+            // Sonic Slope
+            groundSpeed = xSpeed + ySpeed * 0.5f * -sign(sin(groundAngle));
+        } else if (abs(groundAngle) > 45 && abs(groundAngle) < 90) {
+            // Sonic Steep Slope
+            groundSpeed = xSpeed + ySpeed * -sign(sin(groundAngle));
+        } else {
+            // Sonic Flat
+            groundSpeed = xSpeed - sin(groundAngle);
+        }
     } else {
         // Process air physics here - preserve existing xVel for air momentum
         // Don't overwrite xVel with ground-based xSpeed when in air
@@ -444,31 +436,66 @@ void Player_Update(Player* player, float dt) {
 
         // Apply air acceleration and drag
         if (player->inputRight && xVel < TOP_SPEED) {
-            xVel += AIR_ACCELERATION_SPEED * dt;
+            xVel += AIR_ACCELERATION_SPEED;
         } else if (player->inputLeft && xVel > -TOP_SPEED) {
-            xVel -= AIR_ACCELERATION_SPEED * dt;
+            xVel -= AIR_ACCELERATION_SPEED;
         }
         
         // Apply air drag when no input or opposing input
         if (!player->inputLeft && !player->inputRight) {
             // Natural air resistance - gradual deceleration
             if (xVel > 0) {
-                xVel -= AIR_DRAG_FORCE * dt;
+                xVel -= AIR_DRAG_FORCE;
                 if (xVel < 0) xVel = 0;  // Don't overshoot to opposite direction
             } else if (xVel < 0) {
-                xVel += AIR_DRAG_FORCE * dt;
+                xVel += AIR_DRAG_FORCE;
                 if (xVel > 0) xVel = 0;  // Don't overshoot to opposite direction
             }
         } else if ((player->inputLeft && xVel > 0) || (player->inputRight && xVel < 0)) {
             // Opposing input - faster deceleration
             if (xVel > 0) {
-                xVel -= AIR_ACCELERATION_SPEED * dt;
+                xVel -= AIR_ACCELERATION_SPEED;
                 if (xVel < 0) xVel = 0;
             } else if (xVel < 0) {
-                xVel += AIR_ACCELERATION_SPEED * dt;
+                xVel += AIR_ACCELERATION_SPEED;
                 if (xVel > 0) xVel = 0;
             }
         }
+    }
+    #pragma end region // for now
+
+    // Collision detection
+    #pragma region collision
+    // Initialize raycasts
+    Vector2 leftRaycastStart = player->position;
+    Vector2 leftRaycastEnd = player->position;
+    leftRaycastStart.x -= PLAYER_WIDTH;
+    leftRaycastEnd.x -= PLAYER_WIDTH;
+    leftRaycastEnd.y += PLAYER_HEIGHT;
+
+    Vector2 rightRaycastStart = player->position;
+    Vector2 rightRaycastEnd = player->position;
+    rightRaycastStart.x += PLAYER_WIDTH;
+    rightRaycastEnd.x += PLAYER_WIDTH;
+    rightRaycastEnd.y += PLAYER_HEIGHT;
+
+    // Perform raycasts
+    // Replace with your own raycast or collision detection function
+    RayCollision leftHit = TileCollision_Raycast(leftRaycastStart, (Vector2){0, 1}, PLAYER_HEIGHT);
+    RayCollision rightHit = TileCollision_Raycast(rightRaycastStart, (Vector2){0, 1}, PLAYER_HEIGHT);
+
+    // Handle collisions
+    if (leftHit.hit) {
+        // Collision with left side
+        player->position.x = leftHit.point.x + PLAYER_WIDTH;
+        player->velocity.x = 0;
+        player->position.y = leftHit.point.y - PLAYER_HEIGHT;
+    }
+    if (rightHit.hit) {
+        // Collision with right side
+        player->position.x = rightHit.point.x - PLAYER_WIDTH;
+        player->velocity.x = 0;
+        player->position.y = rightHit.point.y - PLAYER_HEIGHT;
     }
 
     // Commit velocity to position
@@ -476,6 +503,19 @@ void Player_Update(Player* player, float dt) {
     player->velocity.y = yVel;
     player->position.x += player->velocity.x;
     player->position.y += player->velocity.y;
+
+    // Hardcoded floor at y = 600. Keep player standing on floor and reset vertical velocity.
+    const float HARD_FLOOR_Y = 600.0f;
+    // Assume position.y is the player's center; adjust so player's bottom (center + half height) rests on floor
+    float playerHalfHeight = (float)PLAYER_HEIGHT / 2.0f;
+    float playerBottom = player->position.y + playerHalfHeight;
+    if (playerBottom > HARD_FLOOR_Y) {
+        player->position.y = HARD_FLOOR_Y - playerHalfHeight;
+        player->velocity.y = 0.0f;
+        player->isOnGround = true;
+        player->isFalling = false;
+        player->hasJumped = false;
+    }
 }
 
 void Player_Draw(Player* player) {

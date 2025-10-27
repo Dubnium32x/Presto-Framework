@@ -7,7 +7,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "../camera/game_camera.h"
-#include "../util/level_loader.h"
 #include "../world/audio_manager.h"
 
 // Global constants

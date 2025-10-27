@@ -1,5 +1,6 @@
 {
   "files.associations": {
+    "*.h": "c",
     "game_camera.h": "c",
     "string.h": "c",
     "library.h": "c",
@@ -20,7 +21,8 @@
     "optional": "c",
     "ratio": "c",
     "vector": "c",
-    "audio_manager.h": "c"
+    "audio_manager.h": "c",
+    "cstdlib": "c"
   },
   "C_Cpp_Runner.cCompilerPath": "gcc",
   "C_Cpp_Runner.cppCompilerPath": "g++",

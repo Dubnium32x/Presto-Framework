@@ -12,7 +12,6 @@ Tile CreateEmptyTile(void) {
     tile.isSolid = false;
     tile.isPlatform = false;
     tile.isHazard = false;
-    tile.heightProfile = 0;
     tile.flipFlags = 0;
     return tile;
 }
@@ -282,15 +281,10 @@ bool IsTileSolidAtLocalPosition(int tileId, float worldX, float worldY, int tile
     if (localX < 0) localX = 0;
     if (localX >= tileSize) localX = tileSize - 1;
     
-    // Get tile height profile
-    TileHeightProfile profile;
-    bool hadProfile = GetPrecomputedTileProfile(level, tileId, layerName, &profile);
-    if (!hadProfile) {
-        profile = TileCollision_GetTileHeightProfile(tileId, layerName, level->tilesets, level->tilesetCount);
-    }
-    
-    // If the height at this local X position is greater than 0, it's solid
-    return profile.groundHeights[localX] > 0;
+    // Get tile profile (using simplified TileProfile which contains an aggregate groundHeight)
+    TileProfile profile = Tile_GetProfile(tileId);
+    // For now use the aggregated groundHeight to determine solidity
+    return profile.groundHeight > 0;
 }
 
 // Main loading function
@@ -469,7 +463,8 @@ LevelData LoadCompleteLevelWithFormat(const char* levelPath, bool useJSON) {
     level.tilesets = malloc(sizeof(TilesetInfo));
     level.tilesets[0].firstgid = 1;
     level.tilesets[0].nameCandidates = malloc(sizeof(char*) * 2);
-    level.tilesets[0].nameCandidates[0] = strdup(TILESET_NAME);
+    // Default to the level's tileset name; generated TILESET_NAME symbols were made internal.
+    level.tilesets[0].nameCandidates[0] = strdup(level.tilesetName);
     level.tilesets[0].nameCandidates[1] = NULL;
     
     // Calculate dimensions and precompute profiles
