@@ -13,7 +13,57 @@
 
     Let's hope the rest of the code is as easy to create from scratch.
 */
-//ᏥᏌ ᎦᎶᏁᏛ, here we go again... - Birb64
+//ꏥꏌ ꎦꎶꏁꏿ, here we go again... - Birb64
+
+#include "player.h"
+#include "raylib.h"
+#include "var.h"
+#include "../../world/tile_collision.h"
+#include "../../util/level_loader.h"
+#include "../../world/generated_heightmaps.h"
+
+// Helper: Get tile at world position
+static Tile GetTileAtWorldPos(float worldX, float worldY, LevelData* level) {
+    int tileX = (int)(worldX / 16);
+    int tileY = (int)(worldY / 16);
+    
+    if (tileX < 0 || tileX >= level->width || tileY < 0 || tileY >= level->height) {
+        Tile empty = {0};
+        return empty;
+    }
+    
+    // Check collision layers in priority order
+    if (level->groundLayer1 && level->groundLayer1[tileY][tileX].tileId != 0) {
+        return level->groundLayer1[tileY][tileX];
+    }
+    if (level->groundLayer2 && level->groundLayer2[tileY][tileX].tileId != 0) {
+        return level->groundLayer2[tileY][tileX];
+    }
+    if (level->groundLayer3 && level->groundLayer3[tileY][tileX].tileId != 0) {
+        return level->groundLayer3[tileY][tileX];
+    }
+    
+    Tile empty = {0};
+    return empty;
+}
+
+// Helper: Get height from heightmap at specific pixel within tile
+static int GetHeightAtPosition(float worldX, float worldY, LevelData* level) {
+    int tileX = (int)(worldX / 16);
+    int tileY = (int)(worldY / 16);
+    int pixelX = ((int)worldX) % 16;
+    
+    if (pixelX < 0) pixelX += 16;
+    if (pixelX >= 16) pixelX = 15;
+    
+    Tile tile = GetTileAtWorldPos(worldX, worldY, level);
+    if (tile.tileId == 0) return 0;
+    
+    int tileId = tile.tileId - 1; // Convert to 0-based index
+    if (tileId < 0 || tileId >= TILESET_TILE_COUNT) return 0;
+    
+    return TILESET_HEIGHTMAPS[tileId][pixelX];
+}
 
 #include "player.h"
 #include "raylib.h"
@@ -476,53 +526,9 @@ void Player_Update(Player* player, float dt) {
                 if (xVel < 0) xVel = 0;  // Don't overshoot to opposite direction
             } else if (xVel < 0) {
                 xVel += AIR_DRAG_FORCE;
-                if (xVel > 0) xVel = 0;  // Don't overshoot to opposite direction
-            }
-        } else if ((player->inputLeft && xVel > 0) || (player->inputRight && xVel < 0)) {
-            // Opposing input - faster deceleration
-            if (xVel > 0) {
-                xVel -= AIR_ACCELERATION_SPEED;
-                if (xVel < 0) xVel = 0;
-            } else if (xVel < 0) {
-                xVel += AIR_ACCELERATION_SPEED;
                 if (xVel > 0) xVel = 0;
             }
         }
-    }
-    #pragma end region // for now
-
-    // Collision detection
-    #pragma region collision
-    // Initialize raycasts
-    Vector2 leftRaycastStart = player->position;
-    Vector2 leftRaycastEnd = player->position;
-    leftRaycastStart.x -= PLAYER_WIDTH;
-    leftRaycastEnd.x -= PLAYER_WIDTH;
-    leftRaycastEnd.y += PLAYER_HEIGHT;
-
-    Vector2 rightRaycastStart = player->position;
-    Vector2 rightRaycastEnd = player->position;
-    rightRaycastStart.x += PLAYER_WIDTH;
-    rightRaycastEnd.x += PLAYER_WIDTH;
-    rightRaycastEnd.y += PLAYER_HEIGHT;
-
-    // Perform raycasts
-    // Replace with your own raycast or collision detection function
-    RayCollision leftHit = TileCollision_Raycast(leftRaycastStart, (Vector2){0, 1}, PLAYER_HEIGHT);
-    RayCollision rightHit = TileCollision_Raycast(rightRaycastStart, (Vector2){0, 1}, PLAYER_HEIGHT);
-
-    // Handle collisions
-    if (leftHit.hit) {
-        // Collision with left side
-        player->position.x = leftHit.point.x + PLAYER_WIDTH;
-        player->velocity.x = 0;
-        player->position.y = leftHit.point.y - PLAYER_HEIGHT;
-    }
-    if (rightHit.hit) {
-        // Collision with right side
-        player->position.x = rightHit.point.x - PLAYER_WIDTH;
-        player->velocity.x = 0;
-        player->position.y = rightHit.point.y - PLAYER_HEIGHT;
     }
 
     // Commit velocity to position
@@ -531,17 +537,46 @@ void Player_Update(Player* player, float dt) {
     player->position.x += player->velocity.x;
     player->position.y += player->velocity.y;
 
-    // Hardcoded floor at y = 600. Keep player standing on floor and reset vertical velocity.
-    const float HARD_FLOOR_Y = 600.0f;
-    // Assume position.y is the player's center; adjust so player's bottom (center + half height) rests on floor
-    float playerHalfHeight = (float)PLAYER_HEIGHT / 2.0f;
-    float playerBottom = player->position.y + playerHalfHeight;
-    if (playerBottom > HARD_FLOOR_Y) {
-        player->position.y = HARD_FLOOR_Y - playerHalfHeight;
-        player->velocity.y = 0.0f;
-        player->isOnGround = true;
-        player->isFalling = false;
-        player->hasJumped = false;
+    // Tile-based floor collision using heightmaps (SPG method)
+    // Check both bottom sensors
+    extern LevelData currentLevel;
+    if (currentLevel.groundLayer1 != NULL) {
+        // Sensor positions at player's feet
+        float sensorLeftX = player->position.x - PLAYER_WIDTH_RAD;
+        float sensorRightX = player->position.x + PLAYER_WIDTH_RAD;
+        float sensorY = player->position.y + PLAYER_HEIGHT_RAD; // Bottom of player
+        
+        // Get tile Y coordinate for sensor
+        int sensorTileY = (int)(sensorY / 16);
+        
+        // Get heights from heightmaps
+        int leftHeight = GetHeightAtPosition(sensorLeftX, sensorY, &currentLevel);
+        int rightHeight = GetHeightAtPosition(sensorRightX, sensorY, &currentLevel);
+        
+        // Take the higher of the two sensor heights (SPG: use the sensor that's more in the ground)
+        int maxHeight = (leftHeight > rightHeight) ? leftHeight : rightHeight;
+        
+        if (maxHeight > 0) {
+            // Calculate ground Y position (top of tile + height from heightmap)
+            float groundY = (sensorTileY * 16.0f) + (16.0f - maxHeight);
+            
+            // If player's bottom is at or below ground level
+            float playerBottom = player->position.y + PLAYER_HEIGHT_RAD;
+            if (playerBottom >= groundY && player->velocity.y >= 0) {
+                // Snap to ground
+                player->position.y = groundY - PLAYER_HEIGHT_RAD;
+                player->velocity.y = 0.0f;
+                player->isOnGround = true;
+                player->isFalling = false;
+                player->hasJumped = false;
+                
+                // Get tile angle for ground angle
+                Tile tile = GetTileAtWorldPos(sensorLeftX, sensorY, &currentLevel);
+                if (tile.tileId > 0 && tile.tileId <= TILESET_TILE_COUNT) {
+                    player->groundAngle = (float)TileCollision_GetAngle(tile.tileId - 1);
+                }
+            }
+        }
     }
 }
 
