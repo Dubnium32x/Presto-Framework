@@ -82,6 +82,65 @@ static void PlayerUnload(Player* player);
 
 #define JUMP_BUTTON KEY_Z | KEY_X | KEY_C | BUTTON_A | BUTTON_B | BUTTON_X
 
+// Local toggle for showing sensor overlay (debug aid)
+static bool s_showSensors = true;
+
+// Compute all sensor positions and hitbox from current player position/orientation
+static void PlayerAssignSensors(Player* player) {
+    if (!player) return;
+    switch (player->groundDirection) {
+        case ANGLE_DOWN: // standing on floor
+            player->hitbox = (Hitbox_t){0, 0, PLAYER_WIDTH, PLAYER_HEIGHT};
+            player->playerSensors.center     = (Vector2){player->position.x, player->position.y};
+            player->playerSensors.right      = (Vector2){player->position.x + PLAYER_WIDTH_RAD,  player->position.y};
+            player->playerSensors.left       = (Vector2){player->position.x - PLAYER_WIDTH_RAD,  player->position.y};
+            player->playerSensors.topLeft    = (Vector2){player->position.x - PLAYER_WIDTH_RAD,  player->position.y + PLAYER_HEIGHT_RAD};
+            player->playerSensors.topRight   = (Vector2){player->position.x + PLAYER_WIDTH_RAD,  player->position.y + PLAYER_HEIGHT_RAD};
+            player->playerSensors.bottomLeft = (Vector2){player->position.x - PLAYER_WIDTH_RAD,  player->position.y - PLAYER_HEIGHT_RAD};
+            player->playerSensors.bottomRight= (Vector2){player->position.x + PLAYER_WIDTH_RAD,  player->position.y - PLAYER_HEIGHT_RAD};
+            break;
+
+        case ANGLE_RIGHT: // on right wall
+            player->hitbox = (Hitbox_t){0, 0, PLAYER_HEIGHT, PLAYER_WIDTH};
+            player->playerSensors.center     = (Vector2){player->position.x, player->position.y};
+            player->playerSensors.right      = (Vector2){player->position.x,                     player->position.y - PLAYER_WIDTH_RAD};
+            player->playerSensors.left       = (Vector2){player->position.x,                     player->position.y + PLAYER_WIDTH_RAD};
+            player->playerSensors.topLeft    = (Vector2){player->position.x - PLAYER_HEIGHT_RAD, player->position.y - PLAYER_WIDTH_RAD};
+            player->playerSensors.topRight   = (Vector2){player->position.x - PLAYER_HEIGHT_RAD, player->position.y + PLAYER_WIDTH_RAD};
+            player->playerSensors.bottomLeft = (Vector2){player->position.x + PLAYER_HEIGHT_RAD, player->position.y - PLAYER_WIDTH_RAD};
+            player->playerSensors.bottomRight= (Vector2){player->position.x + PLAYER_HEIGHT_RAD, player->position.y + PLAYER_WIDTH_RAD};
+            break; // IMPORTANT: avoid fall-through
+
+        case ANGLE_UP: // on ceiling
+            player->hitbox = (Hitbox_t){0, 0, PLAYER_WIDTH, PLAYER_HEIGHT};
+            player->playerSensors.center     = (Vector2){player->position.x, player->position.y};
+            player->playerSensors.right      = (Vector2){player->position.x - PLAYER_WIDTH_RAD,  player->position.y};
+            player->playerSensors.left       = (Vector2){player->position.x + PLAYER_WIDTH_RAD,  player->position.y};
+            player->playerSensors.topLeft    = (Vector2){player->position.x + PLAYER_WIDTH_RAD,  player->position.y - PLAYER_HEIGHT_RAD};
+            player->playerSensors.topRight   = (Vector2){player->position.x - PLAYER_WIDTH_RAD,  player->position.y - PLAYER_HEIGHT_RAD};
+            player->playerSensors.bottomLeft = (Vector2){player->position.x + PLAYER_WIDTH_RAD,  player->position.y + PLAYER_HEIGHT_RAD};
+            player->playerSensors.bottomRight= (Vector2){player->position.x - PLAYER_WIDTH_RAD,  player->position.y + PLAYER_HEIGHT_RAD};
+            break;
+
+        case ANGLE_LEFT: // on left wall
+            player->hitbox = (Hitbox_t){0, 0, PLAYER_HEIGHT, PLAYER_WIDTH};
+            player->playerSensors.center     = (Vector2){player->position.x, player->position.y};
+            player->playerSensors.right      = (Vector2){player->position.x,                     player->position.y - PLAYER_WIDTH_RAD};
+            player->playerSensors.left       = (Vector2){player->position.x,                     player->position.y + PLAYER_WIDTH_RAD};
+            player->playerSensors.topLeft    = (Vector2){player->position.x + PLAYER_HEIGHT_RAD, player->position.y + PLAYER_WIDTH_RAD};
+            player->playerSensors.topRight   = (Vector2){player->position.x + PLAYER_HEIGHT_RAD, player->position.y - PLAYER_WIDTH_RAD};
+            player->playerSensors.bottomLeft = (Vector2){player->position.x - PLAYER_HEIGHT_RAD, player->position.y + PLAYER_WIDTH_RAD};
+            player->playerSensors.bottomRight= (Vector2){player->position.x - PLAYER_HEIGHT_RAD, player->position.y - PLAYER_WIDTH_RAD};
+            break;
+
+        default:
+            // Fallback to floor orientation
+            player->groundDirection = ANGLE_DOWN;
+            PlayerAssignSensors(player);
+            break;
+    }
+}
+
 
 
 Player Player_Init(float startX, float startY) {
@@ -192,6 +251,11 @@ void Player_Update(Player* player, float dt) {
         player->jumpPressed = false;
     }
 
+    // Debug toggle: F3 to show/hide sensor overlay
+    if (IsKeyPressed(KEY_F3)) {
+        s_showSensors = !s_showSensors;
+    }
+
     bool noInput = false;
     if (!player->inputLeft && !player->inputRight && !player->inputUp && !player->inputDown) {
         noInput = true;
@@ -231,68 +295,10 @@ void Player_Update(Player* player, float dt) {
         player->groundDirection = ANGLE_UP;
     }
 
-    // Now that we have the groundDirection, we can apply the hitbox accordingly.
-    switch (player->groundDirection) {
-        case ANGLE_DOWN:
-            player->hitbox = (Hitbox_t){0, 0, PLAYER_WIDTH, PLAYER_HEIGHT};
-            player->playerSensors.center = (Vector2){player->position.x, player->position.y};
-            player->playerSensors.right = (Vector2){player->position.x + PLAYER_WIDTH_RAD, player->position.y};
-            player->playerSensors.left = (Vector2){player->position.x - PLAYER_WIDTH_RAD, player->position.y};
-            player->playerSensors.topLeft = (Vector2){player->position.x - PLAYER_WIDTH_RAD, player->position.y + PLAYER_HEIGHT_RAD};
-            player->playerSensors.topRight = (Vector2){player->position.x + PLAYER_WIDTH_RAD, player->position.y + PLAYER_HEIGHT_RAD};
-            player->playerSensors.bottomLeft = (Vector2){player->position.x - PLAYER_WIDTH_RAD, player->position.y - PLAYER_HEIGHT_RAD};
-            player->playerSensors.bottomRight = (Vector2){player->position.x + PLAYER_WIDTH_RAD, player->position.y - PLAYER_HEIGHT_RAD};
-            break;
-        case ANGLE_RIGHT:
-            player->hitbox = (Hitbox_t){0, 0, PLAYER_HEIGHT, PLAYER_WIDTH};
-            player->playerSensors.center = (Vector2){player->position.x, player->position.y};
-            player->playerSensors.right = (Vector2){player->position.x, player->position.y - PLAYER_WIDTH_RAD};
-            player->playerSensors.left = (Vector2){player->position.x, player->position.y + PLAYER_WIDTH_RAD};
-            player->playerSensors.topLeft = (Vector2){player->position.x - PLAYER_HEIGHT_RAD, player->position.y - PLAYER_WIDTH_RAD};
-            player->playerSensors.topRight = (Vector2){player->position.x - PLAYER_HEIGHT_RAD, player->position.y + PLAYER_WIDTH_RAD};
-            player->playerSensors.bottomLeft = (Vector2){player->position.x + PLAYER_HEIGHT_RAD, player->position.y - PLAYER_WIDTH_RAD};
-            player->playerSensors.bottomRight = (Vector2){player->position.x + PLAYER_HEIGHT_RAD, player->position.y + PLAYER_WIDTH_RAD};
-        case ANGLE_UP: 
-            player->hitbox = (Hitbox_t){0, 0, PLAYER_WIDTH, PLAYER_HEIGHT};
-            player->playerSensors.center = (Vector2){player->position.x, player->position.y};
-            player->playerSensors.right = (Vector2){player->position.x - PLAYER_WIDTH_RAD, player->position.y};
-            player->playerSensors.left = (Vector2){player->position.x + PLAYER_WIDTH_RAD, player->position.y};
-            player->playerSensors.topLeft = (Vector2){player->position.x + PLAYER_WIDTH_RAD, player->position.y - PLAYER_HEIGHT_RAD};
-            player->playerSensors.topRight = (Vector2){player->position.x - PLAYER_WIDTH_RAD, player->position.y - PLAYER_HEIGHT_RAD};
-            player->playerSensors.bottomLeft = (Vector2){player->position.x + PLAYER_WIDTH_RAD, player->position.y + PLAYER_HEIGHT_RAD};
-            player->playerSensors.bottomRight = (Vector2){player->position.x - PLAYER_WIDTH_RAD, player->position.y + PLAYER_HEIGHT_RAD};
-            break;
-        case ANGLE_LEFT:
-            player->hitbox = (Hitbox_t){0, 0, PLAYER_HEIGHT, PLAYER_WIDTH};
-            player->playerSensors.center = (Vector2){player->position.x, player->position.y};
-            player->playerSensors.right = (Vector2){player->position.x, player->position.y - PLAYER_WIDTH_RAD};
-            player->playerSensors.left = (Vector2){player->position.x, player->position.y + PLAYER_WIDTH_RAD};
-            player->playerSensors.topLeft = (Vector2){player->position.x + PLAYER_HEIGHT_RAD, player->position.y + PLAYER_WIDTH_RAD};
-            player->playerSensors.topRight = (Vector2){player->position.x + PLAYER_HEIGHT_RAD, player->position.y - PLAYER_WIDTH_RAD};
-            player->playerSensors.bottomLeft = (Vector2){player->position.x - PLAYER_HEIGHT_RAD, player->position.y + PLAYER_WIDTH_RAD};
-            player->playerSensors.bottomRight = (Vector2){player->position.x - PLAYER_HEIGHT_RAD, player->position.y - PLAYER_WIDTH_RAD};
-            break;
-        default:
-            break;
-    }
+    // Now that we have the groundDirection, compute sensors from current position
+    PlayerAssignSensors(player);
     #pragma end region
-    // Update player sensors based on new position and angle
-    #pragma region sensor_positions
-    player->playerSensors.center.x += player->velocity.x;
-    player->playerSensors.center.y += player->velocity.y;
-    player->playerSensors.right.x += player->velocity.x;
-    player->playerSensors.right.y += player->velocity.y;
-    player->playerSensors.left.x += player->velocity.x;
-    player->playerSensors.left.y += player->velocity.y;
-    player->playerSensors.topLeft.x += player->velocity.x;
-    player->playerSensors.topLeft.y += player->velocity.y;
-    player->playerSensors.topRight.x += player->velocity.x;
-    player->playerSensors.topRight.y += player->velocity.y;
-    player->playerSensors.bottomLeft.x += player->velocity.x;
-    player->playerSensors.bottomLeft.y += player->velocity.y;
-    player->playerSensors.bottomRight.x += player->velocity.x;
-    player->playerSensors.bottomRight.y += player->velocity.y;
-    #pragma endregion
+    // Sensors are derived from position; no need to pre-offset by velocity
 
     // Physics and movement
     /*
@@ -537,6 +543,9 @@ void Player_Update(Player* player, float dt) {
     player->position.x += player->velocity.x;
     player->position.y += player->velocity.y;
 
+    // After movement, refresh sensors so debug overlay matches final position
+    PlayerAssignSensors(player);
+
     // Tile-based floor collision using heightmaps (SPG method)
     // Check both bottom sensors
     extern LevelData currentLevel;
@@ -581,10 +590,59 @@ void Player_Update(Player* player, float dt) {
 }
 
 void Player_Draw(Player* player) {
-    DrawCircleV(player->position, 10, RED); // Placeholder for player drawing
+    // TODO: Replace with animated sprite draw when available
+    DrawCircleV(player->position, 10, RED);
+
+    // Draw collision sensors overlay (temporarily always on to verify rendering path)
+    PlayerDrawSensorLines(player);
 }
 
 static void PlayerUnload(Player* player) {
     // Unload player resources here
+}
+
+// Debug: draw player collision sensors and rays
+void PlayerDrawSensorLines(Player* player) {
+    if (!player) return;
+
+    // Colors inspired by classic Sonic debugging
+    const Color colVertical = YELLOW;      // Vertical sensor bars
+    const Color colHorizontal = (Color){230, 230, 230, 255}; // Mid-line
+    const Color colPointsTop = SKYBLUE;    // Sensor points (top)
+    const Color colPointsBottom = GREEN;   // Sensor points (bottom)
+    const Color colCenter = ORANGE;        // Center marker
+
+    // Convenience aliases
+    Vector2 TL = player->playerSensors.topLeft;
+    Vector2 TR = player->playerSensors.topRight;
+    Vector2 BL = player->playerSensors.bottomLeft;
+    Vector2 BR = player->playerSensors.bottomRight;
+    Vector2 L  = player->playerSensors.left;
+    Vector2 R  = player->playerSensors.right;
+    Vector2 C  = player->playerSensors.center;
+
+    // Sanity cross at center
+    DrawLineEx((Vector2){C.x - 12, C.y}, (Vector2){C.x + 12, C.y}, 2.0f, WHITE);
+    DrawLineEx((Vector2){C.x, C.y - 12}, (Vector2){C.x, C.y + 12}, 2.0f, WHITE);
+
+    // Vertical bars (left/right)
+    DrawLineEx(TL, BL, 1.0f, colVertical);
+    DrawLineEx(TR, BR, 1.0f, colVertical);
+
+    // Center vertical bar using averaged top/bottom
+    Vector2 topMid = { (TL.x + TR.x) * 0.5f, (TL.y + TR.y) * 0.5f };
+    Vector2 botMid = { (BL.x + BR.x) * 0.5f, (BL.y + BR.y) * 0.5f };
+    DrawLineEx(topMid, botMid, 1.0f, colVertical);
+
+    // Mid horizontal line between left/right sensors
+    DrawLineEx(L, R, 1.0f, colHorizontal);
+    // Sensor points
+    DrawCircleV(TL, 2.0f, colPointsTop);
+    DrawCircleV(TR, 2.0f, colPointsTop);
+    DrawCircleV(BL, 2.0f, colPointsBottom);
+    DrawCircleV(BR, 2.0f, colPointsBottom);
+    DrawCircleV(L,  2.0f, colHorizontal);
+    DrawCircleV(R,  2.0f, colHorizontal);
+    DrawCircleV(C,  2.0f, colCenter);
 }
 
