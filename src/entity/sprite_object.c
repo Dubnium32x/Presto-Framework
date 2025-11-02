@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "raylib.h"
+#include <raylib.h>
 
 void InitSpriteObject(SpriteObject* sprite, int id, const char* name, Texture2D texture, Vector2 position, Vector2 scale, Color tint, float rotation, SpriteType type) {
     if (!sprite) return;
