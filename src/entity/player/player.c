@@ -19,6 +19,7 @@
 #include "raylib.h"
 #include "var.h"
 #include "../../world/tile_collision.h"
+#include <float.h>
 #include "../../util/level_loader.h"
 #include "../../world/generated_heightmaps.h"
 
@@ -59,10 +60,29 @@ static int GetHeightAtPosition(float worldX, float worldY, LevelData* level) {
     Tile tile = GetTileAtWorldPos(worldX, worldY, level);
     if (tile.tileId == 0) return 0;
     
-    int tileId = tile.tileId - 1; // Convert to 0-based index
+    // Extract flip flags from tile ID
+    uint32_t rawId = (uint32_t)tile.tileId;
+    bool flipH = (rawId & FLIPPED_HORIZONTALLY_FLAG) != 0;
+    bool flipV = (rawId & FLIPPED_VERTICALLY_FLAG) != 0;
+    
+    // Strip flip flags to get actual tile ID
+    uint32_t gid = rawId & ~FLIPPED_ALL_FLAGS_MASK;
+    int tileId = (int)gid - 1; // Convert to 0-based index
     if (tileId < 0 || tileId >= TILESET_TILE_COUNT) return 0;
     
-    return TILESET_HEIGHTMAPS[tileId][pixelX];
+    // Flip pixel X coordinate if tile is horizontally flipped
+    if (flipH) {
+        pixelX = 15 - pixelX;
+    }
+    
+    int height = TILESET_HEIGHTMAPS[tileId][pixelX];
+    
+    // Flip height if tile is vertically flipped
+    if (flipV && height > 0) {
+        height = 16 - height;
+    }
+    
+    return height;
 }
 
 #include "player.h"
@@ -77,7 +97,6 @@ static inline int sign(float x) {
 
 static void PlayerAssignSensors(Player* player);
 static void PlayerUpdate(Player* player, float dt);
-static void PlayerDraw(Player* player);
 static void PlayerUnload(Player* player);
 
 #define JUMP_BUTTON KEY_Z | KEY_X | KEY_C | BUTTON_A | BUTTON_B | BUTTON_X
@@ -547,7 +566,7 @@ void Player_Update(Player* player, float dt) {
     PlayerAssignSensors(player);
 
     // Tile-based floor collision using heightmaps (SPG method)
-    // Check both bottom sensors
+    // Check both bottom sensors with upward scanning
     extern LevelData currentLevel;
     if (currentLevel.groundLayer1 != NULL) {
         // Sensor positions at player's feet
@@ -555,34 +574,91 @@ void Player_Update(Player* player, float dt) {
         float sensorRightX = player->position.x + PLAYER_WIDTH_RAD;
         float sensorY = player->position.y + PLAYER_HEIGHT_RAD; // Bottom of player
         
-        // Get tile Y coordinate for sensor
-        int sensorTileY = (int)(sensorY / 16);
-        
-        // Get heights from heightmaps
-        int leftHeight = GetHeightAtPosition(sensorLeftX, sensorY, &currentLevel);
-        int rightHeight = GetHeightAtPosition(sensorRightX, sensorY, &currentLevel);
-        
-        // Take the higher of the two sensor heights (SPG: use the sensor that's more in the ground)
-        int maxHeight = (leftHeight > rightHeight) ? leftHeight : rightHeight;
-        
-        if (maxHeight > 0) {
-            // Calculate ground Y position (top of tile + height from heightmap)
-            float groundY = (sensorTileY * 16.0f) + (16.0f - maxHeight);
-            
-            // If player's bottom is at or below ground level
-            float playerBottom = player->position.y + PLAYER_HEIGHT_RAD;
-            if (playerBottom >= groundY && player->velocity.y >= 0) {
-                // Snap to ground
+        // Scan each bottom sensor independently and pick the deeper contact (SPG rule)
+        const int STEP_UP_LIMIT = 12;
+        float bestGroundYLeft = FLT_MAX;
+        float bestGroundYRight = FLT_MAX;
+        int bestTileYLeft = -1, bestTileYRight = -1;
+        for (int scan = 0; scan <= STEP_UP_LIMIT; ++scan) {
+            float scanY = sensorY - scan;
+            int tileY = (int)(scanY / 16);
+            int lh = GetHeightAtPosition(sensorLeftX, scanY, &currentLevel);
+            if (lh > 0) {
+                float gyL = (tileY * 16.0f) + (16.0f - lh);
+                if (gyL < bestGroundYLeft) { bestGroundYLeft = gyL; bestTileYLeft = tileY; }
+            }
+            int rh = GetHeightAtPosition(sensorRightX, scanY, &currentLevel);
+            if (rh > 0) {
+                float gyR = (tileY * 16.0f) + (16.0f - rh);
+                if (gyR < bestGroundYRight) { bestGroundYRight = gyR; bestTileYRight = tileY; }
+            }
+        }
+
+        float playerBottom = player->position.y + PLAYER_HEIGHT_RAD;
+        bool hasLeft = bestTileYLeft >= 0;
+        bool hasRight = bestTileYRight >= 0;
+        if (hasLeft || hasRight) {
+            // Pick the ground that intrudes most into the player (smallest Y)
+            float groundY = hasLeft && hasRight ? fminf(bestGroundYLeft, bestGroundYRight) : (hasLeft ? bestGroundYLeft : bestGroundYRight);
+            if (playerBottom >= groundY || (groundY - playerBottom) <= STEP_UP_LIMIT) {
                 player->position.y = groundY - PLAYER_HEIGHT_RAD;
                 player->velocity.y = 0.0f;
                 player->isOnGround = true;
                 player->isFalling = false;
                 player->hasJumped = false;
+
+                // Derive ground angle from the two contact heights for smoothness (flip-safe)
+                if (hasLeft && hasRight) {
+                    float dx = (sensorRightX - sensorLeftX);
+                    float dy = (bestGroundYRight - bestGroundYLeft);
+                    float angDeg = atan2f(dy, dx) * RAD2DEG; // -180..180, 0 = flat
+                    if (angDeg < 0) angDeg += 360.0f;
+                    player->groundAngle = angDeg;
+                }
+
+                // Classify ground direction from angle for hitbox orientation
+                float a = fmodf(player->groundAngle, 360.0f);
+                if (a < 0) a += 360.0f;
+                if (a >= 315.0f || a < 45.0f) player->groundDirection = ANGLE_RIGHT; // tangent; used for orientation fallback below
+                // floor/wall/ceiling grouping
+                if ((a < 45.0f) || (a > 315.0f) || (a > 135.0f && a < 225.0f))      player->groundDirection = ANGLE_DOWN;
+                else if (a >= 45.0f && a < 135.0f)                                  player->groundDirection = ANGLE_RIGHT;
+                else if (a >= 225.0f && a < 315.0f)                                 player->groundDirection = ANGLE_LEFT;
+                else                                                                player->groundDirection = ANGLE_UP;
+                PlayerAssignSensors(player);
+            }
+        } else if (player->velocity.y > 0) {
+            player->isOnGround = false;
+            player->isFalling = true;
+        }
+        
+        // Wall collision (left and right sensors)
+        // Check horizontal collision when moving sideways
+        if (player->velocity.x != 0) {
+            float sensorMidY = player->position.y; // Center height
+            float velx = player->velocity.x;
+            float checkX = (velx > 0) ? 
+                           player->position.x + PLAYER_WIDTH_RAD + 1 : 
+                           player->position.x - PLAYER_WIDTH_RAD - 1;
+            
+            // Check for solid tile at push position
+            Tile wallTile = GetTileAtWorldPos(checkX, sensorMidY, &currentLevel);
+            if (wallTile.tileId != 0) {
+                uint32_t rawId = (uint32_t)wallTile.tileId;
+                uint32_t gid = rawId & ~FLIPPED_ALL_FLAGS_MASK;
                 
-                // Get tile angle for ground angle
-                Tile tile = GetTileAtWorldPos(sensorLeftX, sensorY, &currentLevel);
-                if (tile.tileId > 0 && tile.tileId <= TILESET_TILE_COUNT) {
-                    player->groundAngle = (float)TileCollision_GetAngle(tile.tileId - 1);
+                if (gid > 0 && gid <= TILESET_TILE_COUNT) {
+                    // Stop horizontal movement
+                    player->velocity.x = 0;
+                    player->groundSpeed = 0;
+                    
+                    // Snap to tile edge
+                    int tileX = (int)(checkX / 16);
+                    if (velx > 0) {
+                        player->position.x = (tileX * 16) - PLAYER_WIDTH_RAD - 1;
+                    } else {
+                        player->position.x = ((tileX + 1) * 16) + PLAYER_WIDTH_RAD + 1;
+                    }
                 }
             }
         }

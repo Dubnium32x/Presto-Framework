@@ -46,8 +46,8 @@ extern int facing; // 1 = right, -1 = left
 
 // Physics constants - jumping state
 #define INITIAL_JUMP_VELOCITY -7.5f
-#define RELEASE_JUMP_VELOCITY -4.0f
-#define JUMP_HOLD_VELOCITY_INCREASE 0.1f
+#define RELEASE_JUMP_VELOCITY -8.0f
+#define JUMP_HOLD_VELOCITY_INCREASE 0.25f
 #define MAX_JUMP_HOLD_TIME 0.25f
 
 // Physics constants - rolling state
