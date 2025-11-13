@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdbool.h>
+
 // Options Screen header
 void OptionsScreen_Init(void);
 void OptionsScreen_Update(float deltaTime);

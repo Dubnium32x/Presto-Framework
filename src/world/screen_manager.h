@@ -2,7 +2,6 @@
 #ifndef SCREEN_MANAGER_H
 #define SCREEN_MANAGER_H
 
-#include <stdio.h>
 #include <stdbool.h>
 #include "screen_state.h"  // Include for ScreenType enum
 

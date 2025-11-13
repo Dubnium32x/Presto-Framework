@@ -2,17 +2,11 @@
 #ifndef LEVEL_LOADER_H
 #define LEVEL_LOADER_H
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include "raylib.h"
-#include "globals.h"
-#include "csv_loader.h"
 #include "../world/tileset_map.h"
 #include "../world/tile_collision.h"
-#include "../world/generated_heightmaps.h"
 
 extern bool levelInitialized;
 

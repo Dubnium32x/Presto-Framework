@@ -16,6 +16,7 @@ typedef enum {
     ANIM_WALK,
     ANIM_CROUCH,
     ANIM_LOOK_UP,
+    ANIM_LOOK_DOWN,
     ANIM_SKID,
     ANIM_RUN,
     ANIM_DASH,

@@ -3,11 +3,7 @@
 #include "../util/globals.h"
 #include "../util/math_utils.h"
 #include "raylib.h"
-#include "game_camera.h"
 #include "hud.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 #define SPINNING_RECT_SPEED 720.0f // Degrees per second
 #define SIDE_GRAPHIC_ROTATION_ANGLE 45.0f // Degrees - 45 degree angle for better visual impact

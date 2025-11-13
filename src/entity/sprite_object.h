@@ -4,8 +4,6 @@
 
 #include <raylib.h>
 #include <stdbool.h>
-#include <math.h>
-#include <stdio.h>
 
 #define MAX_SPRITE_NAME_LENGTH 64
 #define MAX_SPRITE_FRAMES 64

@@ -1,10 +1,10 @@
 // Audio Manager
 #include "audio_manager.h"
 #include "module_player.h"
+#include "raylib.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "raylib.h"
 
 void InitAudioManager(AudioManager* manager) {
     if (manager == NULL) return;

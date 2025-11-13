@@ -2,9 +2,7 @@
 
 #ifndef SCREEN_STATE_H
 #define SCREEN_STATE_H
-#include <string.h>
 #include "raylib.h"
-#include <stdio.h>
 
 typedef enum {
     SCREEN_INIT,

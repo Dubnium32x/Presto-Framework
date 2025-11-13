@@ -5,8 +5,6 @@
 #include <math.h>
 #include "raylib.h"
 #include "raymath.h"
-#include <stdlib.h>
-#include <stdio.h>
 
 // Don't redefine constants that raylib already defines
 #ifndef PI

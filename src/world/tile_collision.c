@@ -1,9 +1,12 @@
 // Tile collision
-#include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include "raylib.h"
 #include "tile_collision.h"
+#include "generated_heightmaps.h"
+#include "generated_widthmaps.h"
+#include "generated_tile_angles.h"
 
 // Simple flip helpers (stubs). Proper flip-mapping can be implemented later.
 static int Tile_GetFlippedHorizontallyTileId(int id) { return id; }

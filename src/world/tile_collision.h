@@ -4,16 +4,10 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <string.h>
-#include <math.h>
-#include <stdio.h>
-#include "../util/math_utils.h"
+
 #include "raylib.h"
 #include "tileset_map.h"
-#include "generated_heightmaps.h"
-#include "generated_widthmaps.h"
-#include "generated_tile_angles.h"
-#include "../entity/player/player.h"
+
 
 // Tile flip flags
 #define FLIPPED_HORIZONTALLY_FLAG 0x80000000

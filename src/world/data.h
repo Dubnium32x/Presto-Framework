@@ -3,8 +3,7 @@
 #define DATA_H
 
 #include <stdint.h>
-#include <string.h>
-#include "../util/globals.h"
+#include <stdbool.h>
 
 typedef enum {
     SONIC,

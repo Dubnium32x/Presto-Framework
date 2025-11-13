@@ -3,8 +3,6 @@
 #define HUD_H
 
 #include "raylib.h"
-#include <stdio.h>
-#include <string.h>
 
 // Forward declaration to avoid circular dependency
 struct Player;

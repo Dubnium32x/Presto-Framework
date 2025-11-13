@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include "raylib.h"
-#include "../entity/sprite_object.h"
 
 void InitAnimationManager(AnimationManager* manager) {
     if (manager == NULL) return;

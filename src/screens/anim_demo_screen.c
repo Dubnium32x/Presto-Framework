@@ -1,12 +1,9 @@
 // Animation Demo Screen
 #include "anim_demo_screen.h"
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <math.h>
 #include "raylib.h"
 
-#include "../world/screen_manager.h"
 #include "../util/globals.h"
 #include "../world/input.h"
 #include "../sprite/animation_manager.h"

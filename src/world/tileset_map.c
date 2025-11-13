@@ -1,5 +1,6 @@
 // Tileset map implementation
 #include "tileset_map.h"
+#include <string.h>
 
 // Static buffer for normalized names - simple approach for demo
 static char normalizedNameBuffer[256];

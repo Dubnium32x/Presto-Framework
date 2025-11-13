@@ -1,9 +1,9 @@
 // Options Screen implementation
 #include "options_screen.h"
 #include <stdio.h>
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdbool.h>
 #include "raylib.h"
 #include "../world/screen_manager.h"
 #include "../util/globals.h"

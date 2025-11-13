@@ -1,6 +1,5 @@
 // Transition Manager
 #include "transition_manager.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include "raylib.h"
 

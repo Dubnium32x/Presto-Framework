@@ -1,10 +1,5 @@
 // Player Animations
 #include "animations.h"
-#include "../var.h"
-#include "../player.h"
-#include <stdio.h>
-#include <math.h>  
-#include "../../util/math_utils.h"
 #include "raylib.h"
 
 void PlayerAnimations_SetTexture(PlayerAnimations* animations, Texture2D texture) {
