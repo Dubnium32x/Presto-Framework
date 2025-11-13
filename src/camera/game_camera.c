@@ -1,11 +1,7 @@
 // Game camera
 #include "game_camera.h"
 #include "../util/globals.h"
-#include "../util/math_utils.h"
 #include "raylib.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 GameCamera GameCamera_Init(int xPos, int yPos, int tX, int tY, float zoom, float rot) {
     GameCamera camera;

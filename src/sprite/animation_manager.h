@@ -3,7 +3,6 @@
 #define ANIMATION_MANAGER_H
 
 #include "raylib.h"
-#include "../entity/sprite_object.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

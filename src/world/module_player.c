@@ -2,9 +2,7 @@
 #include "module_player.h"
 #include <mikmod.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <math.h>
 
 // Internal helper functions
 static bool InitMikModLibrary(void);

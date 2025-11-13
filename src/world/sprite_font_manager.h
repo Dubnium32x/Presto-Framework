@@ -3,12 +3,8 @@
 #ifndef SPRITE_FONT_MANAGER_H
 #define SPRITE_FONT_MANAGER_H
 
-#include <string.h>
 #include "raylib.h"
-#include "raymath.h"
-#include <stdio.h>
 #include <stdbool.h>
-#include "../util/globals.h"
 
 typedef struct {
     Texture2D texture;

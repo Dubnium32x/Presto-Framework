@@ -1,9 +1,6 @@
 // Screen Manager for Jacky and Wacky
 // Manages different game screens and transitions
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include "raylib.h"
 
 #include "screen_manager.h"
 #include "screen_state.h"

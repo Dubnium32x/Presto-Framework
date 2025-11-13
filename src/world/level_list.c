@@ -1,12 +1,9 @@
 // Level list
 #include "level_list.h"
 #include "error_handler.h"
-#include "../util/globals.h"
 #include "../util/csv_loader.h"
 #include <raylib.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
+
 // #include "../util/global_constants.h" // TODO: Create this file when needed
 
 Level levelList[MAX_LEVELS] = {0};
