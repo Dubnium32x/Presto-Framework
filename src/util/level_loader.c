@@ -3,48 +3,7 @@
 #include <math.h>
 
 bool levelInitialized = false;
-
-// Hash map helpers for profile storage
-static const int PROFILE_INITIAL_CAPACITY = 256;
-
-// HashString function removed as it was unused
-
-static void EnsureProfileCapacity(LevelData *level, int needed)
-{
-    if (level->profileCapacity == 0)
-    {
-        level->profileCapacity = PROFILE_INITIAL_CAPACITY;
-        level->profileKeys = malloc(sizeof(char *) * level->profileCapacity);
-        level->profileValues = malloc(sizeof(TileHeightProfile) * level->profileCapacity);
-        level->profileCount = 0;
-    }
-
-    while (level->profileCount + needed >= level->profileCapacity)
-    {
-        level->profileCapacity *= 2;
-        level->profileKeys = realloc(level->profileKeys, sizeof(char *) * level->profileCapacity);
-        level->profileValues = realloc(level->profileValues, sizeof(TileHeightProfile) * level->profileCapacity);
-    }
-}
-
-static void StoreProfile(LevelData *level, const char *key, const TileHeightProfile *profile)
-{
-    // Check if key already exists
-    for (int i = 0; i < level->profileCount; i++)
-    {
-        if (strcmp(level->profileKeys[i], key) == 0)
-        {
-            level->profileValues[i] = *profile;
-            return;
-        }
-    }
-
-    // Add new entry
-    EnsureProfileCapacity(level, 1);
-    level->profileKeys[level->profileCount] = strdup(key);
-    level->profileValues[level->profileCount] = *profile;
-    level->profileCount++;
-}
+LevelData currentLevel;
 
 // Tile creation helpers
 Tile CreateEmptyTile(void)
@@ -54,7 +13,6 @@ Tile CreateEmptyTile(void)
     tile.isSolid = false;
     tile.isPlatform = false;
     tile.isHazard = false;
-    tile.heightProfile = 0;
     tile.flipFlags = 0;
     return tile;
 }
@@ -401,101 +359,10 @@ bool IsTileSolidAtLocalPosition(int tileId, float worldX, float worldY, int tile
     if (localX >= tileSize)
         localX = tileSize - 1;
 
-    // Get tile height profile
-    TileHeightProfile profile;
-    bool hadProfile = GetPrecomputedTileProfile(level, tileId, layerName, &profile);
-    if (!hadProfile)
-    {
-        profile = TileCollision_GetTileHeightProfile(tileId, layerName, level->tilesets, level->tilesetCount);
-    }
-
-    // If the height at this local X position is greater than 0, it's solid
-    return profile.groundHeights[localX] > 0;
-}
-
-// Profile management
-void PrecomputeTileProfiles(LevelData *level)
-{
-    if (!level->tilesets || level->tilesetCount == 0)
-        return;
-
-    // Structure to iterate layers
-    struct LayerRef
-    {
-        Tile **layer;
-        const char *name;
-    };
-
-    struct LayerRef layers[] = {
-        {level->groundLayer1, "Ground_1"},
-        {level->groundLayer2, "Ground_2"},
-        {level->groundLayer3, "Ground_3"},
-        {level->semiSolidLayer1, "SemiSolid_1"},
-        {level->semiSolidLayer2, "SemiSolid_2"},
-        {level->semiSolidLayer3, "SemiSolid_3"},
-        {level->collisionLayer, "Collision"},
-        {level->hazardLayer, "Hazard"}};
-
-    int layerCount = sizeof(layers) / sizeof(layers[0]);
-
-    // For each layer, iterate tiles and precompute profiles
-    for (int l = 0; l < layerCount; l++)
-    {
-        Tile **layer = layers[l].layer;
-        const char *layerName = layers[l].name;
-
-        if (!layer)
-            continue;
-
-        for (int y = 0; y < level->height; y++)
-        {
-            for (int x = 0; x < level->width; x++)
-            {
-                int rawTileId = layer[y][x].tileId;
-
-                // Create key string
-                char key[64];
-                snprintf(key, sizeof(key), "%d::%s", rawTileId, layerName);
-
-                // Check if already computed
-                bool found = false;
-                for (int i = 0; i < level->profileCount; i++)
-                {
-                    if (strcmp(level->profileKeys[i], key) == 0)
-                    {
-                        found = true;
-                        break;
-                    }
-                }
-
-                if (!found)
-                {
-                    // Compute and store profile
-                    TileHeightProfile profile = TileCollision_GetTileHeightProfile(rawTileId, layerName, level->tilesets, level->tilesetCount);
-                    StoreProfile(level, key, &profile);
-                }
-            }
-        }
-    }
-
-    printf("Precomputed %d tile profiles\n", level->profileCount);
-}
-
-bool GetPrecomputedTileProfile(const LevelData *level, int rawTileId, const char *layerName, TileHeightProfile *outProfile)
-{
-    char key[64];
-    snprintf(key, sizeof(key), "%d::%s", rawTileId, layerName);
-
-    for (int i = 0; i < level->profileCount; i++)
-    {
-        if (strcmp(level->profileKeys[i], key) == 0)
-        {
-            *outProfile = level->profileValues[i];
-            return true;
-        }
-    }
-
-    return false;
+    // Get tile profile (using simplified TileProfile which contains an aggregate groundHeight)
+    TileProfile profile = Tile_GetProfile(tileId);
+    // For now use the aggregated groundHeight to determine solidity
+    return profile.groundHeight > 0;
 }
 
 // Main loading function
@@ -506,7 +373,9 @@ LevelData LoadCompleteLevel(const char *levelPath)
 
 LevelData LoadCompleteLevelWithFormat(const char *levelPath, bool useJSON)
 {
-    LevelData level = {0};
+    // Initialize everything to NULL/0 to prevent double frees
+    LevelData level;
+    memset(&level, 0, sizeof(LevelData));
 
     // Set defaults
     level.levelName = strdup("Unnamed Level");
@@ -723,7 +592,8 @@ LevelData LoadCompleteLevelWithFormat(const char *levelPath, bool useJSON)
     level.tilesets = malloc(sizeof(TilesetInfo));
     level.tilesets[0].firstgid = 1;
     level.tilesets[0].nameCandidates = malloc(sizeof(char *) * 2);
-    level.tilesets[0].nameCandidates[0] = strdup(TILESET_NAME);
+    // Default to the level's tileset name; generated TILESET_NAME symbols were made internal.
+    level.tilesets[0].nameCandidates[0] = strdup(level.tilesetName);
     level.tilesets[0].nameCandidates[1] = NULL;
 
     // Calculate dimensions and precompute profiles

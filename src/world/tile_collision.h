@@ -11,6 +11,9 @@
 #include "raylib.h"
 #include "tileset_map.h"
 #include "generated_heightmaps.h"
+#include "generated_widthmaps.h"
+#include "generated_tile_angles.h"
+#include "../entity/player/player.h"
 
 // Tile flip flags
 #define FLIPPED_HORIZONTALLY_FLAG 0x80000000
@@ -22,22 +25,19 @@
 #define DEBUG_TILE_ANGLE 1
 
 typedef struct {
-    int groundHeights[16];
-    bool isSolidBlock;
-    bool isPlatform;
-    bool isSlope;
-} TileHeightProfile;
-
-// TileHeightProfile creation functions
-TileHeightProfile TileHeightProfile_Empty(void);
-TileHeightProfile TileHeightProfile_SolidBlock(void);
-TileHeightProfile TileHeightProfile_Custom(const int* heights, bool platform);
+    int tileID;
+    int groundHeight;
+    int groundWidth;
+    uint8_t groundAngle;
+} TileProfile;
 
 // Tile collision functions
+TileProfile Tile_GetProfile(int tileId);
 int TileCollision_GetActualTileId(int rawTileId);
 bool TileCollision_IsEmptyTile(int tileId);
-TileHeightProfile TileCollision_GetTileHeightProfile(int rawTileId, const char* layerName, TilesetInfo* tilesets, int tilesetCount);
+int** TileCollision_GetHWMap(int tileId, const char* layerName);
+uint8_t TileCollision_GetAngle(int tileId);
 bool TileCollision_IsSemiSolidTop(int rawTileId, int rawTileIdAbove, const char* layerName, TilesetInfo* tilesets, int tilesetCount);
-float TileCollision_GetTileGroundAngle(int rawTileId, const char* layerName, TilesetInfo* tilesets, int tilesetCount);
+RayCollision TileCollision_Raycast(Vector2 start, Vector2 direction, float length);
 
 #endif // TILE_COLLISION_H

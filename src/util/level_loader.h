@@ -18,10 +18,10 @@ extern bool levelInitialized;
 
 typedef struct {
     int tileId;
+    //int collisionId
     bool isSolid;
     bool isPlatform;
     bool isHazard;
-    int heightProfile;
     uint8_t flipFlags;
 } Tile;
 
@@ -65,10 +65,13 @@ typedef struct {
     
     // Precomputed collision profiles (hash map simulation)
     char** profileKeys;
-    TileHeightProfile* profileValues;
+    TileProfile* profileValues;
     int profileCount;
     int profileCapacity;
 } LevelData;
+
+
+extern LevelData currentLevel;
 
 // Core loading functions
 LevelData LoadCompleteLevel(const char* levelPath);
@@ -94,7 +97,7 @@ Tile CreateTileFromId(int tileId);
 
 // Profile management
 void PrecomputeTileProfiles(LevelData* level);
-bool GetPrecomputedTileProfile(const LevelData* level, int rawTileId, const char* layerName, TileHeightProfile* outProfile);
+bool GetPrecomputedTileProfile(const LevelData* level, int rawTileId, const char* layerName, TileProfile* outProfile);
 
 // Layer management
 Tile** GetLayerByName(LevelData* level, const char* layerName);

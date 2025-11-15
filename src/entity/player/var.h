@@ -29,7 +29,7 @@ extern int facing; // 1 = right, -1 = left
 
 // Player box dimensions
 #define PLAYER_WIDTH_RAD 6
-#define PLAYER_HEIGHT_RAD 16
+#define PLAYER_HEIGHT_RAD 17
 #define PLAYER_MAX_COLLISION_POINTS 6
 
 // Physics constants - running state
@@ -40,13 +40,14 @@ extern int facing; // 1 = right, -1 = left
 
 // Physics constants - air state
 #define AIR_ACCELERATION_SPEED 0.09375f
-#define GRAVITY_FORCE = 0.21875f
+#define AIR_DRAG_FORCE 0.03125f  // Gradual air resistance when no input
+#define GRAVITY_FORCE 0.21875f
 #define TOP_Y_SPEED 16.0f
 
 // Physics constants - jumping state
 #define INITIAL_JUMP_VELOCITY -7.5f
-#define RELEASE_JUMP_VELOCITY -4.0f
-#define JUMP_HOLD_VELOCITY_INCREASE 0.1f
+#define RELEASE_JUMP_VELOCITY -8.0f
+#define JUMP_HOLD_VELOCITY_INCREASE 0.25f
 #define MAX_JUMP_HOLD_TIME 0.25f
 
 // Physics constants - rolling state
@@ -69,15 +70,14 @@ extern int facing; // 1 = right, -1 = left
 #define SUPER_ROLLING_FRICTION 0.09375f
 
 // Angle constants
-#define ANGLE_RIGHT 0
+#define ANGLE_DOWN 0
+#define ANGLE_UP 128
+#define ANGLE_RIGHT 64
+#define ANGLE_LEFT 192
 #define ANGLE_DOWN_RIGHT 32
-#define ANGLE_DOWN 64
 #define ANGLE_DOWN_LEFT 96
-#define ANGLE_LEFT 128
-#define ANGLE_UP_LEFT 160
-#define ANGLE_UP 192
 #define ANGLE_UP_RIGHT 224
-#define ANGLE_MAX 256
+#define ANGLE_UP_LEFT 160
 
 // Slope angle constants
 #define SLIP_ANGLE_START 46
@@ -102,6 +102,12 @@ extern int facing; // 1 = right, -1 = left
 #define PEELOUT_ACCELERATION 0.5f
 #define PEELOUT_TOP_SPEED 10.0f
 #define PEELOUT_HOLD_TIME 0.5f
+
+// Define player state threshold constants
+#define PLAYER_WALK_SPEED_MIN 0.1f
+#define PLAYER_RUN_SPEED_MIN 4.0f
+#define PLAYER_SPRINT_SPEED_MIN 7.0f
+#define PLAYER_SUPER_SPEED_MIN 12.0f
 
 typedef enum {
     SONIC_1_2_CD,

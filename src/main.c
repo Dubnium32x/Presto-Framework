@@ -82,11 +82,6 @@ Vector2 GetMousePositionVirtual(void)
     return (Vector2){virtualMouseX, virtualMouseY};
 }
 
-void initializeGame(int x, int y, float zoom, float rot)
-{
-    cam = GameCamera_Init(x, y, 0, 0, zoom, rot);
-}
-
 // Load audio settings from options.ini
 void LoadAudioSettings(void)
 {
@@ -367,8 +362,10 @@ int main(void)
         printf("Warning: Could not load presto-numbersB font, using default\n");
     }
 
-    initializeGame(510, 510, 1.0f, 0.0f);
-    player = Player_Init(510, 510, (Hitbox_t){0, 0, 20, 20});
+    // initializeGame(, , , );
+    cam = GameCamera_Init(510, 510, VIRTUAL_SCREEN_WIDTH / 2, VIRTUAL_SCREEN_HEIGHT / 2, 1.0f, 0.0f);
+    // Start the player near center; camera will follow and keep centered
+    player = Player_Init(VIRTUAL_SCREEN_WIDTH * 0.5f, VIRTUAL_SCREEN_HEIGHT * 0.5f);
 
     // Initialize screen manager
     ScreenManager screenManager;
@@ -419,7 +416,7 @@ int main(void)
 
         // Update audio manager (required for module music playback)
         UpdateAudioManager(&g_audioManager);
-
+        // Player update and camera follow happen within the current screen (LevelDemo_Update)
         // Update screen manager
         UpdateScreenManager(&screenManager, deltaTime);
 
@@ -461,7 +458,7 @@ int main(void)
             int minY = (player.position.y + player.hitbox.y - cam.position.y);
             DrawRectangleLines(minX * 2, minY * 2, player.hitbox.w, player.hitbox.h, BLACK);
         }
-
+        // Player is drawn by the current screen inside the virtual render pass
         EndDrawing();
     }
 

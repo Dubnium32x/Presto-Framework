@@ -12,7 +12,5 @@
 // Single tileset heightmaps: [tile][column]
 extern const int TILESET_HEIGHTMAPS[][TILE_WIDTH];
 
-// Tileset name
-extern const char* TILESET_NAME;
-
+int* GetTileHeightMap(int tileId);
 #endif // GENERATED_HEIGHTMAPS_H

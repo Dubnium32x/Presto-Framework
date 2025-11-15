@@ -1,840 +1,724 @@
-// Player script
-// ... oh boy...
-// This is going to be a long one...
-// ᏥᏌ ᎦᎶᏁᏛ, this'll be fun - Birb64
+// Player implementation
+
+/*
+
+    This one is gonna take a few tries I'm sure. Especially with the data loss that has recently happened.
+    We need to make sure to keep the UpdateMovement files static and private if possible.
+
+    We also need to make sure that the player state is properly encapsulated and
+    not accessible from outside the player module.
+
+    Damnit... If only I hadn't lost the data I had. Transcribing the old code from D would have made the
+    process a little bit easier. Well, at least most of it has been transcribed.
+
+    Let's hope the rest of the code is as easy to create from scratch.
+*/
+//ꏥꏌ ꎦꎶꏁꏿ, here we go again... - Birb64
 
 #include "player.h"
 #include "raylib.h"
 #include "var.h"
-#include "../sprite_object.h"
-#include "../../util/globals.h"
-#include "../../util/math_utils.h"
-#include "../../world/input.h"
+#include "../../world/tile_collision.h"
+#include <float.h>
 #include "../../util/level_loader.h"
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
+#include "../../world/generated_heightmaps.h"
 
-// these are better represented as arrays, so I made them that 👍 - Birb64
-#define BUTTON_JUMP (KEY_SPACE)
-#define BUTTON_DOWN (KEY_DOWN)
-#define BUTTON_UP (KEY_UP)
-#define INPUT_DOWN (KEY_DOWN)
-#define INPUT_UP (KEY_UP)
-#define INPUT_LEFT (KEY_LEFT)
-#define INPUT_RIGHT (KEY_RIGHT)
-
-// Missing constants
-#define STEEP_SLOPE_ANGLE 45.0f
-#define SKID_CONTROL_LOCK_TIME 0.1f
-#define SKID_SPEED_REDUCTION_FACTOR 0.5f
-#define BUTTON_JUMP_ KEY_SPACE
-#define MAX_SPINDASH_CHARGE 8
-#define SPINDASH_SPEED_INCREMENT 0.5f
-#define PEEL_OUT_SPEED 8.0f
-#define PEEL_OUT_CONTROL_LOCK_TIME 0.2f
-#define PEEL_OUT_HOLD_TIME 1.0f
-#define PEEL_OUT_TOP_SPEED 12.0f
-#define INVINCIBILITY_DURATION 2.0f
-#define HURT_CONTROL_LOCK_TIME 0.3f
-
-// literally no fucking reeason this should be here. - Birb64
-
-// Stub function for checking if key is held - replace with actual implementation
-// bool IsKeyHeld(int key) {
-//     return IsKeyDown(key); // Simple implementation
-// }
-
-// Stub function for collision detection - replace with actual implementation
-// Hook into the currently-loaded level from level_demo_screen.c
-extern LevelData level;
-
-bool IsTileSolidAtPosition(float x, float y) {
-    // Use the level loader's collision helper on the collision layers
-    if (!level.width || !level.height) return false;
-    return IsSolidAtPosition(&level, x, y, TILE_SIZE);
+// Helper: Get tile at world position
+static Tile GetTileAtWorldPos(float worldX, float worldY, LevelData* level) {
+    int tileX = (int)(worldX / 16);
+    int tileY = (int)(worldY / 16);
+    
+    if (tileX < 0 || tileX >= level->width || tileY < 0 || tileY >= level->height) {
+        Tile empty = {0};
+        return empty;
+    }
+    
+    // Check collision layers in priority order
+    if (level->groundLayer1 && level->groundLayer1[tileY][tileX].tileId != 0) {
+        return level->groundLayer1[tileY][tileX];
+    }
+    if (level->groundLayer2 && level->groundLayer2[tileY][tileX].tileId != 0) {
+        return level->groundLayer2[tileY][tileX];
+    }
+    if (level->groundLayer3 && level->groundLayer3[tileY][tileX].tileId != 0) {
+        return level->groundLayer3[tileY][tileX];
+    }
+    
+    Tile empty = {0};
+    return empty;
 }
 
-// Stub function for sprite drawing - replace with actual implementation
-void DrawSprite(void* sprite, float x, float y, int facing) {
-    (void)sprite; (void)x; (void)y; (void)facing; // Suppress unused parameter warnings
-    // Temporary stub
+// Helper: Get height from heightmap at specific pixel within tile
+static int GetHeightAtPosition(float worldX, float worldY, LevelData* level) {
+    int tileX = (int)(worldX / 16);
+    int tileY = (int)(worldY / 16);
+    int pixelX = ((int)worldX) % 16;
+    
+    if (pixelX < 0) pixelX += 16;
+    if (pixelX >= 16) pixelX = 15;
+    
+    Tile tile = GetTileAtWorldPos(worldX, worldY, level);
+    if (tile.tileId == 0) return 0;
+    
+    // Extract flip flags from tile ID
+    uint32_t rawId = (uint32_t)tile.tileId;
+    bool flipH = (rawId & FLIPPED_HORIZONTALLY_FLAG) != 0;
+    bool flipV = (rawId & FLIPPED_VERTICALLY_FLAG) != 0;
+    
+    // Strip flip flags to get actual tile ID
+    uint32_t gid = rawId & ~FLIPPED_ALL_FLAGS_MASK;
+    int tileId = (int)gid - 1; // Convert to 0-based index
+    if (tileId < 0 || tileId >= TILESET_TILE_COUNT) return 0;
+    
+    // Flip pixel X coordinate if tile is horizontally flipped
+    if (flipH) {
+        pixelX = 15 - pixelX;
+    }
+    
+    int height = TILESET_HEIGHTMAPS[tileId][pixelX];
+    
+    // Flip height if tile is vertically flipped
+    if (flipV && height > 0) {
+        height = 16 - height;
+    }
+    
+    return height;
 }
 
-Player Player_Init(float startX, float startY, Hitbox_t box) {
-    Player player = {0};
+#include "player.h"
+#include "raylib.h"
+#include "var.h"
+#include "../../world/tile_collision.h"
 
-    player.position = (Vector2){ startX, startY };
-    player.velocity = (Vector2){ 0.0f, 0.0f };
-    player.groundAngle = 0.0f;
-    player.groundSpeed = 0.0f;
-    player.verticalSpeed = 0.0f;
+// Returns -1 for negative, 1 for positive, 0 for zero
+static inline int sign(float x) {
+    return (x > 0) - (x < 0);
+}
+
+static void PlayerAssignSensors(Player* player);
+static void PlayerUpdate(Player* player, float dt);
+static void PlayerUnload(Player* player);
+
+#define JUMP_BUTTON KEY_Z | KEY_X | KEY_C | BUTTON_A | BUTTON_B | BUTTON_X
+
+// Local toggle for showing sensor overlay (debug aid)
+static bool s_showSensors = true;
+
+// Compute all sensor positions and hitbox from current player position/orientation
+static void PlayerAssignSensors(Player* player) {
+    if (!player) return;
+    switch (player->groundDirection) {
+        case ANGLE_DOWN: // standing on floor
+            player->hitbox = (Hitbox_t){0, 0, PLAYER_WIDTH, PLAYER_HEIGHT};
+            player->playerSensors.center     = (Vector2){player->position.x, player->position.y};
+            player->playerSensors.right      = (Vector2){player->position.x + PLAYER_WIDTH_RAD,  player->position.y};
+            player->playerSensors.left       = (Vector2){player->position.x - PLAYER_WIDTH_RAD,  player->position.y};
+            player->playerSensors.topLeft    = (Vector2){player->position.x - PLAYER_WIDTH_RAD,  player->position.y + PLAYER_HEIGHT_RAD};
+            player->playerSensors.topRight   = (Vector2){player->position.x + PLAYER_WIDTH_RAD,  player->position.y + PLAYER_HEIGHT_RAD};
+            player->playerSensors.bottomLeft = (Vector2){player->position.x - PLAYER_WIDTH_RAD,  player->position.y - PLAYER_HEIGHT_RAD};
+            player->playerSensors.bottomRight= (Vector2){player->position.x + PLAYER_WIDTH_RAD,  player->position.y - PLAYER_HEIGHT_RAD};
+            break;
+
+        case ANGLE_RIGHT: // on right wall
+            player->hitbox = (Hitbox_t){0, 0, PLAYER_HEIGHT, PLAYER_WIDTH};
+            player->playerSensors.center     = (Vector2){player->position.x, player->position.y};
+            player->playerSensors.right      = (Vector2){player->position.x,                     player->position.y - PLAYER_WIDTH_RAD};
+            player->playerSensors.left       = (Vector2){player->position.x,                     player->position.y + PLAYER_WIDTH_RAD};
+            player->playerSensors.topLeft    = (Vector2){player->position.x - PLAYER_HEIGHT_RAD, player->position.y - PLAYER_WIDTH_RAD};
+            player->playerSensors.topRight   = (Vector2){player->position.x - PLAYER_HEIGHT_RAD, player->position.y + PLAYER_WIDTH_RAD};
+            player->playerSensors.bottomLeft = (Vector2){player->position.x + PLAYER_HEIGHT_RAD, player->position.y - PLAYER_WIDTH_RAD};
+            player->playerSensors.bottomRight= (Vector2){player->position.x + PLAYER_HEIGHT_RAD, player->position.y + PLAYER_WIDTH_RAD};
+            break; // IMPORTANT: avoid fall-through
+
+        case ANGLE_UP: // on ceiling
+            player->hitbox = (Hitbox_t){0, 0, PLAYER_WIDTH, PLAYER_HEIGHT};
+            player->playerSensors.center     = (Vector2){player->position.x, player->position.y};
+            player->playerSensors.right      = (Vector2){player->position.x - PLAYER_WIDTH_RAD,  player->position.y};
+            player->playerSensors.left       = (Vector2){player->position.x + PLAYER_WIDTH_RAD,  player->position.y};
+            player->playerSensors.topLeft    = (Vector2){player->position.x + PLAYER_WIDTH_RAD,  player->position.y - PLAYER_HEIGHT_RAD};
+            player->playerSensors.topRight   = (Vector2){player->position.x - PLAYER_WIDTH_RAD,  player->position.y - PLAYER_HEIGHT_RAD};
+            player->playerSensors.bottomLeft = (Vector2){player->position.x + PLAYER_WIDTH_RAD,  player->position.y + PLAYER_HEIGHT_RAD};
+            player->playerSensors.bottomRight= (Vector2){player->position.x - PLAYER_WIDTH_RAD,  player->position.y + PLAYER_HEIGHT_RAD};
+            break;
+
+        case ANGLE_LEFT: // on left wall
+            player->hitbox = (Hitbox_t){0, 0, PLAYER_HEIGHT, PLAYER_WIDTH};
+            player->playerSensors.center     = (Vector2){player->position.x, player->position.y};
+            player->playerSensors.right      = (Vector2){player->position.x,                     player->position.y - PLAYER_WIDTH_RAD};
+            player->playerSensors.left       = (Vector2){player->position.x,                     player->position.y + PLAYER_WIDTH_RAD};
+            player->playerSensors.topLeft    = (Vector2){player->position.x + PLAYER_HEIGHT_RAD, player->position.y + PLAYER_WIDTH_RAD};
+            player->playerSensors.topRight   = (Vector2){player->position.x + PLAYER_HEIGHT_RAD, player->position.y - PLAYER_WIDTH_RAD};
+            player->playerSensors.bottomLeft = (Vector2){player->position.x - PLAYER_HEIGHT_RAD, player->position.y + PLAYER_WIDTH_RAD};
+            player->playerSensors.bottomRight= (Vector2){player->position.x - PLAYER_HEIGHT_RAD, player->position.y - PLAYER_WIDTH_RAD};
+            break;
+
+        default:
+            // Fallback to floor orientation
+            player->groundDirection = ANGLE_DOWN;
+            PlayerAssignSensors(player);
+            break;
+    }
+}
+
+
+
+Player Player_Init(float startX, float startY) {
+    Player player;
+    player.position = (Vector2){startX, startY};
+    player.velocity = (Vector2){0, 0};
+    player.groundSpeed = 0;
+    player.verticalSpeed = 0;
+    player.groundAngle = 0;
+    player.playerRotation = 0;
+    player.isOnGround = false;
+    player.isJumping = false;
     player.hasJumped = false;
     player.jumpPressed = false;
-    // Start in the air; we'll resolve ground on the first update
-    player.isOnGround = false;
-    player.isSpindashing = false;
+    player.isFalling = false;
     player.isRolling = false;
     player.isCrouching = false;
     player.isLookingUp = false;
+    player.isSpindashing = false;
+    player.isGravityApplied = true;
+    player.isSuper = false;
+    player.isPeelOut = false;
     player.isFlying = false;
     player.isGliding = false;
-    player.isPeelOut = false;
     player.isClimbing = false;
     player.isHurt = false;
     player.isDead = false;
-    player.isSuper = false;
     
-    // Initialize input tracking
+    // Input tracking fields
     player.inputLeft = false;
     player.inputRight = false;
     player.inputUp = false;
     player.inputDown = false;
-    player.controlLockTimer = 0;
-    player.facing = 1; // Facing right
+    
+    player.facing = 1; // Default facing right
     player.state = IDLE;
     player.idleState = IDLE_NORMAL;
     player.groundDirection = NOINPUT;
     player.isImpatient = false;
-    player.impatientTimer = 0.0f;
+    player.impatientTimer = 0;
     player.spindashCharge = 0;
-    player.playerRotation = 0;
-    player.idleTimer = 0.0f;
-    player.idleLookTimer = 0.0f;
+    player.idleTimer = 0;
+    player.idleLookTimer = 0;
     player.sprite = NULL;
+    player.groundAngles.bottomLeftAngle = 0;
+    player.groundAngles.bottomRightAngle = 0;
+    player.animationState = ANIM_IDLE;
     player.animationManager = NULL;
-    player.jumpButtonHoldTimer = 0;
-    player.slipAngleType = SONIC_1_2_CD;
-    player.currentTileset = NULL;
-    player.animationState = IDLE;
-    player.blinkTimer = 0;
-    player.blinkInterval = 300; // Blink every 300 frames
-    player.blinkDuration = 5;   // Blink lasts for 5 frames
-    player.invincibilityTimer = 0;
     player.controlLockTimer = 0;
+    player.invincibilityTimer = 0;
+    player.blinkTimer = 0;
+    player.blinkInterval = 0;
+    player.blinkDuration = 0;
+    player.jumpButtonHoldTimer = 0;
+    player.slipAngleType = 0;
+    player.currentTileset = NULL;
+    player.hitbox = (Hitbox_t){0, 0, PLAYER_WIDTH, PLAYER_HEIGHT};
 
-    player.hitbox = box;
-
-    printf("Player Loaded! \n");
-
+    player.playerSensors.center = (Vector2){startX, startY};
+    player.playerSensors.left = (Vector2){startX - PLAYER_WIDTH / 2, startY};
+    player.playerSensors.right = (Vector2){startX + PLAYER_WIDTH / 2, startY};
+    player.playerSensors.topLeft = (Vector2){startX - PLAYER_WIDTH / 2, startY - PLAYER_HEIGHT / 2};
+    player.playerSensors.topRight = (Vector2){startX + PLAYER_WIDTH / 2, startY - PLAYER_HEIGHT / 2};
+    player.playerSensors.bottomLeft = (Vector2){startX - PLAYER_WIDTH / 2, startY + PLAYER_HEIGHT / 2};
+    player.playerSensors.bottomRight = (Vector2){startX + PLAYER_WIDTH / 2, startY + PLAYER_HEIGHT / 2};
     return player;
 }
 
-void Player_SetLevel(Player* player, TilesetInfo* tilesetInfo) {
-    player->currentTileset = tilesetInfo;
-}
-
-
-// Last time something was this useless, the curb your enthusiasm theme played - Birb64
-// InputBit GetPlayerInput(Player* player) {
-//     (void)player; // Suppress unused parameter warning
-//     InputBit input = 0;
-//     if (IsKeyDown(INPUT_UP)) input |= 1;
-//     if (IsKeyDown(INPUT_DOWN)) input |= 2;
-//     if (IsKeyDown(INPUT_LEFT)) input |= 4;
-//     if (IsKeyDown(INPUT_RIGHT)) input |= 8;
-//     if (IsKeyDown(BUTTON_JUMP)) input |= 16;
-//     return input;
-// }
-
-// 🙏 finally, a float for all to use and see - Birb64
-float angleRad(Player* player){
-    return player->groundAngle * (PI / 180.0f);
-}
-
-// I'm merging all the player update shit into here
-void Player_Update(Player* player, float deltaTime) {
-    // Manage idle impatience timing here (use deltaTime available)
-    if (player->state == IDLE) {
-        player->idleTimer += deltaTime;
-        if (!player->isImpatient && player->idleTimer >= IDLE_IMPATIENCE_LOOK_TIME) {
-            player->isImpatient = true;
-            player->idleState = IMPATIENT_LOOK;
-            player->animationState = ANIM_IMPATIENT_LOOK;
-        } else if (player->isImpatient && player->idleState == IMPATIENT_LOOK && player->idleTimer >= (IDLE_IMPATIENCE_TIME + IDLE_IMPATIENCE_LOOK_TIME)) {
-            player->idleState = IMPATIENT_ANIMATION;
-            player->animationState = ANIM_IMPATIENT;
-        }
+void Player_Update(Player* player, float dt) {
+    /*
+        We will start by organizing this into categories for clarity.
+        - Input handling
+        - Collision detection
+        - Physics and movement
+        - State transitions
+        - Animation updates
+    */
+    #pragma region input_handling
+    // Input Handling
+    if (IsKeyDown(KEY_LEFT)) {
+        player->inputLeft = true;
     } else {
-        // Reset impatience when not idle
-        player->idleTimer = 0.0f;
-        player->isImpatient = false;
-        player->idleState = IDLE_NORMAL;
+        player->inputLeft = false;
+    }
+    
+    if (IsKeyDown(KEY_RIGHT)) {
+        player->inputRight = true;
+    } else {
+        player->inputRight = false;
+    }
+    
+    if (IsKeyDown(KEY_UP)) {
+        player->inputUp = true;
+    } else {
+        player->inputUp = false;
+    }
+    
+    if (IsKeyDown(KEY_DOWN)) {
+        player->inputDown = true;
+    } else {
+        player->inputDown = false;
     }
 
-    
-    #pragma region UpdateInput
-    bool prevJump = player->isJumping;
-
-    // Read input
-    player->isJumping = IsKeyDown(BUTTON_JUMP);
-    player->jumpPressed = player->isJumping && !prevJump;
-    
-    // Store input state for physics
-    player->inputLeft = IsKeyDown(INPUT_LEFT);
-    player->inputRight = IsKeyDown(INPUT_RIGHT);
-    player->inputDown = IsKeyDown(INPUT_DOWN);
-    player->inputUp = IsKeyDown(INPUT_UP);
-    #pragma endregion
-    #pragma region UpdatePhysics
-    if (player->isOnGround) {
-        // Ground movement (per-frame units)
-        if (IsKeyDown(INPUT_LEFT)) {
-            player->groundSpeed = fmaxf(player->groundSpeed - ACCELERATION, -TOP_SPEED);
-        } else if (IsKeyDown(INPUT_RIGHT)) {
-            player->groundSpeed = fminf(player->groundSpeed + ACCELERATION, TOP_SPEED);
-        } else if (player->groundSpeed != 0) {
-            // Natural deceleration when no input
-            float friction = FRICTION;
-            if (player->groundSpeed > 0) player->groundSpeed = fmaxf(0, player->groundSpeed - friction);
-            else                         player->groundSpeed = fminf(0, player->groundSpeed + friction);
-        }
+    // Jump keys: Z, X, C, Space
+    if (IsKeyDown(KEY_Z) || IsKeyDown(KEY_X) || IsKeyDown(KEY_C) || IsKeyDown(KEY_SPACE)) {
+        player->jumpPressed = true;
     } else {
-        // Air control (per-frame units)
-        if (IsKeyDown(INPUT_LEFT)) {
-            player->velocity.x = fmaxf(player->velocity.x - AIR_ACCELERATION, -AIR_TOP_SPEED);
-        } else if (IsKeyDown(INPUT_RIGHT)) {
-            player->velocity.x = fminf(player->velocity.x + AIR_ACCELERATION, AIR_TOP_SPEED);
-        }
-        // Gravity per frame
-        player->velocity.y += GRAVITY;
+        player->jumpPressed = false;
+    }
+
+    // Debug toggle: F3 to show/hide sensor overlay
+    if (IsKeyPressed(KEY_F3)) {
+        s_showSensors = !s_showSensors;
+    }
+
+    bool noInput = false;
+    if (!player->inputLeft && !player->inputRight && !player->inputUp && !player->inputDown) {
+        noInput = true;
     }
     #pragma endregion
-    #pragma region UpdateAnimation
-       // TODO: Implement full animation system
-    // For now, just update basic state
+    #pragma region collision_detection
+    // Collision detection
+    /*
+        First we need to gather the groundAngle for both bottom left and bottom right.
+        We do this by getting the groundAngle attached to the tileID 
+
+    */
+    //player->groundAngles.bottomLeftAngle = TileCollision_GetTileGroundAngle(player->playerSensors.bottomLeft., player->playerSensors.bottomLeft);
+    //player->groundAngles.bottomRightAngle = TileCollision_GetTileGroundAngle(player->playerSensors.bottomRight);
+
+    if (player->groundAngles.bottomLeftAngle > player->groundAngles.bottomRightAngle) {
+        player->groundAngle = player->groundAngles.bottomLeftAngle;
+    } else if (player->groundAngles.bottomLeftAngle < player->groundAngles.bottomRightAngle){
+        player->groundAngle = player->groundAngles.bottomRightAngle;
+    } else { // Assume this is true when both angles are equal
+        player->groundAngle = player->groundAngles.bottomLeftAngle;
+    }
+    
+    // Next, we need to determine the groundDirection based on the player's direction.
+    bool isAngleFloor = ((player->groundAngle < GetAngleFromHexDirection(ANGLE_DOWN_RIGHT)) || (player->groundAngle > GetAngleFromHexDirection(ANGLE_DOWN_LEFT)));
+    bool isAngleRightWall = ((player->groundAngle > GetAngleFromHexDirection(ANGLE_UP_RIGHT)) && (player->groundAngle < GetAngleFromHexDirection(ANGLE_DOWN_RIGHT)));
+    bool isAngleLeftWall = ((player->groundAngle > GetAngleFromHexDirection(ANGLE_DOWN_LEFT)) && (player->groundAngle < GetAngleFromHexDirection(ANGLE_UP_LEFT)));
+    bool isAngleCeiling = ((player->groundAngle > GetAngleFromHexDirection(ANGLE_UP_LEFT)) && (player->groundAngle < GetAngleFromHexDirection(ANGLE_UP_RIGHT)));
+
+    if (isAngleFloor) {
+        player->groundDirection = ANGLE_DOWN;
+    } else if (isAngleRightWall) {
+        player->groundDirection = ANGLE_RIGHT;
+    } else if (isAngleLeftWall) {
+        player->groundDirection = ANGLE_LEFT;
+    } else if (isAngleCeiling) {
+        player->groundDirection = ANGLE_UP;
+    }
+
+    // Now that we have the groundDirection, compute sensors from current position
+    PlayerAssignSensors(player);
+    #pragma end region
+    // Sensors are derived from position; no need to pre-offset by velocity
+
+    // Physics and movement
+    /*
+        Heres the big one.
+        We need to handle gravity, jumping, falling, and collisions here.
+    */
+
+    // First we need to determine what the velocity and speed is this frame.
+    float xVel = player->velocity.x;
+    float yVel = player->velocity.y;
+
+    // Make sure to determine the player rotation based off of the groundAngle
+    player->playerRotation = player->groundAngle;
+    float playerRot = player->playerRotation;
+
+    // Set Horizontal speed and Vertical speed based on groundAngle and groundDirection as well as groundSpeed.
+    float xSpeed = player->groundSpeed * cosf(playerRot);
+    float ySpeed = player->groundSpeed * sinf(playerRot);
+
+    // Add thresholds to player angle when on a near flat slope
+    if (noInput && ((player->groundAngle > 253) || (player->groundAngle < 3)) && (player->groundSpeed < fabsf(0.1f))) {
+        playerRot = 0;
+    }
+    
+    // Only apply ground-based velocity when actually on ground
+    // In air, preserve existing momentum and let air physics handle changes
     if (player->isOnGround) {
-        if (fabsf(player->groundSpeed) > 0.1f) {
-            player->animationState = ANIM_WALK;
-            player->facing = (player->groundSpeed > 0) ? 1 : -1;
+        xVel += xSpeed;
+        yVel += ySpeed;
+    }
+        
+    // Jump initiation and hold behavior
+    if (player->jumpPressed && player->isOnGround && !player->hasJumped) {
+        // Start jump: set upward velocity
+        yVel = INITIAL_JUMP_VELOCITY;
+        player->isOnGround = false;
+        player->isFalling = false;
+        player->hasJumped = true;
+        player->jumpButtonHoldTimer = 0.0f;
+    }
+
+    // If jump is being held while already jumped, extend upward velocity for a short window
+    if (player->hasJumped && player->jumpPressed) {
+        player->jumpButtonHoldTimer += dt;
+        if (player->jumpButtonHoldTimer < MAX_JUMP_HOLD_TIME) {
+            // Apply a small upward impulse while holding jump
+            yVel += -JUMP_HOLD_VELOCITY_INCREASE;
+        }
+    }
+
+    // If jump released early, clamp upward velocity to a release velocity (short hop)
+    if (player->hasJumped && !player->jumpPressed && player->jumpButtonHoldTimer > 0.0f && player->jumpButtonHoldTimer < MAX_JUMP_HOLD_TIME) {
+        if (yVel < RELEASE_JUMP_VELOCITY) {
+            yVel = RELEASE_JUMP_VELOCITY;
+        }
+    }
+
+    // Apply gravity if enabled
+    if (player->isGravityApplied) {
+        yVel += GRAVITY_FORCE;
+        player->velocity.y = yVel;
+    } else if (yVel >= TOP_Y_SPEED) {
+        yVel = TOP_Y_SPEED;
+    }
+    
+    if (groundSpeed < fabsf(PLAYER_RUN_SPEED_MIN)) {
+        // If the ground speed is less than the minimum run speed, turn on gravity
+        player->isGravityApplied = true;
+    } else if (groundSpeed < fabsf(PLAYER_SPRINT_SPEED_MIN)) {
+        // If the ground speed is less than the minimum sprint speed, turn off gravity
+        player->isGravityApplied = false;
+    } else if (groundSpeed < fabsf(PLAYER_SUPER_SPEED_MIN)) {
+        // If the ground speed is less than the minimum super speed, turn off gravity
+        player->isGravityApplied = false;
+    }
+
+    if (((player->groundAngle > SLIP_ANGLE_START) || (player->groundAngle < SLIP_ANGLE_END)) && groundSpeed < fabsf(2.5f)) {
+        // If the player is on a slope and the ground speed is less than the minimum run speed, turn on gravity
+        player->isGravityApplied = true;
+        player->isOnGround = false; 
+        player->groundSpeed = 0;
+        player->controlLockTimer = 30;
+        /*
+            According to the SPG, when sonic is on a slope and the ground speed is less than fabsf(2.5f),
+            he should be detached from the ground. GroundSpeed would then be set to 0.
+        */
+    }
+
+    // We need to implement the controlLockTimer thresholds
+    if (player->controlLockTimer < 0) {
+        player->controlLockTimer = 0;
+        // I know the SPG considers this timer to be non-zero, but I think that's a bug.
+        // If the timer is non-zero, then the player would not be able to move ever, which I don't want to believe.
+    } else if (player->controlLockTimer > 0 && player->isOnGround) {
+        player->controlLockTimer -= dt;
+        // The SPG says that the timer will count down while the player is on the ground.
+        // Once the timer reaches 0, the player will be able to move again.
+    }
+    
+    // So what's next?
+    // Ground Physics
+    // Check if the player is on the ground
+    if (player->isOnGround) {
+        // Apply friction to the player's horizontal velocity
+        if (xVel > 0) {
+            xVel -= FRICTION_SPEED;
+            if (xVel < 0) {
+                xVel = 0;
+            }
+        } else if (xVel < 0) {
+            xVel += FRICTION_SPEED;
+            if (xVel > 0) {
+                xVel = 0;
+            }
         } else {
-            player->animationState = ANIM_IDLE;
+            // Apply no friction if the player is not moving
+            xVel = 0;
+        }
+
+        if (player->isSuper) {
+            if (player->inputLeft && player->controlLockTimer == 0 && !player->isRolling) {
+                player->groundSpeed -= ACCELERATION_SPEED;
+            } else if (player->inputRight && player->controlLockTimer == 0 && !player->isRolling) {
+                player->groundSpeed += ACCELERATION_SPEED;
+            }
+            // Clamp the ground speed to the maximum allowed speed
+            if (player->groundSpeed > TOP_SPEED) {
+                player->groundSpeed = TOP_SPEED;
+            } else if (player->groundSpeed < -TOP_SPEED) {
+                player->groundSpeed = -TOP_SPEED;
+            }
+
+            if (noInput && player->controlLockTimer == 0) {
+                if (player->groundSpeed > 0) {
+                    player->groundSpeed -= DECELERATION_SPEED;
+                } else if (player->groundSpeed < 0) {
+                    player->groundSpeed += DECELERATION_SPEED;
+                }
+            }
+        }
+
+        if (player->isRolling) {
+            if (player->facing == 1) {
+                if (player->inputLeft) {
+                    player->groundSpeed -= ROLLING_FRICTION;
+                } else if (player->inputRight) {
+                    // do nothing
+                }
+
+            } else if (player->facing == -1) {
+                if (player->inputRight) {
+                    player->groundSpeed += ROLLING_FRICTION;
+                } else if (player->inputLeft) {
+                    // do nothing
+                }
+            }
+
+            // Apply acceleration while rolling while downhill
+            if (ySpeed > 0) {
+                if (player->facing == 1) {
+                    player->groundSpeed += ACCELERATION_SPEED * cosf(ySpeed);
+                } else if (player->facing == -1) {
+                    player->groundSpeed -= ACCELERATION_SPEED * cosf(ySpeed);
+                }
+            }
+            // Else decelerate while rolling uphill or on a flat surface
+            else {
+                if (player->groundSpeed > 0) {
+                    player->groundSpeed -= DECELERATION_SPEED;
+                } else if (player->groundSpeed < 0) {
+                    player->groundSpeed += DECELERATION_SPEED;
+                }
+            }
+
+            yVel += ROLLING_GRAVITY_FORCE;
+        }
+        else if (player->isSuper && player->isRolling) {
+            if (player->facing == 1) {
+                if (player->inputLeft) {
+                    player->groundSpeed -= SUPER_ROLLING_FRICTION;
+                } else if (player->inputRight) {
+                    // do nothing
+                }
+
+            } else if (player->facing == -1) {
+                if (player->inputRight) {
+                    player->groundSpeed += SUPER_ROLLING_FRICTION;
+                } else if (player->inputLeft) {
+                    // do nothing
+                }
+            }
+        }
+
+        // Slope physics based on groundAngle
+        if (abs(groundAngle) >= 23 && abs(groundAngle) < 45) {
+            // Sonic Slope
+            groundSpeed = xSpeed + ySpeed * 0.5f * -sign(sin(groundAngle));
+        } else if (abs(groundAngle) > 45 && abs(groundAngle) < 90) {
+            // Sonic Steep Slope
+            groundSpeed = xSpeed + ySpeed * -sign(sin(groundAngle));
+        } else {
+            // Sonic Flat
+            groundSpeed = xSpeed - sin(groundAngle);
         }
     } else {
-        player->animationState = ANIM_JUMP;
+        // Process air physics here - preserve existing xVel for air momentum
+        // Don't overwrite xVel with ground-based xSpeed when in air
+        
+        // Apply gravity based on launch angle
+        if (player->groundAngle != 0 && player->hasJumped) {
+            xVel += GRAVITY_FORCE * sinf(player->groundAngle) * dt;
+            yVel += GRAVITY_FORCE * cosf(player->groundAngle) * dt;
+        } else if (yVel > TOP_Y_SPEED) {
+            yVel = TOP_Y_SPEED;
+        } else {
+            yVel += GRAVITY_FORCE;
+        }
+
+        // Apply air acceleration and drag
+        if (player->inputRight && xVel < TOP_SPEED) {
+            xVel += AIR_ACCELERATION_SPEED;
+        } else if (player->inputLeft && xVel > -TOP_SPEED) {
+            xVel -= AIR_ACCELERATION_SPEED;
+        }
+        
+        // Apply air drag when no input or opposing input
+        if (!player->inputLeft && !player->inputRight) {
+            // Natural air resistance - gradual deceleration
+            if (xVel > 0) {
+                xVel -= AIR_DRAG_FORCE;
+                if (xVel < 0) xVel = 0;  // Don't overshoot to opposite direction
+            } else if (xVel < 0) {
+                xVel += AIR_DRAG_FORCE;
+                if (xVel > 0) xVel = 0;
+            }
+        }
     }
-    #pragma endregion
-    #pragma region UpdatePosition
-        // TODO: Implement full position update with collision
-    if (player->isOnGround) {
-        player->velocity.x = player->groundSpeed * cosf(angleRad(player));
-        player->velocity.y = player->groundSpeed * -sinf(angleRad(player));
-    }
-    
-    // Update position based on velocity
+
+    // Commit velocity to position
+    player->velocity.x = xVel;
+    player->velocity.y = yVel;
     player->position.x += player->velocity.x;
     player->position.y += player->velocity.y;
 
-    // Simple ground probe using Genesis-style two-foot sensors (A/B)
-    float centerX = player->position.x + player->hitbox.x + player->hitbox.w*0.5f;
-    float feetY   = player->position.y + player->hitbox.y + player->hitbox.h;
-    float footOffset = player->hitbox.w * 0.25f;
+    // After movement, refresh sensors so debug overlay matches final position
+    PlayerAssignSensors(player);
 
-    bool groundA = IsTileSolidAtPosition(centerX - footOffset, feetY + 1);
-    bool groundB = IsTileSolidAtPosition(centerX + footOffset, feetY + 1);
-
-    bool wasGrounded = player->isOnGround;
-    player->isOnGround = (groundA || groundB);
-
-    if (player->isOnGround) {
-        // Snap up slightly when landing to avoid sinking
-        if (!wasGrounded && player->velocity.y > 0) {
-            player->velocity.y = 0;
+    // Tile-based floor collision using heightmaps (SPG method)
+    // Check both bottom sensors with upward scanning
+    extern LevelData currentLevel;
+    if (currentLevel.groundLayer1 != NULL) {
+        // Sensor positions at player's feet
+        float sensorLeftX = player->position.x - PLAYER_WIDTH_RAD;
+        float sensorRightX = player->position.x + PLAYER_WIDTH_RAD;
+        float sensorY = player->position.y + PLAYER_HEIGHT_RAD; // Bottom of player
+        
+        // Scan each bottom sensor independently and pick the deeper contact (SPG rule)
+        const int STEP_UP_LIMIT = 12;
+        float bestGroundYLeft = FLT_MAX;
+        float bestGroundYRight = FLT_MAX;
+        int bestTileYLeft = -1, bestTileYRight = -1;
+        for (int scan = 0; scan <= STEP_UP_LIMIT; ++scan) {
+            float scanY = sensorY - scan;
+            int tileY = (int)(scanY / 16);
+            int lh = GetHeightAtPosition(sensorLeftX, scanY, &currentLevel);
+            if (lh > 0) {
+                float gyL = (tileY * 16.0f) + (16.0f - lh);
+                if (gyL < bestGroundYLeft) { bestGroundYLeft = gyL; bestTileYLeft = tileY; }
+            }
+            int rh = GetHeightAtPosition(sensorRightX, scanY, &currentLevel);
+            if (rh > 0) {
+                float gyR = (tileY * 16.0f) + (16.0f - rh);
+                if (gyR < bestGroundYRight) { bestGroundYRight = gyR; bestTileYRight = tileY; }
+            }
         }
-    }
-    #pragma endregion
-}
 
-void Player_UpdateGroundPhysics(Player* player, float deltaTime) {
-    #pragma region ApplySlopeFactor
-    if (!player->isOnGround) return;
+        float playerBottom = player->position.y + PLAYER_HEIGHT_RAD;
+        bool hasLeft = bestTileYLeft >= 0;
+        bool hasRight = bestTileYRight >= 0;
+        if (hasLeft || hasRight) {
+            // Pick the ground that intrudes most into the player (smallest Y)
+            float groundY = hasLeft && hasRight ? fminf(bestGroundYLeft, bestGroundYRight) : (hasLeft ? bestGroundYLeft : bestGroundYRight);
+            if (playerBottom >= groundY || (groundY - playerBottom) <= STEP_UP_LIMIT) {
+                player->position.y = groundY - PLAYER_HEIGHT_RAD;
+                player->velocity.y = 0.0f;
+                player->isOnGround = true;
+                player->isFalling = false;
+                player->hasJumped = false;
 
-    if (fabsf(player->groundAngle) < 1.0f) return;
+                // Derive ground angle from the two contact heights for smoothness (flip-safe)
+                if (hasLeft && hasRight) {
+                    float dx = (sensorRightX - sensorLeftX);
+                    float dy = (bestGroundYRight - bestGroundYLeft);
+                    float angDeg = atan2f(dy, dx) * RAD2DEG; // -180..180, 0 = flat
+                    if (angDeg < 0) angDeg += 360.0f;
+                    player->groundAngle = angDeg;
+                }
 
-    float slopeFactor = SLOPE_FACTOR_NORMAL;
-
-    if (isnan(angleRad(player))) { angleRad(player) == 0.0f;}
-    float speedAdjustment = slopeFactor * sinf(angleRad(player));
-
-    player->groundSpeed -= speedAdjustment;
-    #pragma endregion
-    #pragma region UpdateSpeedsFromGroundSpeed
-        if (player->isOnGround) {
-        player->velocity.x = player->groundSpeed * cosf(angleRad(player));
-        player->velocity.y = player->groundSpeed * -sinf(angleRad(player));
-    } else {
-        player->velocity.x = 0;
-        player->velocity.y = 0;
-    }
-    #pragma endregion
-    #pragma region ApplyRotationBasedOnGroundAngle
-    if (!player->isOnGround) return;
-
-    // Rotate player sprite based on ground angle
-    switch (player->groundDirection) {
-        case RIGHT:
-            player->playerRotation = GetAngleFromHexDirection(ANGLE_RIGHT);
-            break;
-        case LEFT:
-            player->playerRotation = GetAngleFromHexDirection(ANGLE_LEFT);
-            break;
-        case UP_RIGHT:
-            player->playerRotation = GetAngleFromHexDirection(ANGLE_UP_RIGHT);
-            break;
-        case UP_LEFT:
-            player->playerRotation = GetAngleFromHexDirection(ANGLE_UP_LEFT);
-            break;
-        case DOWN_RIGHT:
-            player->playerRotation = GetAngleFromHexDirection(ANGLE_DOWN_RIGHT);
-            break;
-        case DOWN_LEFT:
-            player->playerRotation = GetAngleFromHexDirection(ANGLE_DOWN_LEFT);
-            break;
-        case UP:
-            player->playerRotation = GetAngleFromHexDirection(ANGLE_UP);
-            break;
-        case DOWN:
-            player->playerRotation = GetAngleFromHexDirection(ANGLE_DOWN);
-            break;
-        default:
-            break;
-    }
-    #pragma endregion
-    Player_ApplyFriction(player, FRICTION);
-    #pragma region ApplyGroundDirection
-    switch (player->groundDirection) {
-        case DOWN:
-            player->playerRotation = ANGLE_DOWN;
-            break;
-        case DOWN_LEFT:
-            player->playerRotation = ANGLE_DOWN_LEFT;
-            break;
-        case LEFT:
-            player->playerRotation = ANGLE_LEFT;
-            break;
-        case UP_LEFT:
-            player->playerRotation = ANGLE_UP_LEFT;
-            break;
-        case UP:
-            player->playerRotation = ANGLE_UP;
-            break;
-        case UP_RIGHT:
-            player->playerRotation = ANGLE_UP_RIGHT;
-            break;
-        case RIGHT:
-            player->playerRotation = ANGLE_RIGHT;
-            break;
-        case DOWN_RIGHT:
-            player->playerRotation = ANGLE_DOWN_RIGHT;
-            break;
-        default:
-            break;
-    }
-
-    if (player->groundAngle == 0.0f) return; // No slope, no adjustment needed
-    if (player->isOnGround == false) return; // Only apply on ground
-    if (player->groundDirection == NOINPUT) return; // No input, no adjustment needed
-
-
-    float hexAngle = GetHexDirectionFromAngle(player->groundAngle);
-
-    // Additional logic can be added here to handle hexagonal ground directions
-    // and their effects on player movement and physics.
-#pragma endregion
-}
-
-void Player_ApplyFriction(Player* player, float friction) {
-// Make sure to apply friction based off x speed and y speed!
-    // For example if you're speeding towards a wall at an angle, friction should slow you down in both x and y directions
-    if (player->isOnGround) {
-        if (player->groundSpeed > 0) {
-            player->groundSpeed = fmaxf(0, player->groundSpeed - friction);
-        } else {
-            player->groundSpeed = fminf(0, player->groundSpeed + friction);
-        }
-    
-    } else {
-        if (player->velocity.x > 0) {
-            player->velocity.x = fmaxf(0, player->velocity.x - friction);
-        } else {
-            player->velocity.x = fminf(0, player->velocity.x + friction);
-        }
-    }
-}
-void Player_UpdateRollingPhysics(Player* player, float deltaTime) {
-    // Additional rolling physics can be implemented here
-    float slopeFactor = SLOPE_FACTOR_NORMAL;
-
-    if (player->isRolling) {
-        float groundSpeedSign  = (player->groundSpeed >= 0) ? 1.0f : -1.0f;
-        float slopeSign = (sinf(angleRad(player)) >= 0) ? 1.0f : -1.0f;
-
-        if (groundSpeedSign == slopeSign) {
-            slopeFactor = SLOPE_FACTOR_ROLLUP;
-        } else {
-            slopeFactor = SLOPE_FACTOR_ROLLDOWN;
-        }
-    }
-}
-
-
-void Player_PredictSlopePosition(Player* player, float* predictedX, float* predictedY, float deltaTime) {
-    if (!player->isOnGround) {
-        *predictedX = player->position.x + player->velocity.x * deltaTime;
-        *predictedY = player->position.y + player->velocity.y * deltaTime;
-        return;
-    }
-
-    float predictedGroundSpeed = player->groundSpeed;
-
-    float predictedVelocityX = predictedGroundSpeed * cosf(angleRad(player));
-    float predictedVelocityY = predictedGroundSpeed * -sinf(angleRad(player));
-
-    *predictedX = player->position.x + predictedVelocityX * deltaTime;
-    *predictedY = player->position.y + predictedVelocityY * deltaTime;
-}
-
-bool Player_IsNextToWallInDirection(Player* player, int direction) {
-    if (player->isOnGround && direction == DOWN) {
-        // Check if the player is next to a wall in the downward direction
-        if (IsTileSolidAtPosition(player->position.x, player->position.y + 1)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-void Player_UpdateAirPhysics(Player* player, float deltaTime) {
-    // Basic air movement
-    (void)deltaTime;
-    if (IsKeyDown(INPUT_LEFT)) {
-        player->velocity.x = fmaxf(player->velocity.x - AIR_ACCELERATION, -AIR_TOP_SPEED);
-    } else if (IsKeyDown(INPUT_RIGHT)) {
-        player->velocity.x = fminf(player->velocity.x + AIR_ACCELERATION, AIR_TOP_SPEED);
-    }
-    // Apply gravity (per frame)
-    player->velocity.y += GRAVITY;
-
-    Player_ApplyFriction(player, FRICTION);
-}
-
-void Player_UpdateState(Player* player, float deltaTime) {
-    // Update player state based on conditions
-    if (player->isOnGround) {
-        if (4.0f < fabsf(player->groundSpeed) && fabsf(player->groundSpeed) > 0.05f) {
-            player->state = WALK;
-        } else if (fabsf(player->groundSpeed) >= 4.0f) {
-            player->state = RUN;
-        } else if (Player_IsOnSteepSlope(player)) {
-            player->state = IDLE;
-        }
-    }
-
-    if (!player->isOnGround && player->jumpPressed && !player->hasJumped) {
-        if (player->velocity.y < 0) {
-            player->state = JUMP;
-            player->hasJumped = true;
-        } else {
-            player->state = FALL;
-            player->hasJumped = true; // Prevent double jumps
-        }
-    }
-    if ((IsKeyDown(INPUT_LEFT) || IsKeyDown(INPUT_RIGHT)) && player->isOnGround) {
-        if (player->facing == 1 && IsKeyDown(INPUT_LEFT) && fabsf(player->groundSpeed) > 3.0f) {
-            player->state = SKID;
-        } else if (player->facing == -1 && IsKeyDown(INPUT_RIGHT) && fabsf(player->groundSpeed) > 3.0f) {
-            player->state = SKID;
-        }
-    }
-    if (Player_CheckVerticalCollision(player->position.y, player->position.y + player->velocity.y) && player->isOnGround && (player->groundDirection == DOWN)) {
-        if (player->facing == -1 && IsKeyDown(INPUT_LEFT)) {
-            player->state = PUSH;
-        } else if (player->facing == 1 && IsKeyDown(INPUT_RIGHT)) {
-            player->state = PUSH;
-        }
-    }
-    if (player->groundSpeed > TOP_SPEED / 2 && player->isOnGround && (IsKeyDown(BUTTON_DOWN))) {
-        player->state = ROLL;
-        player->isRolling = true;
-    }
-    if (player->isRolling && !player->isOnGround) {
-        player->state = ROLL_FALL;
-        player->isRolling = true;
-    }
-    if (IsKeyDown(BUTTON_DOWN) && player->isOnGround && fabsf(player->groundSpeed) < 0.1f) {
-        player->isCrouching = true;
-        player->state = CROUCH;
-    } else {
-        player->isCrouching = false;
-    }
-    if (player->isCrouching && IsKeyPressed(BUTTON_JUMP)) {
-        player->state = SPINDASH;
-        player->isSpindashing = true;
-    }
-    if (player->isOnGround && IsKeyPressed(BUTTON_UP) && fabsf(player->groundSpeed) < 0.1f) {
-        player->isLookingUp = true;
-        player->state = LOOK_UP;
-    } else {
-        player->isLookingUp = false;
-    }
-    if (player->isLookingUp && !IsKeyDown(BUTTON_JUMP)) {
-        player->isPeelOut = true;
-        player->state = PEELOUT;
-    }
-    if (player->isOnGround && fabsf(player->groundSpeed) > TOP_SPEED + 2.0f) {
-        player->state = DASH;
-    }
-
-    if (player->isFlying) {
-        player->state = FLY;
-    }
-    if (player->isGliding) {
-        player->state = GLIDE;
-    }
-    if (player->isClimbing) {
-        player->state = CLIMB;
-    }
-    if (player->isHurt) {
-        player->state = HURT;
-    }
-    if (player->isDead) {
-        player->state = DEAD;
-    }
-}
-
-float Player_GetSlopeMovementModifier(Player* player) {
-    if (!player->isOnGround || fabsf(player->groundAngle) < 1.0f) {
-        return 1.0f;
-    }
-
-    float slopeSign = (sinf(angleRad(player)));
-    float movementSign = (player->groundSpeed >= 0) ? 1.0f : -1.0f;
-
-    bool goingUpHill = (slopeSign > 0 && movementSign > 0) || (slopeSign < 0 && movementSign < 0);
-
-    float slopeIntensity = fabsf(sinf(angleRad(player)));
-
-    if (goingUpHill) {
-        return 1.0f - (slopeIntensity * 0.25f);
-    } else {
-        return 1.0f + (slopeIntensity * 0.5f);
-    }
-}
-
-bool Player_CheckHorizontalCollision(float oldX, float targetX) {
-    // Simple horizontal collision detection
-    if (IsTileSolidAtPosition(targetX, 200)) { // Use a reasonable Y position
-        return true;
-    }
-    return false;
-}
-
-bool Player_CheckVerticalCollision(float oldY, float targetY) {
-    // Simple vertical collision detection
-    if (IsTileSolidAtPosition(200, targetY)) { // Use a reasonable X position
-        return true;
-    }
-    return false;
-}
-
-bool Player_WantsToRun(Player* player) {
-    if (!player->isOnGround || player->controlLockTimer > 0) return false;
-
-    if (fabsf(player->groundAngle) < SLIP_THRESHOLD && fabsf(player->groundAngle) > SLIP_ANGLE_START) {
-        // Normal slip condition
-        return false;
-    }
-
-    if (player->slipAngleType == SONIC_1_2_CD && (player->groundAngle > SLIP_ANGLE_START || player->groundAngle < SLIP_ANGLE_END)) {
-        // Sonic 1/2 CD slip condition
-        return false;
-    }
-
-    if (player->slipAngleType == SONIC_3K && ((player->groundAngle > SLIP_ANGLE_START_S3 && player->groundAngle < FALL_ANGLE_START_S3) || 
-                                             (player->groundAngle < SLIP_ANGLE_END_S3 && player->groundAngle > FALL_ANGLE_END_S3))) {
-        // Sonic 3K slip condition
-        return false;
-    }
-
-    // If none of the slip conditions are met, the player can run
-    return true;
-}
-
-bool Player_IsOnSteepSlope(Player* player) {
-    return fabsf(player->groundAngle) > STEEP_SLOPE_ANGLE;
-}
-
-bool Player_WantsToLookUp(Player* player) {
-    if (!player->isOnGround || player->controlLockTimer > 0) return false;
-
-    return IsKeyDown(INPUT_UP);
-}
-
-bool Player_WantsToCrouch(Player* player) {
-    if (!player->isOnGround || player->controlLockTimer > 0) return false;
-
-    return IsKeyDown(INPUT_DOWN);
-}
-
-void Player_StartSkid(Player* player) {
-    if (!player->isOnGround || player->controlLockTimer > 0) return;
-
-    if ((player->facing == 1 && IsKeyDown(INPUT_LEFT)) || (player->facing == -1 && IsKeyDown(INPUT_RIGHT))) {
-        player->state = SKID;
-        player->controlLockTimer = SKID_CONTROL_LOCK_TIME;
-        // Optionally reduce ground speed when starting skid
-        player->groundSpeed *= SKID_SPEED_REDUCTION_FACTOR;
-    } else {
-        // Not skidding, reset state if necessary
-        if (player->state == SKID) {
-            player->state = IDLE;
-        }
-    }
-}   
-
-bool Player_WantsToSpindash(Player* player) {
-    if (!player->isOnGround || player->controlLockTimer > 0) return false;
-    if (player->state == SPINDASH && IsKeyDown(BUTTON_JUMP_)) {
-        Player_ChargeSpindash(player);
-        return true;
-    }
-    if (!IsKeyDown(BUTTON_DOWN) && player->state == SPINDASH && fabsf(player->groundSpeed) < 0.1f) {
-        Player_ReleaseSpindash(player);
-        return false;
-    }
-    return IsKeyDown(BUTTON_DOWN) && fabsf(player->groundSpeed) < 0.1f;
-}
-
-void Player_ChargeSpindash(Player* player) {
-    if (player->spindashCharge < MAX_SPINDASH_CHARGE) {
-        player->spindashCharge++;
-    }
-}
-
-void Player_ReleaseSpindash(Player* player) {
-    if (player->spindashCharge > 0) {
-        float spindashSpeed = SPINDASH_BASE_SPEED + (player->spindashCharge * SPINDASH_SPEED_INCREMENT);
-        player->groundSpeed = spindashSpeed * player->facing;
-        player->spindashCharge = 0;
-        player->isSpindashing = false;
-        player->controlLockTimer = SPINDASH_CONTROL_LOCK_TIME;
-    }
-}
-
-void Player_StartPeelOut(Player* player) {
-    if (!player->isOnGround || player->controlLockTimer > 0) return;
-
-    float peeloutTimer = 0.0f;
-
-    if (player->isLookingUp && IsKeyDown(BUTTON_JUMP)) {
-        player->isPeelOut = true;
-        player->state = PEELOUT;
-        peeloutTimer += GetFrameTime();
-        player->groundSpeed = PEEL_OUT_SPEED * player->facing;
-        player->controlLockTimer = PEEL_OUT_CONTROL_LOCK_TIME;
-        if (IsKeyDown(BUTTON_JUMP) && peeloutTimer < PEEL_OUT_HOLD_TIME) {
-            Player_ReleasePeelout(player);
-        }
-    }
-}
-
-void Player_ReleasePeelout(Player* player) {
-    if (player->isPeelOut) {
-        player->isPeelOut = false;
-        player->groundSpeed = PEEL_OUT_TOP_SPEED * player->facing;
-        player->state = DASH;
-        player->controlLockTimer = 0.0f;
-    }
-}
-
-void Player_StartJump(Player* player) {
-    if (player->isOnGround && player->controlLockTimer <= 0) {
-        if (IsKeyPressed(BUTTON_JUMP) && (player->state == IDLE || player->state == WALK || player->state == RUN || player->state == DASH || player->state == ROLL)) {
-        // Can go between RELEASE_JUMP_VELOCITY and INITIAL_JUMP_VELOCITY based on how long the jump button is held
-            player->velocity.y = INITIAL_JUMP_VELOCITY;
+                // Classify ground direction from angle for hitbox orientation
+                float a = fmodf(player->groundAngle, 360.0f);
+                if (a < 0) a += 360.0f;
+                if (a >= 315.0f || a < 45.0f) player->groundDirection = ANGLE_RIGHT; // tangent; used for orientation fallback below
+                // floor/wall/ceiling grouping
+                if ((a < 45.0f) || (a > 315.0f) || (a > 135.0f && a < 225.0f))      player->groundDirection = ANGLE_DOWN;
+                else if (a >= 45.0f && a < 135.0f)                                  player->groundDirection = ANGLE_RIGHT;
+                else if (a >= 225.0f && a < 315.0f)                                 player->groundDirection = ANGLE_LEFT;
+                else                                                                player->groundDirection = ANGLE_UP;
+                PlayerAssignSensors(player);
+            }
+        } else if (player->velocity.y > 0) {
             player->isOnGround = false;
-            player->hasJumped = true;
-            player->state = JUMP;
+            player->isFalling = true;
+        }
+        
+        // Wall collision (left and right sensors)
+        // Check horizontal collision when moving sideways
+        if (player->velocity.x != 0) {
+            float sensorMidY = player->position.y; // Center height
+            float velx = player->velocity.x;
+            float checkX = (velx > 0) ? 
+                           player->position.x + PLAYER_WIDTH_RAD + 1 : 
+                           player->position.x - PLAYER_WIDTH_RAD - 1;
+            
+            // Check for solid tile at push position
+            Tile wallTile = GetTileAtWorldPos(checkX, sensorMidY, &currentLevel);
+            if (wallTile.tileId != 0) {
+                uint32_t rawId = (uint32_t)wallTile.tileId;
+                uint32_t gid = rawId & ~FLIPPED_ALL_FLAGS_MASK;
+                
+                if (gid > 0 && gid <= TILESET_TILE_COUNT) {
+                    // Stop horizontal movement
+                    player->velocity.x = 0;
+                    player->groundSpeed = 0;
+                    
+                    // Snap to tile edge
+                    int tileX = (int)(checkX / 16);
+                    if (velx > 0) {
+                        player->position.x = (tileX * 16) - PLAYER_WIDTH_RAD - 1;
+                    } else {
+                        player->position.x = ((tileX + 1) * 16) + PLAYER_WIDTH_RAD + 1;
+                    }
+                }
+            }
         }
     }
-}
-
-void Player_ReleaseJump(Player* player) {
-    if (player->hasJumped && IsKeyReleased(BUTTON_JUMP)) {
-        if (player->velocity.y < RELEASE_JUMP_VELOCITY) {
-            player->velocity.y = RELEASE_JUMP_VELOCITY;
-        }
-    }
-}
-
-void Player_Jump(Player* player) {
-    if (Player_WantsToJump(player)) {
-        Player_StartJump(player);
-    }
-    if (player->velocity.y < 0 && player->hasJumped && 
-        !(player->state == ROLL_FALL || player->state == FALL)) {
-        Player_ReleaseJump(player);
-    }
-
-}
-
-void Player_SpringBounce(Player* player, float bounceVelocity) {
-    player->velocity.y = bounceVelocity;
-    player->isOnGround = false;
-    player->hasJumped = true;
-    player->state = SPRING_RISE;
-}
-
-void Player_UpdateIdleState(Player* player, float deltaTime) {
-    if (player->state == IDLE) {
-        player->idleTimer += deltaTime;
-        if (!player->isImpatient && player->idleTimer >= IDLE_IMPATIENCE_LOOK_TIME) {
-            player->isImpatient = true;
-            player->idleState = IMPATIENT_LOOK;
-            player->animationState = ANIM_IMPATIENT_LOOK;
-        } else if (player->isImpatient && player->idleState == IMPATIENT_LOOK && player->idleTimer >= (IDLE_IMPATIENCE_TIME + IDLE_IMPATIENCE_LOOK_TIME)) {
-            player->idleState = IMPATIENT_ANIMATION;
-            player->animationState = ANIM_IMPATIENT;
-        }
-    } else {
-        // Reset impatience when not idle
-        player->idleTimer = 0.0f;
-        player->isImpatient = false;
-        player->idleState = IDLE_NORMAL;
-    }
-}
-
-void Player_FaceDirection(Player* player, bool faceRight) {
-    if (faceRight) {
-        player->facing = 1;
-    } else {
-        player->facing = -1;
-    }
-}
-
-void Player_TakeDamage(Player* player) {
-    if (player->invincibilityTimer <= 0) {
-        player->isHurt = true;
-        player->invincibilityTimer = INVINCIBILITY_DURATION;
-        player->controlLockTimer = HURT_CONTROL_LOCK_TIME;
-        // TODO: Add rings or lives system
-        // Additional logic for reducing rings or lives can be added here
-    }
-}
-// whole purpose to just exist 🥀 - Birb64
-// bool Player_WantsToBeIdle(Player* player) {
-//     // If Ground angle is too steep, don't go to idle
-//     if (Player_IsOnSteepSlope(player)) {
-//         return false;
-//     }
-//     return true;
-// }
-
-bool Player_WantsToJump(Player* player) {
-    if (!player->isOnGround || player->controlLockTimer > 0) return false;
-
-    return IsKeyPressed(BUTTON_JUMP);
 }
 
 void Player_Draw(Player* player) {
-    if (player == NULL) return;
-    
-    // For now, draw a simple colored rectangle to represent the player
-    Color playerColor = WHITE;
-    
-    // Change color based on player state for visual feedback
-    if (player->isJumping) {
-        playerColor = YELLOW;
-    } else if (player->isRolling) {
-        playerColor = ORANGE;
-    } else if (player->isOnGround) {
-        playerColor = GREEN;
-    } else {
-        playerColor = RED; // Falling
-    }
-    
-    // Draw the player rectangle
-    DrawRectangle(
-        (int)(player->position.x + player->hitbox.x),
-        (int)(player->position.y + player->hitbox.y),
-        player->hitbox.w,
-        player->hitbox.h,
-        playerColor
-    );
-    
-    // Draw a facing indicator (small triangle)
-    Vector2 triPos = {
-        player->position.x + player->hitbox.x + player->hitbox.w/2 + (player->facing * 5),
-        player->position.y + player->hitbox.y + player->hitbox.h/2
-    };
-    
-    if (player->facing > 0) { // Facing right
-        DrawTriangle(
-            (Vector2){triPos.x, triPos.y - 3},
-            (Vector2){triPos.x, triPos.y + 3},
-            (Vector2){triPos.x + 6, triPos.y},
-            BLACK
-        );
-    } else { // Facing left
-        DrawTriangle(
-            (Vector2){triPos.x, triPos.y - 3},
-            (Vector2){triPos.x, triPos.y + 3},
-            (Vector2){triPos.x - 6, triPos.y},
-            BLACK
-        );
-    }
-    
-    // Draw six-point collision sensors (Genesis-style)
-    float centerX = player->position.x + player->hitbox.x + player->hitbox.w/2;
-    float centerY = player->position.y + player->hitbox.y + player->hitbox.h/2;
-    float width = player->hitbox.w;
-    float height = player->hitbox.h;
-    
-    // Ground sensors (A and B) - bottom of player
-    float sensorOffset = width * 0.25f; // Offset from center
-    Vector2 groundA = {centerX - sensorOffset, player->position.y + player->hitbox.y + height};
-    Vector2 groundB = {centerX + sensorOffset, player->position.y + player->hitbox.y + height};
-    
-    // Wall sensors (C and D) - sides of player
-    float wallSensorY = centerY;
-    Vector2 wallLeft = {player->position.x + player->hitbox.x, wallSensorY};
-    Vector2 wallRight = {player->position.x + player->hitbox.x + width, wallSensorY};
-    
-    // Ceiling sensors (E and F) - top of player
-    Vector2 ceilingE = {centerX - sensorOffset, player->position.y + player->hitbox.y};
-    Vector2 ceilingF = {centerX + sensorOffset, player->position.y + player->hitbox.y};
-    
-    // Draw sensor points
-    DrawCircle((int)groundA.x, (int)groundA.y, 2, RED);      // Ground A
-    DrawCircle((int)groundB.x, (int)groundB.y, 2, RED);      // Ground B
-    DrawCircle((int)wallLeft.x, (int)wallLeft.y, 2, BLUE);   // Wall Left
-    DrawCircle((int)wallRight.x, (int)wallRight.y, 2, BLUE); // Wall Right
-    DrawCircle((int)ceilingE.x, (int)ceilingE.y, 2, GREEN);  // Ceiling E
-    DrawCircle((int)ceilingF.x, (int)ceilingF.y, 2, GREEN);  // Ceiling F
-    
-    // Draw sensor labels
-    DrawText("A", (int)groundA.x - 3, (int)groundA.y + 3, 8, WHITE);
-    DrawText("B", (int)groundB.x - 3, (int)groundB.y + 3, 8, WHITE);
-    DrawText("C", (int)wallLeft.x - 8, (int)wallLeft.y - 4, 8, WHITE);
-    DrawText("D", (int)wallRight.x + 3, (int)wallRight.y - 4, 8, WHITE);
-    DrawText("E", (int)ceilingE.x - 3, (int)ceilingE.y - 12, 8, WHITE);
-    DrawText("F", (int)ceilingF.x - 3, (int)ceilingF.y - 12, 8, WHITE);
+    // TODO: Replace with animated sprite draw when available
+    DrawCircleV(player->position, 10, RED);
+
+    // Draw collision sensors overlay (temporarily always on to verify rendering path)
+    PlayerDrawSensorLines(player);
 }
 
-void Player_Unload(Player* player) {
-    if (player == NULL) return;
-    
-    // Clean up any allocated resources
-    if (player->sprite != NULL) {
-        // Free sprite resources if needed
-        player->sprite = NULL;
-    }
-    
-    if (player->animationManager != NULL) {
-        // Free animation manager if needed
-        player->animationManager = NULL;
-    }
-    
-    // Reset player to default state
-    memset(player, 0, sizeof(Player));
+static void PlayerUnload(Player* player) {
+    // Unload player resources here
 }
+
+// Debug: draw player collision sensors and rays
+void PlayerDrawSensorLines(Player* player) {
+    if (!player) return;
+
+    // Colors inspired by classic Sonic debugging
+    const Color colVertical = YELLOW;      // Vertical sensor bars
+    const Color colHorizontal = (Color){230, 230, 230, 255}; // Mid-line
+    const Color colPointsTop = SKYBLUE;    // Sensor points (top)
+    const Color colPointsBottom = GREEN;   // Sensor points (bottom)
+    const Color colCenter = ORANGE;        // Center marker
+
+    // Convenience aliases
+    Vector2 TL = player->playerSensors.topLeft;
+    Vector2 TR = player->playerSensors.topRight;
+    Vector2 BL = player->playerSensors.bottomLeft;
+    Vector2 BR = player->playerSensors.bottomRight;
+    Vector2 L  = player->playerSensors.left;
+    Vector2 R  = player->playerSensors.right;
+    Vector2 C  = player->playerSensors.center;
+
+    // Sanity cross at center
+    DrawLineEx((Vector2){C.x - 12, C.y}, (Vector2){C.x + 12, C.y}, 2.0f, WHITE);
+    DrawLineEx((Vector2){C.x, C.y - 12}, (Vector2){C.x, C.y + 12}, 2.0f, WHITE);
+
+    // Vertical bars (left/right)
+    DrawLineEx(TL, BL, 1.0f, colVertical);
+    DrawLineEx(TR, BR, 1.0f, colVertical);
+
+    // Center vertical bar using averaged top/bottom
+    Vector2 topMid = { (TL.x + TR.x) * 0.5f, (TL.y + TR.y) * 0.5f };
+    Vector2 botMid = { (BL.x + BR.x) * 0.5f, (BL.y + BR.y) * 0.5f };
+    DrawLineEx(topMid, botMid, 1.0f, colVertical);
+
+    // Mid horizontal line between left/right sensors
+    DrawLineEx(L, R, 1.0f, colHorizontal);
+    // Sensor points
+    DrawCircleV(TL, 2.0f, colPointsTop);
+    DrawCircleV(TR, 2.0f, colPointsTop);
+    DrawCircleV(BL, 2.0f, colPointsBottom);
+    DrawCircleV(BR, 2.0f, colPointsBottom);
+    DrawCircleV(L,  2.0f, colHorizontal);
+    DrawCircleV(R,  2.0f, colHorizontal);
+    DrawCircleV(C,  2.0f, colCenter);
+}
+

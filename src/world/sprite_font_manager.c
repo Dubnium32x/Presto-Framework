@@ -267,16 +267,16 @@ void DrawPrestoNumbersA(const char* text, Vector2 position, float scale, Color t
             else if (c == '8') glyphIndex = 6;
             else if (c == '9') glyphIndex = 5;
             // '0' might be in indices 1-4 somewhere
-        } else if (c == '\'') {
+        } else if (c == '-') {
             glyphIndex = 0; // Apostrophe at index 0
         } else if (c == '/') {
             glyphIndex = 1; // Try slash at index 1
-        } else if (c == '.') {
-            glyphIndex = 2; // Try period at index 2
-        } else if (c == '-') {
-            glyphIndex = 3; // Try dash at index 3
         } else if (c == ':') {
-            glyphIndex = 4; // Try colon at index 4
+            glyphIndex = 2; // Try colon at index 2
+        } else if (c == '\'') {
+            glyphIndex = 3; // Try apostrophe at index 3
+        } else if (c == '"') {
+            glyphIndex = 4; // Try quote at index 4
         }
         
         if (glyphIndex >= 0 && glyphIndex < 14) {

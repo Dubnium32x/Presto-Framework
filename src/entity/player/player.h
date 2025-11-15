@@ -35,16 +35,17 @@
 #define SPINDASH_SPEED_PER_CHARGE 1.5f
 
 // Player dimensions
-#define PLAYER_WIDTH (PLAYER_WIDTH_RAD * 2) + 1
-#define PLAYER_HEIGHT (PLAYER_HEIGHT_RAD * 2) + 1
+#define PLAYER_WIDTH ((PLAYER_WIDTH_RAD * 2) + 1)
+#define PLAYER_HEIGHT ((PLAYER_HEIGHT_RAD * 2) + 1)
 
-// Physics constants
-#define GRAVITY 9.81f
-#define ACCELERATION 8.0f
-#define TOP_SPEED 6.0f
-#define FRICTION 0.046875f
-#define AIR_ACCELERATION 2.0f
-#define AIR_TOP_SPEED 4.0f
+// Define Player sensors
+#define PLAYER_CENTER (PLAYER_WIDTH_RAD + 1.0f), (PLAYER_HEIGHT_RAD + 1.0f)
+#define SENSOR_LEFT (PLAYER_CENTER - PLAYER_WIDTH_RAD), PLAYER_CENTER
+#define SENSOR_RIGHT (PLAYER_CENTER + PLAYER_WIDTH_RAD), PLAYER_CENTER
+#define SENSOR_TOPLEFT (PLAYER_CENTER - PLAYER_WIDTH_RAD), (PLAYER_CENTER + PLAYER_HEIGHT_RAD)
+#define SENSOR_TOPRIGHT (PLAYER_CENTER + PLAYER_WIDTH_RAD), (PLAYER_CENTER + PLAYER_HEIGHT_RAD)
+#define SENSOR_BOTTOMLEFT (PLAYER_CENTER - PLAYER_WIDTH_RAD), (PLAYER_CENTER - PLAYER_HEIGHT_RAD)
+#define SENSOR_BOTTOMRIGHT (PLAYER_CENTER + PLAYER_WIDTH_RAD), (PLAYER_CENTER - PLAYER_HEIGHT_RAD)
 
 typedef enum {
     IDLE,
@@ -93,9 +94,25 @@ typedef enum {
 } PlayerGroundDirection;
 
 typedef struct {
+    float bottomLeftAngle;
+    float bottomRightAngle;
+} PlayerGroundAngles;
+
+typedef struct {
+    Vector2 center;
+    Vector2 left;
+    Vector2 right;
+    Vector2 topLeft;
+    Vector2 topRight;
+    Vector2 bottomLeft;
+    Vector2 bottomRight;
+} PlayerSensors;
+
+typedef struct {
     Vector2 position;
     Vector2 velocity;
     float groundSpeed;
+    PlayerSensors playerSensors;
     float verticalSpeed;
     float groundAngle; // In degrees
     int playerRotation; // In degrees
@@ -115,6 +132,7 @@ typedef struct {
     bool isClimbing;
     bool isHurt;
     bool isDead;
+    bool isGravityApplied;
     
     // Input tracking fields
     bool inputLeft;
@@ -125,6 +143,7 @@ typedef struct {
     int facing; // 1 = right, -1 = left
     PlayerState state;
     PlayerIdleState idleState;
+    PlayerGroundAngles groundAngles;
     PlayerGroundDirection groundDirection;
     bool isImpatient;
     float impatientTimer;
@@ -140,7 +159,7 @@ typedef struct {
     int blinkTimer; // Timer for blinking effect
     int blinkInterval; // Interval between blinks
     int blinkDuration; // Duration of a blink
-    int jumpButtonHoldTimer; // Timer for how long the jump button has been held
+    float jumpButtonHoldTimer; // Timer for how long the jump button has been held (seconds)
     int slipAngleType; // Type of slip angle behavior
     TilesetInfo* currentTileset; // Current tileset info for friction and other properties
 
@@ -204,48 +223,8 @@ typedef struct {
     a lot of functions, but we can start with the basics and build up from there.
 */
 
-Player Player_Init(float startX, float startY, Hitbox_t box);
-void Player_SetLevel(Player* player, TilesetInfo* tilesetInfo);
-void Player_SetSpawnPoint(Player* player, float x, float y, bool checkpoint);
-
-void Player_Update(Player* player, float deltaTime);
-void Player_UpdateGroundPhysics(Player* player, float deltaTime);
-void Player_UpdateAirPhysics(Player* player, float deltaTime);
-void Player_UpdateRollingPhysics(Player* player, float deltaTime);
-void Player_UpdateState(Player* player, float deltaTime);
-void Player_HandleCollisionModePhysics(Player* player, float deltaTime);
-void Player_PredictSlopePosition(Player* player, float* predictedX, float* predictedY, float deltaTime);
-bool Player_IsNextToWallInDirection(Player* player, int direction);
-bool Player_IsOnSteepSlope(Player* player);
-bool Player_WantsToLookUp(Player* player);
-bool Player_WantsToCrouch(Player* player);
-bool Player_WantsToJump(Player* player);
-bool Player_WantsToSpindash(Player* player);
-bool Player_WantsToPeelOut(Player* player);
-bool Player_WantsToRun(Player* player);
-bool Player_WantsToBeIdle(Player* player);
-float Player_GetSlopeMovementModifier(Player* player);
-void Player_ApplyFriction(Player* player, float friction);
-void Player_ApplyGravity(Player* player, float gravity);
-void Player_StartJump(Player* player);
-void Player_Jump(Player* player);
-void Player_ReleaseJump(Player* player);
-void Player_StartSpindash(Player* player);
-void Player_StartSkid(Player* player);
-void Player_ChargeSpindash(Player* player);
-void Player_ReleaseSpindash(Player* player);
-void Player_StartPeelOut(Player* player);
-void Player_ReleasePeelout(Player* player);
-void Player_SpringBounce(Player* player, float bounceVelocity);
-void Player_UpdateIdleState(Player* player, float deltaTime);
-void Player_SetIdleState(Player* player, PlayerIdleState newIdleState);
-void Player_FaceDirection(Player* player, bool faceRight);
-void Player_TakeDamage(Player* player);
-void Player_Respawn(Player* player, float startX, float startY);
+Player Player_Init(float startX, float startY);
+void PlayerDrawSensorLines(Player* player);
+void Player_Update(Player* player, float dt);
 void Player_Draw(Player* player);
-void Player_Unload(Player* player);
-void Player_ShouldLockCamera(Player *player, bool lock);
-bool Player_CheckHorizontalCollision(float oldX, float targetX);
-bool Player_CheckVerticalCollision(float oldY, float targetY);
-
 #endif
