@@ -162,7 +162,7 @@ void UpdateCreationMenu(float deltaTime)
         CreateNewLevel(levelName, levelWidth, levelHeight);
 
         char path[512];
-        snprintf(path, sizeof(path), "%s%s.csv", BASE_LEVEL_DIR, levelName);
+        snprintf(path, sizeof(path), "%s/%s/%s.csv", BASE_LEVEL_DIR, levelName, levelName);
         LoadLevelIntoEditor(path);
 
         editorState = LEVEL_EDITOR_EDITING;
@@ -393,7 +393,7 @@ void UpdateEditor(float deltaTime)
 
     if ((IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL)) && IsKeyPressed(KEY_S))
     {
-        const char *path = TextFormat("%s%s.csv", BASE_LEVEL_DIR, levelName);
+        const char *path = TextFormat("%s/%s/%s.csv", BASE_LEVEL_DIR, levelName, levelName);
         SaveLayerToCSV(path);
     }
 }
@@ -725,14 +725,18 @@ void LoadLevelIntoEditor(const char *path)
 
 void CreateNewLevel(const char *levelName, int width, int height)
 {
-    char path[512];
-    snprintf(path, sizeof(path), "%s%s.csv", BASE_LEVEL_DIR, levelName);
+    char dirPath[512];
+    snprintf(dirPath, sizeof(dirPath), "%s%s", BASE_LEVEL_DIR, levelName);
+    mkdir(dirPath, 0777); // Create the directory
+
+    char filePath[512];
+    snprintf(filePath, sizeof(filePath), "%s/%s.csv", dirPath, levelName);
 
     Tile **tempLayer = InitializeLayer(width, height);
     if (!tempLayer)
         return;
 
-    FILE *file = fopen(path, "w");
+    FILE *file = fopen(filePath, "w");
     if (!file)
     {
         // Failed to create file
