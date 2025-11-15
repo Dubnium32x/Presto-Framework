@@ -1,15 +1,18 @@
 {
-    "files.associations": {
-        "game_camera.h": "c",
-        "string.h": "c",
-        "library.h": "c",
-        "level_demo_screen.h": "c",
-        "input.h": "c",
-        "sprite_font_manager.h": "c",
-        "screen_manager.h": "c",
-        "player.h": "c",
-        "globals.h": "c",
-        "level_list.h": "c",
-        "math_utils.h": "c"
-    }
+  "files.associations": {
+    "game_camera.h": "c",
+    "string.h": "c",
+    "library.h": "c",
+    "level_demo_screen.h": "c",
+    "input.h": "c",
+    "sprite_font_manager.h": "c",
+    "screen_manager.h": "c",
+    "player.h": "c",
+    "globals.h": "c",
+    "level_list.h": "c",
+    "math_utils.h": "c",
+    "sprite_object.h": "c",
+    "stdbool.h": "c",
+    "direct.h": "c"
+  }
 }
