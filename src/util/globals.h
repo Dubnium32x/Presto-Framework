@@ -40,8 +40,11 @@ extern Font fontFamily[3];
 // Global audio manager
 extern AudioManager g_audioManager;
 
-typedef struct {
+typedef struct
+{
     int x, y, w, h;
 } Hitbox_t;
+
+Vector2 GetMousePositionVirtual(void);
 
 #endif // GLOBALS_H
