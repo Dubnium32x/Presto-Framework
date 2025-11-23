@@ -2,12 +2,9 @@
 #ifndef SCREEN_SETTINGS_H
 #define SCREEN_SETTINGS_H
 
-#include "raylib.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
-#include "../util/globals.h"
 
 // Screen setting aliases - these reference the global variables
 #define PRESTO_SCREEN_WIDTH screenWidth

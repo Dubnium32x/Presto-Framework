@@ -1,7 +1,6 @@
 // HUD (Heads-Up Display) management
 #include "hud.h"
 #include "raylib.h"
-#include <stdio.h>
 #include <string.h>
 #include "../world/sprite_font_manager.h"
 #include "../entity/player/player.h"

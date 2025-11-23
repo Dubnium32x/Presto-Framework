@@ -50,3 +50,9 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+/build
+/.cache
+/bin
+compile_commands.json
+presto-framework
+presto-framework-debug
