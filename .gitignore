@@ -50,6 +50,9 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
-
-# Vscode settings
-.vscode/
+/build
+/.cache
+/bin
+compile_commands.json
+presto-framework
+presto-framework-debug

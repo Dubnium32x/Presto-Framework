@@ -1,10 +1,7 @@
 // Error Handler header
 #ifndef ERROR_HANDLER_H
 #define ERROR_HANDLER_H
-#include "raylib.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+
 #include <stdbool.h>
 
 typedef enum {

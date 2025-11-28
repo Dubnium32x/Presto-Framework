@@ -4,11 +4,7 @@
 
 #include "raylib.h"
 #include "../entity/sprite_object.h"
-#include "../util/math_utils.h"
 #include <stdbool.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
 
 #define MAX_SPRITES 256
 #define MAX_SPRITES_PER_TYPE 64

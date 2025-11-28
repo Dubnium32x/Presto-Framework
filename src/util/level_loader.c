@@ -1,6 +1,8 @@
 // Level loader implementation
 #include "level_loader.h"
-#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
 bool levelInitialized = false;
 LevelData currentLevel;

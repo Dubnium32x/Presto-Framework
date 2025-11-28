@@ -10,7 +10,6 @@
 
 #include "raylib.h"
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
 #include <math.h>
@@ -38,7 +37,6 @@
 #include "world/sprite_font_manager.h"
 #include "world/input.h"
 #include "world/data.h"
-#include "util/level_loader.h"
 #include "entity/player/player.h"
 
 GameCamera cam;

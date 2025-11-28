@@ -2,9 +2,7 @@
 
 #ifndef SCREEN_STATE_H
 #define SCREEN_STATE_H
-#include <string.h>
 #include "raylib.h"
-#include <stdio.h>
 
 typedef enum
 {
@@ -92,4 +90,4 @@ void StartTransition(Transition *transition, TransitionType type, float duration
 void UpdateTransition(Transition *transition, float deltaTime);
 void DrawTransition(Transition *transition);
 
-#endif // SCREEN_STATE_H
+#endif // SCREEN_STATE_H 

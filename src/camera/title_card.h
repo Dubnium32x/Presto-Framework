@@ -3,10 +3,6 @@
 #define TITLE_CARD_H
 
 #include "raylib.h"
-#include "game_camera.h"
-#include "hud.h"
-#include "../util/globals.h"
-#include <stdio.h>
 
 // Texture declarations (to be loaded in Init function)
 extern Texture2D actText;

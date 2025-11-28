@@ -6,8 +6,6 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
-#include "../world/screen_manager.h"
 
 typedef enum InitScreenStateEnum {
     INIT_UNINITIALIZED,

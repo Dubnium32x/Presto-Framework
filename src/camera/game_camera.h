@@ -3,11 +3,6 @@
 #define GAME_CAMERA_H
 
 #include "raylib.h"
-#include "../world/tileset_map.h"
-#include "../util/math_utils.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
 typedef struct {
     Vector2 position;
