@@ -4,7 +4,8 @@
 #define SCREEN_STATE_H
 #include "raylib.h"
 
-typedef enum {
+typedef enum
+{
     SCREEN_INIT,
     SCREEN_LOADING,
     SCREEN_SPLASH,
@@ -12,6 +13,7 @@ typedef enum {
     SCREEN_TITLE,
     SCREEN_MENU,
     SCREEN_OPTIONS,
+    SCREEN_LEVEL_EDITOR,
     SCREEN_GAMEPLAY,
     SCREEN_PAUSE,
     SCREEN_GAMEOVER,
@@ -34,7 +36,8 @@ typedef enum {
     SCREEN_ANIM_DEMO
 } ScreenType;
 
-typedef enum {
+typedef enum
+{
     OPTIONS,
     FILE_SELECT,
     GALLERY,
@@ -42,7 +45,8 @@ typedef enum {
     CREDITS
 } MenuType;
 
-typedef enum {
+typedef enum
+{
     GAMEPLAY_PLAYING,
     GAMEPLAY_PAUSED,
     GAMEPLAY_GAMEOVER,
@@ -50,20 +54,23 @@ typedef enum {
     GAMEPLAY_WIN
 } GameplayState;
 
-typedef enum {
+typedef enum
+{
     TRANSITION_NONE,
     TRANSITION_FADE_IN,
     TRANSITION_FADE_OUT
 } TransitionType;
 
-typedef struct Transition {
+typedef struct Transition
+{
     TransitionType type;
     float duration;
     float elapsed;
     bool active;
 } Transition;
 
-typedef struct ScreenState {
+typedef struct ScreenState
+{
     ScreenType currentScreen;
     ScreenType previousScreen;
     MenuType currentMenu;

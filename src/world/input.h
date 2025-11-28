@@ -13,7 +13,8 @@
 typedef uint16_t InputMask;
 
 // Input bit positions (similar to D version)
-typedef enum {
+typedef enum
+{
     INPUT_UP = 0,
     INPUT_DOWN = 1,
     INPUT_LEFT = 2,
@@ -26,14 +27,17 @@ typedef enum {
     INPUT_LB = 9,
     INPUT_RT = 10,
     INPUT_LT = 11,
-    INPUT_START = 12
+    INPUT_START = 12,
+    INPUT_MODIFIER1 = 13, // Currently for level editor stuff
+    INPUT_MODIFIER2 = 14, // ditto
 } InputBit;
 
 // Helper macro to get mask for a bit
 #define INPUT_MASK(bit) (1 << (bit))
 
 // Unified input state
-typedef struct {
+typedef struct
+{
     InputMask prevState;
     InputMask curState;
     InputMask pressedMask;
@@ -49,9 +53,11 @@ void UpdateUnifiedInput(float deltaTime);
 bool IsInputDown(InputBit bit);
 bool IsInputPressed(InputBit bit);
 bool IsInputReleased(InputBit bit);
+bool IsModifierDown(int modifier);
+bool IsModifierPressed(int modifier);
+bool IsModifierReleased(int modifier);
 float GetInputHoldTime(InputBit bit);
 void SetInputGamepadId(int id);
-
 
 // GAMEPAD INPUTS
 #define BUTTON_A GAMEPAD_BUTTON_RIGHT_FACE_DOWN
@@ -86,7 +92,8 @@ void SetInputGamepadId(int id);
 #define KEY_BACK KEY_BACKSPACE
 #define KEY_MENU KEY_ESCAPE
 
-typedef struct {
+typedef struct
+{
     Vector2 leftStick;
     bool buttons[MAX_BUTTONS];
     bool lastButtons[MAX_BUTTONS];
@@ -103,6 +110,6 @@ float GetAnalogX(int player);
 float GetAnalogY(int player);
 float HoldTime(int player, int button);
 void SetGamepadId(int player, int id);
-void GetAnalogStickMagnitudeAndAngle(int player, float* magnitude, float* angle);
+void GetAnalogStickMagnitudeAndAngle(int player, float *magnitude, float *angle);
 
 #endif // INPUT_H
