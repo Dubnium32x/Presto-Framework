@@ -1,0 +1,95 @@
+// Math utilities functions and constants
+#ifndef UTIL_MATH_UTILS_H
+#define UTIL_MATH_UTILS_H
+
+#include <math.h>
+#include "raylib.h"
+#include "raymath.h"
+#include <stdlib.h>
+#include <stdio.h>
+
+// Don't redefine constants that raylib already defines
+#ifndef PI
+#define PI 3.14159265358979323846f
+#endif
+#ifndef DEG2RAD
+#define DEG2RAD (PI / 180.0f)
+#endif
+#ifndef RAD2DEG
+#define RAD2DEG (180.0f / PI)
+#endif
+
+// Don't redefine functions that raylib already provides
+#ifndef RAYLIB_H
+static inline float Clamp(float value, float min, float max) {
+    if (value < min) return min;
+    if (value > max) return max;
+    return value;
+}
+
+static inline float Lerp(float start, float end, float t) {
+    return start + t * (end - start);
+}
+#endif
+
+static inline float ClampedLerp(float start, float end, float t) {
+    t = Clamp(t, 0.0f, 1.0f);
+    return Lerp(start, end, t);
+}
+
+static inline Vector2 LerpV2(Vector2 start, Vector2 end, float t) {
+    t = Clamp(t, 0.0f, 1.0f);
+    return Vector2Lerp(start, end, t);
+}
+
+static inline float Distance(Vector2 a, Vector2 b) {
+    return sqrtf((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y));
+}
+
+static inline float AngleBetweenPoints(Vector2 a, Vector2 b) {
+    return atan2f(b.y - a.y, b.x - a.x) * RAD2DEG;
+}
+
+static inline Vector2 RotatePoint(Vector2 point, Vector2 origin, float angle) {
+    float rad = angle * DEG2RAD;
+    float s = sinf(rad);
+    float c = cosf(rad);
+
+    // Translate point back to origin
+    point.x -= origin.x;
+    point.y -= origin.y;
+
+    // Rotate point
+    float xnew = point.x * c - point.y * s;
+    float ynew = point.x * s + point.y * c;
+
+    // Translate point back
+    point.x = xnew + origin.x;
+    point.y = ynew + origin.y;
+    return point;
+}
+
+static inline bool IsPointInRectangle(Vector2 point, Rectangle rect) {
+    return (point.x >= rect.x && point.x <= rect.x + rect.width &&
+            point.y >= rect.y && point.y <= rect.y + rect.height);
+}
+
+static inline float min(float a, float b) {
+    return (a < b) ? a : b;
+}
+
+static inline float max(float a, float b) {
+    return (a > b) ? a : b;
+}   
+
+static inline float sign(float value) {
+    return (value >= 0) ? 1.0f : -1.0f;
+}
+
+static inline Vector3 V3Normalize(Vector3 v) {
+    float length = sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
+    if (length == 0) return (Vector3){0, 0, 0};
+    return (Vector3){v.x / length, v.y / length, v.z / length};
+}
+
+#endif // MATH_UTILS_H
