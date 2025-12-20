@@ -5,7 +5,6 @@ CC = gcc
 
 # Try to detect raylib using pkg-config first
 RAYLIB_PKG := $(shell pkg-config --exists raylib 2>/dev/null && echo "yes" || echo "no")
-MIKMOD_PKG := $(shell pkg-config --exists libmikmod 2>/dev/null && echo "yes" || echo "no")
 
 ifeq ($(RAYLIB_PKG),yes)
     # Use pkg-config if available
@@ -44,43 +43,13 @@ else
     RAYLIB_LDFLAGS := $(RAYLIB_LIBDIR) -lraylib -lm -lpthread -ldl -lrt -lX11
 endif
 
-# Handle libmikmod detection
-ifeq ($(MIKMOD_PKG),yes)
-    # Use pkg-config if available
-    MIKMOD_CFLAGS := $(shell pkg-config --cflags libmikmod)
-    MIKMOD_LDFLAGS := $(shell pkg-config --libs libmikmod)
-else ifeq ($(shell uname),Darwin)
-    # macOS-specific paths (check Homebrew)
-    ifneq ($(wildcard /opt/homebrew/include/mikmod.h),)
-        # Apple Silicon Homebrew
-        MIKMOD_CFLAGS := -I/opt/homebrew/include
-        MIKMOD_LDFLAGS := -L/opt/homebrew/lib -lmikmod
-    else ifneq ($(wildcard /usr/local/include/mikmod.h),)
-        # Intel Mac Homebrew
-        MIKMOD_CFLAGS := -I/usr/local/include
-        MIKMOD_LDFLAGS := -L/usr/local/lib -lmikmod
-    else
-        # macOS fallback paths
-        ifneq ($(wildcard /usr/include/mikmod.h),)
-            MIKMOD_CFLAGS := -I/usr/include
-            MIKMOD_LDFLAGS := -lmikmod
-        endif
-    endif
-else
-    # Default paths for other systems
-    ifneq ($(wildcard /usr/include/mikmod.h),)
-        MIKMOD_CFLAGS := -I/usr/include
-        MIKMOD_LDFLAGS := -lmikmod
-    endif
-endif
-
 # Final compiler flags
-CFLAGS = -Wall -Wextra -std=c2x -O2 $(RAYLIB_CFLAGS) $(MIKMOD_CFLAGS) -Isrc
-DEBUG_CFLAGS = -Wall -Wextra -std=c2x -g -DDEBUG $(RAYLIB_CFLAGS) $(MIKMOD_CFLAGS) -Isrc
-LDFLAGS = $(RAYLIB_LDFLAGS) $(MIKMOD_LDFLAGS)
+CFLAGS = -Wall -Wextra -std=c2x -O2 $(RAYLIB_CFLAGS) -ISOURCE
+DEBUG_CFLAGS = -Wall -Wextra -std=c2x -g -DDEBUG $(RAYLIB_CFLAGS) -ISOURCE
+LDFLAGS = $(RAYLIB_LDFLAGS)
 
 # Directories
-SRCDIR = src
+SRCDIR = SOURCE
 OBJDIR = obj
 BINDIR = bin
 
@@ -122,29 +91,7 @@ else
 	@echo "See the README.md for more details."
 	@false
 endif
-	@echo ""
-	@echo "Checking for libmikmod..."
-ifeq ($(MIKMOD_PKG),yes)
-	@echo "✓ Found libmikmod via pkg-config"
-	@echo "  CFLAGS: $(MIKMOD_CFLAGS)"
-	@echo "  LDFLAGS: $(MIKMOD_LDFLAGS)"
-else ifneq ($(MIKMOD_INCLUDE),)
-	@echo "✓ Found libmikmod at: $(MIKMOD_FOUND_PATH)"
-	@echo "  CFLAGS: $(MIKMOD_CFLAGS)"
-	@echo "  LDFLAGS: $(MIKMOD_LDFLAGS)"
-else
-	@echo "✗ libmikmod not found!"
-	@echo ""
-	@echo "Please install libmikmod:"
-	@if [ "$(shell uname)" = "Darwin" ]; then \
-		echo "On macOS:"; \
-		echo "  brew install libmikmod"; \
-	else \
-		echo "Ubuntu/Debian: sudo apt install libmikmod-dev"; \
-		echo "CentOS/RHEL:  sudo yum install libmikmod-devel"; \
-		echo "Arch Linux:   sudo pacman -S libmikmod"; \
-	fi
-endif
+
 
 # Default goal: build directly when running `make`
 .DEFAULT_GOAL := build
@@ -199,25 +146,7 @@ install-raylib:
 	@echo "✓ raylib installed to $(HOME)/raylib"
 	@echo "  You can now run 'make' to build the project"
 
-# Install libmikmod for module music support
-install-mikmod:
-	@echo "Installing libmikmod..."
-	@if command -v apt >/dev/null 2>&1; then \
-		echo "Using apt to install libmikmod..."; \
-		sudo apt update && sudo apt install libmikmod-dev libmikmod3; \
-	elif command -v yum >/dev/null 2>&1; then \
-		echo "Using yum to install libmikmod..."; \
-		sudo yum install libmikmod-devel; \
-	elif command -v pacman >/dev/null 2>&1; then \
-		echo "Using pacman to install libmikmod..."; \
-		sudo pacman -S libmikmod; \
-	else \
-		echo "Package manager not detected. Please install libmikmod manually."; \
-		echo "Ubuntu/Debian: sudo apt install libmikmod-dev libmikmod3"; \
-		echo "CentOS/RHEL: sudo yum install libmikmod-devel"; \
-		echo "Arch: sudo pacman -S libmikmod"; \
-	fi
-	@echo "✓ libmikmod installation completed"
+
 
 # Environment diagnostics (checks raylib and prints detected flags)
 doctor: check-raylib
@@ -237,14 +166,13 @@ help:
 	@echo "  clean        - Remove build artifacts"
 	@echo "  check-raylib - Check raylib installation"
 	@echo "  install-raylib - Install raylib from source"
-	@echo "  install-mikmod - Install libmikmod for module music support"
 	@echo "  framework    - Framework development (WIP)"
 	@echo "  mac          - Build macOS binary (uses clang/frameworks)"
 	@echo "  help         - Show this help message"
 	@echo "  doctor       - Run environment checks (raylib detection)"
 	@echo "  raylib-check - Alias for check-raylib"
 
-.PHONY: all debug run run-debug clean directories framework install-raylib install-mikmod check-raylib help
+.PHONY: all debug run run-debug clean directories framework install-raylib check-raylib help
 
 # -----------------------------
 # Cross-compile for Windows
@@ -288,8 +216,8 @@ MAC_CC ?= clang
 MAC_EXTRA_INCLUDES = -I/opt/homebrew/include -I/usr/local/include
 MAC_EXTRA_LIBDIRS = -L/opt/homebrew/lib -L/usr/local/lib
 
-MAC_CFLAGS ?= -O2 -std=c2x -Wall -Wextra $(RAYLIB_CFLAGS) $(MIKMOD_CFLAGS) $(MAC_EXTRA_INCLUDES) -Isrc
-MAC_LDFLAGS ?= $(MAC_EXTRA_LIBDIRS) $(RAYLIB_LDFLAGS) $(MIKMOD_LDFLAGS) -framework Cocoa -framework OpenGL -framework IOKit -framework CoreVideo -lm
+MAC_CFLAGS ?= -O2 -std=c2x -Wall -Wextra $(RAYLIB_CFLAGS) $(MAC_EXTRA_INCLUDES) -Isrc
+MAC_LDFLAGS ?= $(MAC_EXTRA_LIBDIRS) $(RAYLIB_LDFLAGS) -framework Cocoa -framework OpenGL -framework IOKit -framework CoreVideo -lm
 
 MAC_OUT = $(BINDIR)/presto-framework-mac
 

@@ -2,12 +2,22 @@
 #include "raylib.h"
 #include "util/util-global.h"
 #include "screen/screen-init.h"
-#include "screen/screen-debug1.h"
-#include "screen/screen-debug2.h"
-#include "screen/screen-debug3.h"
-#include "screen/screen-debug4.h"
 #include "data/data-data.h"
 #include <stdio.h>
+
+// Font definitions
+Font* fontFamily[5] = {NULL}; // Array to hold different fonts
+Font bearDaysFont = {0};
+Font geetFont = {0};
+Font greaterTheoryFont = {0};
+Font h5hFont = {0};
+Font metropolisFont = {0};
+
+// Screen manager definition
+ScreenManager gScreenManagerInstance = {0};
+ScreenManager* gScreenManager = &gScreenManagerInstance;
+
+bool screenManagerInitialized = false;
 
 int main(void) {
     // Initialize the fonts
