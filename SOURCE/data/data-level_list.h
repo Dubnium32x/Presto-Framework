@@ -8,7 +8,6 @@
 #include "data-data.h"
 
 #define MAX_LEVELS 11
-#define MAX_ACTS 4
 
 #define TOTAL_LEVELS (MAX_LEVELS * MAX_ACTS)
 

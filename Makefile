@@ -44,8 +44,8 @@ else
 endif
 
 # Final compiler flags
-CFLAGS = -Wall -Wextra -std=c2x -O2 $(RAYLIB_CFLAGS) -ISOURCE
-DEBUG_CFLAGS = -Wall -Wextra -std=c2x -g -DDEBUG $(RAYLIB_CFLAGS) -ISOURCE
+CFLAGS = -Wall -Wextra -std=c23 -O2 $(RAYLIB_CFLAGS) -ISOURCE -I$(SRCDIR)
+DEBUG_CFLAGS = -Wall -Wextra -std=c23 -g -DDEBUG $(RAYLIB_CFLAGS) -ISOURCE -I$(SRCDIR)
 LDFLAGS = $(RAYLIB_LDFLAGS)
 
 # Directories
@@ -55,7 +55,7 @@ BINDIR = bin
 
 # Source files
 MAIN_SRC = $(SRCDIR)/main.c
-FRAMEWORK_SRCS = $(wildcard $(SRCDIR)/*/*.c) $(wildcard $(SRCDIR)/*/*/*.c)
+FRAMEWORK_SRCS = $(wildcard $(SRCDIR)/*/*.c) $(wildcard $(SRCDIR)/*/*/*.c) $(wildcard $(SRCDIR)/*/*/*/*.c)
 ALL_SRCS = $(MAIN_SRC) $(FRAMEWORK_SRCS)
 
 # Output targets

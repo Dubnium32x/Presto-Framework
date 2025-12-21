@@ -54,21 +54,21 @@ typedef enum {
     TRANSITION_NONE,
     TRANSITION_FADE_IN,
     TRANSITION_FADE_OUT
-} TransitionType;
+} ScreenTransitionType;
 
-typedef struct Transition {
-    TransitionType type;
+typedef struct ScreenTransition {
+    ScreenTransitionType type;
     float duration;
     float elapsed;
     bool active;
-} Transition;
+} ScreenTransition;
 
 typedef struct ScreenStateManager {
     ScreenState currentScreen;
     ScreenState previousScreen;
     MenuType currentMenu;
     GameplayState gameplayState;
-    Transition transition;
+    ScreenTransition transition;
     bool initialized;
     int frameCounter;
     bool isPaused;
@@ -79,8 +79,8 @@ void UpdateScreenState(ScreenStateManager *state, float deltaTime);
 void DrawScreenState(ScreenStateManager *state);
 void UnloadScreenState(ScreenStateManager *state);
 void SetScreen(ScreenStateManager *state, ScreenState newScreen);
-void StartTransition(Transition *transition, TransitionType type, float duration);
-void UpdateTransition(Transition *transition, float deltaTime);
-void DrawTransition(Transition *transition);
+void StartScreenTransition(ScreenTransition *transition, ScreenTransitionType type, float duration);
+void UpdateScreenTransition(ScreenTransition *transition, float deltaTime);
+void DrawScreenTransition(ScreenTransition *transition);
 
 #endif // MANAGERS_SCREEN_STATE_H

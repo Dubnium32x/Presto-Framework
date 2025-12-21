@@ -21,46 +21,76 @@
 
 */
 
-#ifdef __APPLE__
-#include <mach-o/dyld.h>
-#endif
-
-// Ensure PATH_MAX is defined on all platforms
-#ifndef PATH_MAX
-#define PATH_MAX 4096
-#endif
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "raylib.h"
-
 #include "util/util-global.h"
-#include "managers/managers-root.h"
-#include "screen/screen-root.h"
+#include "visual/visual-sprite_fonts.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdint.h>
 
-// GameCamera cam;
-// Player player;
-
-// Global variables
-const int scrMult = 2;
-int screenWidth = 400 * scrMult;
-int screenHeight = 240 * scrMult;
-
-// Function to get mouse position in virtual screen coordinates
-Vector2 GetMousePositionVirtual(void) {
-    Vector2 mouseScreenPos = GetMousePosition();
+int main(void) {
+    // Initialize Raylib window first
+    InitWindow(VIRTUAL_SCREEN_WIDTH * 2, VIRTUAL_SCREEN_HEIGHT * 2, GAME_TITLE " - " GAME_VERSION);
     
-    float scale = fminf((float)GetScreenWidth() / VIRTUAL_SCREEN_WIDTH, 
-                        (float)GetScreenHeight() / VIRTUAL_SCREEN_HEIGHT);
-                        
-    // Calculate the top-left position of the scaled virtual screen on the actual screen
-    float destX = (GetScreenWidth() - (VIRTUAL_SCREEN_WIDTH * scale)) / 2.0f;
-    float destY = (GetScreenHeight() - (VIRTUAL_SCREEN_HEIGHT * scale)) / 2.0f;
+    // Initialize audio device
+    InitAudioDevice();
+    
+    // Create render texture for pixel-perfect rendering
+    RenderTexture2D virtualScreen = LoadRenderTexture(VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT);
+    
+    // Set texture filter to point filtering for crisp pixels
+    SetTextureFilter(virtualScreen.texture, TEXTURE_FILTER_POINT);
+    
+    // Now initialize screen settings (which may modify window properties)
+    InitScreenSettings();
+    
+    // Initialize sprite fonts
+    InitSpriteFontManager();
 
-    // Convert screen mouse position to virtual screen mouse position
-    float virtualMouseX = (mouseScreenPos.x - destX) / scale;
-    float virtualMouseY = (mouseScreenPos.y - destY) / scale;
+    InitScreenManager(&g_ScreenManager);
+    RegisterScreen(&g_ScreenManager, SCREEN_STATE_INIT, InitScreen_Init, InitScreen_Update, InitScreen_Draw, InitScreen_Unload);
+    RegisterScreen(&g_ScreenManager, SCREEN_STATE_TITLE, TitleScreen_Init, TitleScreen_Update, TitleScreen_Draw, TitleScreen_Unload);   
 
-    return (Vector2){virtualMouseX, virtualMouseY};
+    SetCurrentScreen(&g_ScreenManager, SCREEN_STATE_INIT);
+
+    while (!WindowShouldClose()) {
+        UpdateScreenManager(&g_ScreenManager, GetFrameTime());
+        
+        // Render to virtual screen first
+        BeginTextureMode(virtualScreen);
+        DrawScreenManager(&g_ScreenManager);
+        EndTextureMode();
+        
+        // Then render virtual screen to actual window, scaled up
+        BeginDrawing();
+        ClearBackground(BLACK);
+        
+        // Calculate scaling to fit window while maintaining aspect ratio
+        float windowWidth = (float)GetScreenWidth();
+        float windowHeight = (float)GetScreenHeight();
+        float scaleX = windowWidth / VIRTUAL_SCREEN_WIDTH;
+        float scaleY = windowHeight / VIRTUAL_SCREEN_HEIGHT;
+        float scale = (scaleX < scaleY) ? scaleX : scaleY; // Use smaller scale to fit
+        
+        float scaledWidth = VIRTUAL_SCREEN_WIDTH * scale;
+        float scaledHeight = VIRTUAL_SCREEN_HEIGHT * scale;
+        float offsetX = (windowWidth - scaledWidth) / 2.0f;
+        float offsetY = (windowHeight - scaledHeight) / 2.0f;
+        
+        // Draw the virtual screen texture scaled up
+        Rectangle source = {0, 0, VIRTUAL_SCREEN_WIDTH, -VIRTUAL_SCREEN_HEIGHT}; // Flip Y
+        Rectangle dest = {offsetX, offsetY, scaledWidth, scaledHeight};
+        DrawTexturePro(virtualScreen.texture, source, dest, (Vector2){0, 0}, 0.0f, WHITE);
+        
+        EndDrawing();
+    }
+
+    UnloadRenderTexture(virtualScreen);
+    UnloadScreenManager(&g_ScreenManager);
+    UnloadScreenSettings();
+    CleanupSpriteFontManager();
+    CloseAudioDevice();
+    CloseWindow();
+
+    return 0;
 }

@@ -120,8 +120,9 @@ extern SaveData g_SaveData;
 extern ZoneType g_currentZone;
 extern ActType g_currentAct;
 extern size_t g_currentPlayerIndex;
-extern Options g_Options;
 extern const char *g_OptionsFilePath;
+
+extern Options g_Options;
 
 void InitGameData(size_t numPlayers);
 void InitOptions(); 

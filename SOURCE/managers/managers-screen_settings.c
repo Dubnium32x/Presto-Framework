@@ -1,17 +1,13 @@
 // Screen Settings implementation
 #include "managers-screen_settings.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include "raylib.h"
-#include "../util/util-global.h"
-#include "managers-screen.h"
+
+// Screen settings variables are defined in util-global.c
 
 void InitScreenSettings() {
     // Initialize screen settings with default values
-    windowSize = ONE_X;
-    screenWidth = VIRTUAL_SCREEN_WIDTH * windowSize;
-    screenHeight = VIRTUAL_SCREEN_HEIGHT * windowSize;
+    screenWidth = VIRTUAL_SCREEN_WIDTH;
+    screenHeight = VIRTUAL_SCREEN_HEIGHT;
+    windowSize = 1;
     isFullscreen = false;
     isVSync = true;
     isDebugMode = false;

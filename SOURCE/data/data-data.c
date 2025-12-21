@@ -5,6 +5,23 @@ static PlayerData players[MAX_PLAYERS];
 static size_t playerCount = 0;
 static GameData gameData;
 
+const char* g_OptionsFilePath = "options.cfg";
+
+Options g_Options = {
+    .musicVolume = 100,
+    .sfxVolume = 100,
+    .fullscreen = false,
+    .screenSize = 2,
+    .vsync = true,
+    .showFPS = false,
+    .dropdashEnabled = true,
+    .instaShieldEnabled = false,
+    .peeloutEnabled = true,
+    .cameraType = CAMERA_GENESIS
+};
+
+
+
 void InitGameData(size_t numPlayers) {
     playerCount = (numPlayers > MAX_PLAYERS) ? MAX_PLAYERS : numPlayers;
     gameData.playerCount = playerCount;

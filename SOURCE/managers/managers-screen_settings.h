@@ -2,17 +2,11 @@
 #ifndef MANAGERS_SCREEN_SETTINGS_H
 #define MANAGERS_SCREEN_SETTINGS_H
 
-#include <stdbool.h>
+#include "raylib.h"
 #include <stddef.h>
 #include <stdint.h>
-
-// Screen setting aliases - these reference the global variables
-#define PRESTO_SCREEN_WIDTH screenWidth
-#define PRESTO_SCREEN_HEIGHT screenHeight
-#define PRESTO_WINDOW_SIZE windowSize
-#define PRESTO_FULLSCREEN isFullscreen
-#define PRESTO_VSYNC isVSync
-#define PRESTO_DEBUG_MODE isDebugMode
+#include "../util/util-global.h"
+#include "../visual/visual-root.h"
 
 typedef enum {
     SCREEN_SETTING_UNINITIALIZED,

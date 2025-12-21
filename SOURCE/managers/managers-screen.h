@@ -21,7 +21,7 @@ typedef struct {
     bool initialized;
 } ScreenManager;
 
-extern ScreenManager* gScreenManager;
+// Note: ScreenManager g_ScreenManager is defined in util-global.h
 
 extern bool screenManagerInitialized;
 

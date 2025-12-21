@@ -1,7 +1,12 @@
 // Screen Manager implementation
 #include "managers-screen.h"
 #include "managers-screen_state.h"
+#include "../util/util-global.h"
+
 #include <string.h>
+#include <stdio.h>
+
+// Use the global screen manager from util-global.h instead of local variable
 
 void InitScreenManager(ScreenManager *mgr) {
     if (mgr == NULL) return;
@@ -84,7 +89,5 @@ IScreen* GetActiveScreen(ScreenManager *manager) {
 
 // Global helper to switch screens from anywhere after InitScreenManager
 void SetCurrentScreenGlobal(ScreenState type) {
-    if (gScreenManager != NULL) {
-        SetCurrentScreen(gScreenManager, type);
-    }
+    SetCurrentScreen(&g_ScreenManager, type);
 }

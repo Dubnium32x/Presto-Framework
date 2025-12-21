@@ -1,7 +1,7 @@
 // Level list
 #include "data-level_list.h"
 #include "data-csv_loader.h"
-#include "../managers/managers-root.h"
+#include "../util/util-global.h"
 
 // #include "../util/global_constants.h" // TODO: Create this file when needed
 
@@ -63,9 +63,5 @@ void UnloadLevelThumbnails(void) {
 }
 
 Level* GetLevelByIndex(int index) {
-    if (index < 0 || index >= MAX_LEVELS) {
-        SetError(ERROR_OUT_OF_BOUNDS, "Level index out of bounds");
-        return NULL;
-    }
     return &levelList[index];
 }
