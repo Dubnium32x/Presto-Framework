@@ -5,12 +5,24 @@
 #include "../managers/managers-root.h"
 
 // Global Variables
-#define SCREEN_WIDTH 800
-#define SCREEN_HEIGHT 450
+#define VIRTUAL_SCREEN_WIDTH 400
+#define VIRTUAL_SCREEN_HEIGHT 240
 #define TARGET_FPS 60
 
-#define WINDOW_TITLE "Presto Framework Mini"
-#define GAME_VERSION "0.1.0"
+#define TILE_SIZE 16
+
+#define GAME_TITLE "Presto Framework"
+#define GAME_VERSION "0.2.0"
+
+// extern GameCamera cam;
+// extern bool isTitleCardActive;
+
+extern int screenWidth;
+extern int screenHeight;
+extern int windowSize;
+extern bool isFullscreen;
+extern bool isVSync;
+extern bool isDebugMode;
 
 // Fonts
 #define DEFAULT_FONT_SIZE 14

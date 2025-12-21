@@ -1,78 +1,66 @@
-// Presto Framework Mini - Simple main entry point
-#include "raylib.h"
-#include "util/util-global.h"
-#include "screen/screen-init.h"
-#include "data/data-data.h"
+/*
+    PRESTO FRAMEWORK
+    Version 0.2.0
+
+    This is a simple game framework designed to
+    help developers quickly create 2D games using C23
+    and the Raylib library. It is mainly focused on
+    to be a Sonic the Hedgehog style framework. 
+
+    It provides a set of tools and utilities to handle
+    common game development tasks such as rendering, input handling, physics, and more.
+
+    The framework is designed to be lightweight, easy to use, and highly extensible,
+    allowing developers to focus on creating fun and engaging gameplay experiences.
+
+
+    If you want to contribute to the development of the Presto Framework,
+    feel free to fork the repository and submit pull requests.
+
+    Thank you for using the Presto Framework!
+
+*/
+
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+
+// Ensure PATH_MAX is defined on all platforms
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "raylib.h"
 
-// Font definitions
-Font* fontFamily[5] = {NULL}; // Array to hold different fonts
-Font bearDaysFont = {0};
-Font geetFont = {0};
-Font greaterTheoryFont = {0};
-Font h5hFont = {0};
-Font metropolisFont = {0};
+#include "util/util-global.h"
+#include "managers/managers-root.h"
+#include "screen/screen-root.h"
 
-// Screen manager definition
-ScreenManager gScreenManagerInstance = {0};
-ScreenManager* gScreenManager = &gScreenManagerInstance;
+// GameCamera cam;
+// Player player;
 
-bool screenManagerInitialized = false;
+// Global variables
+const int scrMult = 2;
+int screenWidth = 400 * scrMult;
+int screenHeight = 240 * scrMult;
 
-int main(void) {
-    // Initialize the fonts
-    bearDaysFont = LoadFont("resources/fonts/bear-days.regular.ttf");
-    geetFont = LoadFont("resources/fonts/geet.regular.ttf");
-    greaterTheoryFont = LoadFont("resources/fonts/greater-theory.regular.otf");
-    h5hFont = LoadFont("resources/fonts/h5h.regular.ttf");
-    metropolisFont = LoadFont("resources/fonts/metropolis.regular.otf");
-
-    // Load global options
-    g_OptionsFilePath = "options.ini";
-    InitOptions();
-
-    // Initialize screen manager first
-    printf("Initializing screen manager...\n");
-    InitScreenManager(gScreenManager);
+// Function to get mouse position in virtual screen coordinates
+Vector2 GetMousePositionVirtual(void) {
+    Vector2 mouseScreenPos = GetMousePosition();
     
-    // Register the screens
-    printf("Registering screens...\n");
-    RegisterScreen(gScreenManager, SCREEN_STATE_INIT, InitScreenInit, InitScreenUpdate, InitScreenDraw, InitScreenUnload);
-    RegisterScreen(gScreenManager, SCREEN_STATE_DEBUG1, Debug1ScreenInit, Debug1ScreenUpdate, Debug1ScreenDraw, Debug1ScreenUnload);
-    RegisterScreen(gScreenManager, SCREEN_STATE_DEBUG2, Debug2ScreenInit, Debug2ScreenUpdate, Debug2ScreenDraw, Debug2ScreenUnload);
-    RegisterScreen(gScreenManager, SCREEN_STATE_DEBUG3, Debug3ScreenInit, Debug3ScreenUpdate, Debug3ScreenDraw, Debug3ScreenUnload);
-    RegisterScreen(gScreenManager, SCREEN_STATE_DEBUG4, Debug4ScreenInit, Debug4ScreenUpdate, Debug4ScreenDraw, Debug4ScreenUnload);
-    printf("Screens registered.\n");
+    float scale = fminf((float)GetScreenWidth() / VIRTUAL_SCREEN_WIDTH, 
+                        (float)GetScreenHeight() / VIRTUAL_SCREEN_HEIGHT);
+                        
+    // Calculate the top-left position of the scaled virtual screen on the actual screen
+    float destX = (GetScreenWidth() - (VIRTUAL_SCREEN_WIDTH * scale)) / 2.0f;
+    float destY = (GetScreenHeight() - (VIRTUAL_SCREEN_HEIGHT * scale)) / 2.0f;
 
-    // Set initial screen
-    printf("Setting initial screen...\n");
-    SetCurrentScreen(gScreenManager, SCREEN_STATE_INIT);
-    printf("Initial screen set.\n");
+    // Convert screen mouse position to virtual screen mouse position
+    float virtualMouseX = (mouseScreenPos.x - destX) / scale;
+    float virtualMouseY = (mouseScreenPos.y - destY) / scale;
 
-    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, WINDOW_TITLE " " GAME_VERSION);
-    SetTargetFPS(TARGET_FPS);
-    
-    printf("Presto Framework Mini initialized!\n");
-    printf("Window: %dx%d\n", SCREEN_WIDTH, SCREEN_HEIGHT);
-    printf("Ready for screen management...\n");
-    
-    // Main game loop using screen manager
-    while (!WindowShouldClose()) {
-        float deltaTime = GetFrameTime();
-        
-        // Update current screen
-        UpdateScreenManager(gScreenManager, deltaTime);
-        
-        // Draw current screen
-        BeginDrawing();
-        DrawScreenManager(gScreenManager);
-        EndDrawing();
-    }
-    
-    // Cleanup
-    UnloadScreenManager(gScreenManager);
-    CloseWindow();
-    
-    printf("Presto Framework Mini shutdown complete.\n");
-    return 0;
+    return (Vector2){virtualMouseX, virtualMouseY};
 }

@@ -1,6 +1,6 @@
 // Screen Manager implementation
-
 #include "managers-screen.h"
+#include "managers-screen_state.h"
 #include <string.h>
 
 void InitScreenManager(ScreenManager *mgr) {

@@ -6,6 +6,13 @@
 #include <string.h>
 #include "raylib.h"
 
+/* NOTE:
+    PlayMusicStream and LoadMusicStream CAN INDEED
+    load module files without libmikmod! 
+    We'll be making use of this advantage in our audio
+    manager implementation.
+*/
+
 #define MAX_SOUNDS 100
 #define MAX_MUSIC_TRACKS 24
 
