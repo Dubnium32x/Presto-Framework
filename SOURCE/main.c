@@ -66,6 +66,9 @@ int main(void) {
     while (!WindowShouldClose()) {
         UpdateScreenManager(&g_ScreenManager, GetFrameTime());
         
+        // Update unified input system
+        UpdateUnifiedInput(GetFrameTime());
+
         // Render to virtual screen first
         BeginTextureMode(virtualScreen);
         DrawScreenManager(&g_ScreenManager);

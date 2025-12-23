@@ -157,10 +157,10 @@ void TitleScreen_Update(float deltaTime) {
             checkerScrollY += deltaTime * 40.0f;
             
             // Handle menu navigation (with keyboard fallback)
-            if (IsInputPressed(INPUT_DOWN) || IsKeyPressed(KEY_DOWN) || IsKeyPressed(KEY_S)) {
+            if (IsInputPressed(INPUT_DOWN)) {
                 selectedMenu = (selectedMenu + 1) % menuItemCount;
                 if (moveSound.frameCount > 0) PlaySound(moveSound);
-            } else if (IsInputPressed(INPUT_UP) || IsKeyPressed(KEY_UP) || IsKeyPressed(KEY_W)) {
+            } else if (IsInputPressed(INPUT_UP)) {
                 selectedMenu = (selectedMenu - 1 + menuItemCount) % menuItemCount;
                 if (moveSound.frameCount > 0) PlaySound(moveSound);
             }
