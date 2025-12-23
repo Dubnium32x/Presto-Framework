@@ -273,9 +273,20 @@ void TitleScreen_Draw(void) {
 
 void TitleScreen_Unload(void) {
     UnloadTexture(logoTexture);
-    UnloadSound(bounceSound);
-    UnloadSound(moveSound);
-    UnloadSound(acceptSound);
+    
+    // Unload sounds safely - check if they're valid first
+    if (bounceSound.frameCount > 0) {
+        UnloadSound(bounceSound);
+        bounceSound = (Sound){0}; // Clear the handle
+    }
+    if (moveSound.frameCount > 0) {
+        UnloadSound(moveSound);
+        moveSound = (Sound){0}; // Clear the handle
+    }
+    if (acceptSound.frameCount > 0) {
+        UnloadSound(acceptSound);
+        acceptSound = (Sound){0}; // Clear the handle
+    }
     
     // Stop and unload music (disabled for now)
     // if (musicStarted) {

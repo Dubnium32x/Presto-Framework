@@ -25,9 +25,9 @@ void ApplyScreenSettings(int width, int height, int winSize, bool fullscreen, bo
     isVSync = vsync;
     isDebugMode = debugMode;
 
-    // Calculate actual window size
-    int actualWidth = screenWidth * (windowSize + 1);
-    int actualHeight = screenHeight * (windowSize + 1);
+    // Calculate actual window size (windowSize is the scale factor: 1, 2, 3, 4)
+    int actualWidth = screenWidth * windowSize;
+    int actualHeight = screenHeight * windowSize;
 
     // Set window mode
     if (isFullscreen) {

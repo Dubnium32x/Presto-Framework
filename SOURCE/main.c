@@ -30,8 +30,8 @@
 
 int main(void) {
     // Initialize Raylib window first
-    InitWindow(VIRTUAL_SCREEN_WIDTH * 2, VIRTUAL_SCREEN_HEIGHT * 2, GAME_TITLE " - " GAME_VERSION);
-    
+    InitWindow(VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT, GAME_TITLE " - " GAME_VERSION);
+    SetTargetFPS(TARGET_FPS);
     // Initialize audio device
     InitAudioDevice();
     
@@ -41,15 +41,25 @@ int main(void) {
     // Set texture filter to point filtering for crisp pixels
     SetTextureFilter(virtualScreen.texture, TEXTURE_FILTER_POINT);
     
+    // Load options from file
+    LoadOptions("options.cfg");
+    ApplyCurrentOptions();
+
     // Now initialize screen settings (which may modify window properties)
     InitScreenSettings();
+    PrestoSetWindowSize(g_Options.screenSize);
     
     // Initialize sprite fonts
     InitSpriteFontManager();
 
+    // Init the input
+    InitUnifiedInput();
+
+    // Initialize screen manager and register screens
     InitScreenManager(&g_ScreenManager);
     RegisterScreen(&g_ScreenManager, SCREEN_STATE_INIT, InitScreen_Init, InitScreen_Update, InitScreen_Draw, InitScreen_Unload);
     RegisterScreen(&g_ScreenManager, SCREEN_STATE_TITLE, TitleScreen_Init, TitleScreen_Update, TitleScreen_Draw, TitleScreen_Unload);   
+    RegisterScreen(&g_ScreenManager, SCREEN_STATE_OPTIONS, OptionsScreen_Init, OptionsScreen_Update, OptionsScreen_Draw, OptionsScreen_Unload);
 
     SetCurrentScreen(&g_ScreenManager, SCREEN_STATE_INIT);
 
@@ -82,6 +92,7 @@ int main(void) {
         Rectangle dest = {offsetX, offsetY, scaledWidth, scaledHeight};
         DrawTexturePro(virtualScreen.texture, source, dest, (Vector2){0, 0}, 0.0f, WHITE);
         
+        DrawFPS(10, 10);
         EndDrawing();
     }
 
