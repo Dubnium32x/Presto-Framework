@@ -44,8 +44,8 @@ else
 endif
 
 # Final compiler flags
-CFLAGS = -Wall -Wextra -std=c23 -O2 $(RAYLIB_CFLAGS) -ISOURCE -I$(SRCDIR)
-DEBUG_CFLAGS = -Wall -Wextra -std=c23 -g -DDEBUG $(RAYLIB_CFLAGS) -ISOURCE -I$(SRCDIR)
+CFLAGS = -Wall -Wextra -std=c2x -O2 $(RAYLIB_CFLAGS) -ISOURCE -I$(SRCDIR)
+DEBUG_CFLAGS = -Wall -Wextra -std=c2x -g -DDEBUG $(RAYLIB_CFLAGS) -ISOURCE -I$(SRCDIR)
 LDFLAGS = $(RAYLIB_LDFLAGS)
 
 # Directories
