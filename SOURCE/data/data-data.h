@@ -133,4 +133,5 @@ bool SaveOptions(const char *filePath);
 void ResetPlayerData(PlayerData *player);
 void ResetGameData(GameData *game);
 void ResetOptions(Options *options);
+void ApplyCurrentOptions(void);
 void PrintSaveDataInfo(const SaveData *data);

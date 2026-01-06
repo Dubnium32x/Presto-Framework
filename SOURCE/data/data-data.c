@@ -137,3 +137,9 @@ bool SaveOptions(const char *filePath) {
 
     return true;
 }
+
+void ApplyCurrentOptions(void) {
+    // Apply options that need to be set at startup or when changed
+    // Volume settings are typically applied when playing sounds
+    // Screen settings are handled by the screen settings manager
+}

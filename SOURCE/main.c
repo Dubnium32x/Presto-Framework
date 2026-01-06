@@ -95,7 +95,10 @@ int main(void) {
         Rectangle dest = {offsetX, offsetY, scaledWidth, scaledHeight};
         DrawTexturePro(virtualScreen.texture, source, dest, (Vector2){0, 0}, 0.0f, WHITE);
         
-        DrawFPS(10, 10);
+        // Draw FPS if enabled in cfg
+        if (g_Options.showFPS) {
+            DrawText(TextFormat("FPS: %d", GetFPS()), 10, 10, 14, GREEN);
+        }
         EndDrawing();
     }
 

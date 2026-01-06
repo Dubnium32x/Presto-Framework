@@ -166,7 +166,7 @@ void TitleScreen_Update(float deltaTime) {
             }
             
             // Accept selection (with keyboard fallback)
-            if (IsInputPressed(INPUT_A) || IsInputPressed(INPUT_START) || IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE)) {
+            if (IsInputPressed(INPUT_A) || IsInputPressed(INPUT_START)) {
                 if (acceptSound.frameCount > 0) PlaySound(acceptSound);
                 if (selectedMenu == 0) { // START GAME
                     titleState = TITLE_TRANSITION_OUT;

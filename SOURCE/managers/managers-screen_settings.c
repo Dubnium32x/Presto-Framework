@@ -25,15 +25,17 @@ void ApplyScreenSettings(int width, int height, int winSize, bool fullscreen, bo
     isVSync = vsync;
     isDebugMode = debugMode;
 
-    // Calculate actual window size (windowSize is the scale factor: 1, 2, 3, 4)
-    int actualWidth = screenWidth * windowSize;
-    int actualHeight = screenHeight * windowSize;
-
     // Set window mode
     if (isFullscreen) {
+        // In fullscreen, ignore the screen size setting and use native resolution
         SetWindowState(FLAG_FULLSCREEN_MODE);
-        SetWindowSize(actualWidth, actualHeight);
+        // Let fullscreen mode use the monitor's native resolution
+        // No need to call SetWindowSize() as fullscreen will handle this
     } else {
+        // Calculate actual window size (windowSize is the scale factor: 1, 2, 3, 4)
+        int actualWidth = screenWidth * windowSize;
+        int actualHeight = screenHeight * windowSize;
+        
         ClearWindowState(FLAG_FULLSCREEN_MODE);
         SetWindowSize(actualWidth, actualHeight);
         SetWindowPosition((GetMonitorWidth(0) - actualWidth) / 2, (GetMonitorHeight(0) - actualHeight) / 2);
@@ -57,9 +59,14 @@ void ApplyScreenSettings(int width, int height, int winSize, bool fullscreen, bo
 
 void ToggleGameFullscreen() {
     if (IsWindowFullscreen()) {
+        // Exit fullscreen and return to windowed mode with current scale
         ToggleBorderlessWindowed();
-        SetWindowSize(screenWidth, screenHeight);
+        int actualWidth = screenWidth * windowSize;
+        int actualHeight = screenHeight * windowSize;
+        SetWindowSize(actualWidth, actualHeight);
+        SetWindowPosition((GetMonitorWidth(0) - actualWidth) / 2, (GetMonitorHeight(0) - actualHeight) / 2);
     } else {
+        // Enter fullscreen mode (ignore screen size setting)
         ToggleBorderlessWindowed();
     }
 }
