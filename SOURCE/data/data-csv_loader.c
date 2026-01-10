@@ -14,29 +14,48 @@ extern LevelMetaData g_levels[MAX_LEVELS];
 #define MAX_LAYERS 10
 
 int** LoadCSVInt(const char* filePath) {
+    return LoadCSVIntWithDimensions(filePath, NULL, NULL);
+}
+
+int** LoadCSVIntWithDimensions(const char* filePath, int* outWidth, int* outHeight) {
     FILE* file = fopen(filePath, "r");
     if (!file) {
         printf("Error opening file %s: %s\n", filePath, strerror(errno));
+        if (outWidth) *outWidth = 0;
+        if (outHeight) *outHeight = 0;
         return NULL;
     }
 
     int** data = NULL;
     size_t rowCount = 0;
     size_t colCount = 0;
-    char line[1024];
+    char line[8192];  // Increased buffer size for large CSVs
 
     while (fgets(line, sizeof(line), file)) {
-        // Count columns
-        size_t currentColCount = 1; // At least one column
-        for (char* p = line; *p; p++) {
-            if (*p == ',') currentColCount++;
+        // Strip trailing newline and carriage return
+        size_t len = strlen(line);
+        while (len > 0 && (line[len-1] == '\n' || line[len-1] == '\r')) {
+            line[len-1] = '\0';
+            len--;
         }
+        
+        // Skip empty lines
+        if (len == 0) continue;
+        
+        // Count columns by counting commas + 1
+        size_t currentColCount = 1; // At least one column if line isn't empty
+        for (size_t i = 0; i < len; i++) {
+            if (line[i] == ',') currentColCount++;
+        }
+        
         if (colCount == 0) {
             colCount = currentColCount;
         } else if (colCount != currentColCount) {
-            printf("Inconsistent column count in file %s\n", filePath);
+            printf("Inconsistent column count in file %s at line %zu (expected %zu, got %zu)\n", filePath, rowCount + 1, colCount, currentColCount);
             FreeCSVData(data, rowCount);
             fclose(file);
+            if (outWidth) *outWidth = 0;
+            if (outHeight) *outHeight = 0;
             return NULL;
         }
 
@@ -58,6 +77,10 @@ int** LoadCSVInt(const char* filePath) {
     }
 
     fclose(file);
+    
+    if (outWidth) *outWidth = (int)colCount;
+    if (outHeight) *outHeight = (int)rowCount;
+    
     return data;
 }
 

@@ -60,6 +60,7 @@ int main(void) {
     RegisterScreen(&g_ScreenManager, SCREEN_STATE_INIT, InitScreen_Init, InitScreen_Update, InitScreen_Draw, InitScreen_Unload);
     RegisterScreen(&g_ScreenManager, SCREEN_STATE_TITLE, TitleScreen_Init, TitleScreen_Update, TitleScreen_Draw, TitleScreen_Unload);   
     RegisterScreen(&g_ScreenManager, SCREEN_STATE_OPTIONS, OptionsScreen_Init, OptionsScreen_Update, OptionsScreen_Draw, OptionsScreen_Unload);
+    RegisterScreen(&g_ScreenManager, SCREEN_STATE_GAMEPLAY, GameScreen_Init, GameScreen_Update, GameScreen_Draw, GameScreen_Unload);
 
     SetCurrentScreen(&g_ScreenManager, SCREEN_STATE_INIT);
 

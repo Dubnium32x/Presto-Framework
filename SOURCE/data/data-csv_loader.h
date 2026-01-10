@@ -34,6 +34,7 @@ typedef struct LevelManager {
 } LevelManager;
 
 int** LoadCSVInt(const char* filePath);
+int** LoadCSVIntWithDimensions(const char* filePath, int* outWidth, int* outHeight);
 const char*** LoadCSVString(const char* filePath);
 int*** LoadLevelLayers(const char* filePath, const char** layerNames);
 
