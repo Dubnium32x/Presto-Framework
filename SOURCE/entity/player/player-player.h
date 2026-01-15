@@ -186,4 +186,15 @@ typedef struct {
 
     Rectangle collisionBox;
 } Player;
+
+// Player Function Prototypes
+void InitPlayer(Player* player, PlayerType type, Vector2 startPosition);
+void UpdatePlayer(Player* player, float deltaTime);
+void DrawPlayer(const Player* player);
+void SetPlayerAnimation(Player* player, PlayerAnimationState newState);
+void ApplyPlayerGravity(Player* player, float deltaTime);
+void HandlePlayerInput(Player* player);
+void UpdatePlayerState(Player* player);
+void UpdatePlayerAnimation(Player* player, float deltaTime);
+void ResetPlayer(Player* player, Vector2 startPosition);
 #endif // PLAYER_PLAYER_H

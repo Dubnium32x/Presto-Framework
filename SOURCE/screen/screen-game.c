@@ -1,4 +1,4 @@
-// Game Screen implementation  
+// Game Screen implementation
 #include "screen-game.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,12 +7,16 @@
 #include "raylib.h"
 #include "../managers/managers-input.h"
 #include "../managers/managers-screen_settings.h"
+#include "../entity/camera/camera-title_card.h"
+#include "../entity/camera/camera-hud.h"
+#include "../util/util-global.h"
 
 // Game state
 static GameScreenState gameState = GAME_INIT;
 static float fadeAlpha = 0.0f;
 static float fadeDuration = 0.5f;
 static float fadeTimer = 0.0f;
+static bool titleCardFinished = false;
 
 // Level data
 static int** levelData = NULL;
@@ -34,16 +38,17 @@ void GameScreen_Init(void) {
     gameState = GAME_INIT;
     fadeAlpha = 0.0f;
     fadeTimer = 0.0f;
-    
+    titleCardFinished = false;
+
     // Initialize camera
     camera.offset = (Vector2){ VIRTUAL_SCREEN_WIDTH / 2.0f, VIRTUAL_SCREEN_HEIGHT / 2.0f };
     camera.target = (Vector2){ 0, 0 };
     camera.rotation = 0.0f;
     camera.zoom = 1.0f;
-    
+
     // Load test level and tileset
     LoadTestLevel();
-    
+
     // Load tileset texture
     tilesetTexture = LoadTexture("RESOURCES/sprite/spritesheet/tileset/SPGSolidTileHeightCollision.png");
     if (tilesetTexture.id == 0) {
@@ -53,7 +58,16 @@ void GameScreen_Init(void) {
         tilesetTexture = LoadTextureFromImage(img);
         UnloadImage(img);
     }
-    
+
+    // Initialize HUD
+    InitHUD();
+
+    // Initialize title card with zone name and act number
+    // TODO: Get these from level data when level system is complete
+    const char* zoneName = "ATLANTIS HIGHWAY";
+    int actNumber = (int)g_currentAct + 1; // ACT_1 = 0, so add 1
+    TitleCardCamera_Init(zoneName, actNumber);
+
     gameState = GAME_PLAYING;
 }
 
@@ -125,6 +139,19 @@ static void UpdateCameraControls(float deltaTime) {
 }
 
 void GameScreen_Update(float deltaTime) {
+    // Always update title card if active
+    if (titleCardState != TITLE_CARD_STATE_INACTIVE) {
+        TitleCardCamera_Update(deltaTime);
+
+        // Check if title card just finished
+        if (titleCardState == TITLE_CARD_STATE_INACTIVE && !titleCardFinished) {
+            titleCardFinished = true;
+        }
+    }
+
+    // Update HUD timer
+    UpdateHUD(deltaTime);
+
     switch (gameState) {
         case GAME_INIT:
             // Initialization fade in
@@ -135,36 +162,38 @@ void GameScreen_Update(float deltaTime) {
                 gameState = GAME_PLAYING;
             }
             break;
-            
+
         case GAME_PLAYING:
-            // Update camera controls
-            UpdateCameraControls(deltaTime);
-            
+            // Only allow camera controls after title card finishes
+            if (titleCardFinished) {
+                UpdateCameraControls(deltaTime);
+            }
+
             // Handle pause
             if (IsInputPressed(INPUT_START) || IsKeyPressed(KEY_ESCAPE)) {
                 gameState = GAME_PAUSED;
             }
-            
+
             // Handle back to title
             if (IsInputPressed(INPUT_B)) {
                 gameState = GAME_FADE_OUT;
                 fadeTimer = 0.0f;
             }
             break;
-            
+
         case GAME_PAUSED:
             // Handle unpause
             if (IsInputPressed(INPUT_START) || IsKeyPressed(KEY_ESCAPE)) {
                 gameState = GAME_PLAYING;
             }
-            
+
             // Handle back to title
             if (IsInputPressed(INPUT_B)) {
                 gameState = GAME_FADE_OUT;
                 fadeTimer = 0.0f;
             }
             break;
-            
+
         case GAME_FADE_OUT:
             fadeTimer += deltaTime;
             fadeAlpha = fadeTimer / fadeDuration;
@@ -179,42 +208,60 @@ void GameScreen_Update(float deltaTime) {
 void GameScreen_Draw(void) {
     // Clear background
     ClearBackground((Color){135, 206, 250, 255}); // Sky blue
-    
+
+    // Draw title card back fade (behind everything)
+    if (titleCardState != TITLE_CARD_STATE_INACTIVE) {
+        TitleCardCamera_DrawBackFade();
+    }
+
     BeginMode2D(camera);
-    
+
     // Draw level tiles
     if (levelData && tilesetTexture.id > 0) {
         DrawTileLayer(levelData, levelWidth, levelHeight, tilesetTexture);
     }
-    
+
     // Draw grid for debugging (optional)
     if (IsKeyDown(KEY_G)) {
         for (int x = 0; x <= levelWidth; x++) {
-            DrawLine(x * TILE_SIZE, 0, x * TILE_SIZE, levelHeight * TILE_SIZE, 
+            DrawLine(x * TILE_SIZE, 0, x * TILE_SIZE, levelHeight * TILE_SIZE,
                     (Color){255, 255, 255, 100});
         }
         for (int y = 0; y <= levelHeight; y++) {
-            DrawLine(0, y * TILE_SIZE, levelWidth * TILE_SIZE, y * TILE_SIZE, 
+            DrawLine(0, y * TILE_SIZE, levelWidth * TILE_SIZE, y * TILE_SIZE,
                     (Color){255, 255, 255, 100});
         }
     }
-    
+
     EndMode2D();
-    
+
+    // Draw HUD (only after title card exits or during display)
+    if (titleCardFinished || titleCardState == TITLE_CARD_STATE_INACTIVE) {
+        DrawHUD();
+    }
+
+    // Draw title card elements (on top of game world, but HUD shows through)
+    if (titleCardState != TITLE_CARD_STATE_INACTIVE) {
+        TitleCardCamera_Draw();
+        TitleCardCamera_DrawFrontFade();
+    }
+
     // Draw UI elements (screen space)
     if (gameState == GAME_PAUSED) {
-        DrawRectangle(0, 0, VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT, 
+        DrawRectangle(0, 0, VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT,
                      (Color){0, 0, 0, 128});
         const char* pauseText = "PAUSED";
         int textWidth = MeasureText(pauseText, 20);
-        DrawText(pauseText, (VIRTUAL_SCREEN_WIDTH - textWidth) / 2, 
+        DrawText(pauseText, (VIRTUAL_SCREEN_WIDTH - textWidth) / 2,
                 VIRTUAL_SCREEN_HEIGHT / 2 - 10, 20, WHITE);
     }
-    
-    // Draw controls info
-    DrawText("Arrow/WASD: Move Camera  +/-: Zoom  ESC: Pause  B: Back  G: Grid", 
-            10, VIRTUAL_SCREEN_HEIGHT - 20, 8, WHITE);
-    
+
+    // Draw controls info (only when title card is done)
+    if (titleCardFinished) {
+        DrawText("Arrow/WASD: Move Camera  +/-: Zoom  ESC: Pause  B: Back  G: Grid",
+                10, VIRTUAL_SCREEN_HEIGHT - 12, 8, WHITE);
+    }
+
     // Draw fade overlay
     if (fadeAlpha > 0) {
         DrawRectangle(0, 0, VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT,
@@ -292,10 +339,16 @@ void GameScreen_Unload(void) {
         free(levelData);
         levelData = NULL;
     }
-    
+
     // Unload tileset texture
     if (tilesetTexture.id > 0) {
         UnloadTexture(tilesetTexture);
         tilesetTexture = (Texture2D){0};
     }
+
+    // Unload title card resources
+    TitleCardCamera_Unload();
+
+    // Unload HUD resources
+    UnloadHUD();
 }

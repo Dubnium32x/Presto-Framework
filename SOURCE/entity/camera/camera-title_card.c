@@ -2,6 +2,7 @@
 #include "camera-title_card.h"
 #include "../../util/util-global.h"
 #include "camera-hud.h"
+#include <string.h>
 
 #define SPINNING_RECT_SPEED 720.0f // Degrees per second
 #define SIDE_GRAPHIC_ROTATION_ANGLE 45.0f // Degrees - 45 degree angle for better visual impact
@@ -25,6 +26,10 @@ Rectangle sideGraphicRect = {0, 0, 512, 128};
 Rectangle zoneRect = {0, 0, 64, 64};
 Rectangle blackFadeRect1 = { 0, 0, VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT};
 Rectangle blackFadeRect2 = { 0, 0, VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT};
+
+// Dynamic zone/act data
+static char currentZoneName[64] = "ATLANTIS HIGHWAY";
+static int currentActNumber = 1;
 
 // Layout positioning based on sketch
 const Vector2 sideGraphicStartPos = { -350.0f, VIRTUAL_SCREEN_HEIGHT - 120.0f }; // Start off-screen left, bottom area
@@ -62,51 +67,59 @@ float processTimer = 0.0f;
 static float frontFadeAlpha = 255.0f; // Starts fully opaque
 static float backFadeAlpha = 255.0f;  // Starts fully opaque
 
-void TitleCardCamera_Init(void) {
+void TitleCardCamera_Init(const char* zoneName, int actNumber) {
     isTitleCardActive = true;
     titleCardState = TITLE_CARD_STATE_ENTERING;
     sideGraphicRotation = SIDE_GRAPHIC_ROTATION_ANGLE;
     spikeRotation = SIDE_GRAPHIC_ROTATION_ANGLE;
     spinningRectRotation = 0.0f;
-    
+    processTimer = 0.0f;
+
+    // Store zone name and act number
+    if (zoneName != NULL) {
+        strncpy(currentZoneName, zoneName, sizeof(currentZoneName) - 1);
+        currentZoneName[sizeof(currentZoneName) - 1] = '\0';
+    }
+    currentActNumber = actNumber;
+
     // Initialize fade rectangles
     frontFadeAlpha = 255.0f; // Start fully opaque
     backFadeAlpha = 255.0f;  // Start fully opaque
 
     // Load textures (try to load from files, fallback to placeholders)
-    actText = LoadTexture("res/image/title_card/ACT.png");
+    actText = LoadTexture("RESOURCES/image/title_card/ACT.png");
     if (actText.id == 0) {
         Image actImg = GenImageColor(64, 32, WHITE);
         actText = LoadTextureFromImage(actImg);
         UnloadImage(actImg);
     }
 
-    act1Text = LoadTexture("res/image/title_card/1.png");
+    act1Text = LoadTexture("RESOURCES/image/title_card/1.png");
     if (act1Text.id == 0) {
         Image act1Img = GenImageColor(32, 32, WHITE);
         act1Text = LoadTextureFromImage(act1Img);
         UnloadImage(act1Img);
     }
 
-    act2Text = LoadTexture("res/image/title_card/2.png");
+    act2Text = LoadTexture("RESOURCES/image/title_card/2.png");
     if (act2Text.id == 0) {
         Image act2Img = GenImageColor(32, 32, WHITE);
         act2Text = LoadTextureFromImage(act2Img);
         UnloadImage(act2Img);
     }
 
-    act3Text = LoadTexture("res/image/title_card/3.png");
+    act3Text = LoadTexture("RESOURCES/image/title_card/3.png");
     if (act3Text.id == 0) {
         Image act3Img = GenImageColor(32, 32, WHITE);
         act3Text = LoadTextureFromImage(act3Img);
         UnloadImage(act3Img);
     }
 
-    // Load actual spike texture (12x36), fallback to generated if not found
-    sideGraphicSpike = LoadTexture("res/image/title_card/side_graphic_spike.png");
+    // Load actual spike texture, fallback to generated if not found
+    sideGraphicSpike = LoadTexture("RESOURCES/image/title_card/side_graphic_spike.png");
     if (sideGraphicSpike.id == 0) {
-        // Fallback: generate 12x36 red spike texture
-        Image spikeImg = GenImageColor(12, 36, WHITE);
+        // Fallback: generate spike texture
+        Image spikeImg = GenImageColor(36, 12, WHITE);
         sideGraphicSpike = LoadTextureFromImage(spikeImg);
         UnloadImage(spikeImg);
     }
@@ -245,44 +258,39 @@ void TitleCardCamera_Draw(void) {
     // Draw spinning square as a colored rectangle (since we don't have a texture)
     DrawRectanglePro(spinningSquareDest, spinningSquareOrigin, spinningRectRotation, BLUE);
 
-    // Draw zone name at top (placeholder text for now)
-    const char* zoneName = "";
-    int zoneNameWidth = MeasureText(zoneName, 20);
-    DrawText(zoneName, 
-             (int)(zoneNameCurrentPos.x - zoneNameWidth/2), 
-             (int)zoneNameCurrentPos.y, 
-             20, WHITE);
-
-    // Draw main zone text (center)
-    const char* zoneText = "ATLANTIS HIGHWAY";
-    int zoneTextWidth = MeasureText(zoneText, 24);
-    DrawText(zoneText, 
-             (int)(zoneTextCurrentPos.x - zoneTextWidth / 2), 
-             (int)zoneTextCurrentPos.y, 
-             24, WHITE);
+    // Draw main zone text (center) - using dynamic zone name
+    int zoneTextWidth = MeasureText(currentZoneName, 16);
+    DrawText(currentZoneName,
+             (int)(zoneTextCurrentPos.x - zoneTextWidth / 2),
+             (int)zoneTextCurrentPos.y,
+             16, WHITE);
 
     // Draw ACT texture (bottom right)
     if (actText.id != 0) {
         Rectangle actSrc = { 0, 0, (float)actText.width, (float)actText.height };
-        Rectangle actDest = { 
-            actTextCurrentPos.x, 
-            actTextCurrentPos.y, 
-            actText.width * ACT_TEXT_SCALE, 
-            actText.height * ACT_TEXT_SCALE 
+        Rectangle actDest = {
+            actTextCurrentPos.x,
+            actTextCurrentPos.y,
+            actText.width * ACT_TEXT_SCALE,
+            actText.height * ACT_TEXT_SCALE
         };
         DrawTexturePro(actText, actSrc, actDest, (Vector2){0, 0}, 0.0f, WHITE);
     }
 
-    // Draw Act Number texture (bottom right, next to ACT)
-    if (act1Text.id != 0) {
-        Rectangle actNumSrc = { 0, 0, (float)act1Text.width, (float)act1Text.height };
-        Rectangle actNumDest = { 
-            actNumberCurrentPos.x, 
-            actNumberCurrentPos.y, 
-            act1Text.width * ACT_NUMBER_SCALE, 
-            act1Text.height * ACT_NUMBER_SCALE 
+    // Draw Act Number texture (bottom right, next to ACT) - select based on currentActNumber
+    Texture2D* actNumTexture = &act1Text;
+    if (currentActNumber == 2) actNumTexture = &act2Text;
+    else if (currentActNumber == 3) actNumTexture = &act3Text;
+
+    if (actNumTexture->id != 0) {
+        Rectangle actNumSrc = { 0, 0, (float)actNumTexture->width, (float)actNumTexture->height };
+        Rectangle actNumDest = {
+            actNumberCurrentPos.x,
+            actNumberCurrentPos.y,
+            actNumTexture->width * ACT_NUMBER_SCALE,
+            actNumTexture->height * ACT_NUMBER_SCALE
         };
-        DrawTexturePro(act1Text, actNumSrc, actNumDest, (Vector2){0, 0}, 0.0f, WHITE);
+        DrawTexturePro(*actNumTexture, actNumSrc, actNumDest, (Vector2){0, 0}, 0.0f, WHITE);
     }
              
     // Draw animated spikes on top of side graphic

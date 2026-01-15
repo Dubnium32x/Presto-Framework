@@ -14,13 +14,6 @@ extern Texture2D redSquareTexture;
 extern Rectangle sideGraphicRect;
 extern Rectangle zoneRect;
 
-// How will this be set up?
-// So we want to have the ACT text be at the bottom right corner, with the act number to its right
-// The side graphic will be on the left side, rotated 60 degrees counterclockwise. 
-// The side graphic spikes will be aligned on top of the side graphic, rotated the same way.
-// That said, the spikes will also be seamlessly tiled on top of the graphic, scrolling to the left over time.
-// The zone name will be on top of the zoneRect, which will be rotating rapidly clockwise in the centerish right of the screen.
-
 typedef enum {
     TITLE_CARD_STATE_INACTIVE,
     TITLE_CARD_STATE_ENTERING,
@@ -28,7 +21,9 @@ typedef enum {
     TITLE_CARD_STATE_EXITING
 } TitleCardState;
 
-void TitleCardCamera_Init(void);
+extern TitleCardState titleCardState;
+
+void TitleCardCamera_Init(const char* zoneName, int actNumber);
 void TitleCardCamera_Update(float deltaTime);
 void TitleCardCamera_Draw();
 void TitleCardCamera_DrawBackFade();
