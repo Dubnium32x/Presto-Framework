@@ -1,6 +1,7 @@
 // Player Script - SPG-accurate Sonic physics implementation
 #include "player-player.h"
 #include "player-collision.h"
+#include "../../util/util-global.h"  // For TILE_SIZE
 #include <string.h>
 #include <stdio.h>
 
@@ -213,7 +214,46 @@ static void UpdateGroundMovement(Player* player) {
     // Apply slope factor to ground speed (SPG)
     float slopeFactor = GetSlopeFactor(player);
     float angleRad = AngleByteToRadians(player->groundAngle);
-    player->groundSpeed -= slopeFactor * sinf(angleRad);
+    float slopeForce = slopeFactor * sinf(angleRad);
+    
+    // SPG: Dramatically reduce slope force when player has input to help climbing
+    if ((player->inputRight && player->groundSpeed > 0) || 
+        (player->inputLeft && player->groundSpeed < 0)) {
+        
+        float angleDeg = AngleByteToDegrees(player->groundAngle);
+        
+        // Base reduction for any input
+        slopeForce *= 0.3f;  // Reduced from 0.5f - much less resistance
+        
+        // Extra help for steep slopes (45+ degrees)
+        if ((angleDeg > 45.0f && angleDeg < 75.0f) || (angleDeg > 285.0f && angleDeg < 315.0f)) {
+            slopeForce *= 0.2f;  // Almost no slope resistance on steep slopes
+        }
+        
+        // Extreme help for very steep slopes (60+ degrees)
+        if ((angleDeg > 60.0f && angleDeg < 85.0f) || (angleDeg > 275.0f && angleDeg < 300.0f)) {
+            slopeForce *= 0.1f;  // Nearly eliminate slope resistance
+            
+            // Add upward boost for very steep climbs
+            if (fabsf(player->groundSpeed) > 1.0f) {
+                player->groundSpeed += (player->groundSpeed > 0 ? 0.1f : -0.1f);
+            }
+        }
+    }
+    
+    player->groundSpeed -= slopeForce;
+    
+    // Maintain minimum climbing speed on steep slopes
+    float angleDeg = AngleByteToDegrees(player->groundAngle);
+    if (((angleDeg > 35.0f && angleDeg < 80.0f) || (angleDeg > 280.0f && angleDeg < 325.0f)) &&
+        ((player->inputRight && player->groundSpeed > 0) || (player->inputLeft && player->groundSpeed < 0))) {
+        
+        float minClimbSpeed = 1.5f;
+        if (fabsf(player->groundSpeed) < minClimbSpeed && fabsf(player->groundSpeed) > 0.1f) {
+            float sign = (player->groundSpeed > 0) ? 1.0f : -1.0f;
+            player->groundSpeed = minClimbSpeed * sign;
+        }
+    }
 
     // Check for control lock
     if (player->controlLockTimer > 0) {
@@ -403,6 +443,34 @@ static void UpdatePosition(Player* player) {
         float angleRad = AngleByteToRadians(player->groundAngle);
         player->velocity.x = player->groundSpeed * cosf(angleRad);
         player->velocity.y = player->groundSpeed * -sinf(angleRad);
+        
+        // SPG: For slopes, ensure minimum horizontal movement to prevent getting stuck
+        if (fabsf(player->groundSpeed) > 0.1f) {
+            float minHorizontalMovement = 1.0f;  // Increased from 0.8f
+            if (fabsf(player->velocity.x) < minHorizontalMovement) {
+                float sign = (player->groundSpeed > 0) ? 1.0f : -1.0f;
+                player->velocity.x = minHorizontalMovement * sign;
+            }
+            
+            // Massive help for steep slopes
+            float angleDeg = AngleByteToDegrees(player->groundAngle);
+            if ((angleDeg > 30.0f && angleDeg < 60.0f) || (angleDeg > 300.0f && angleDeg < 330.0f)) {
+                // On steep slope - big boost horizontal movement
+                player->velocity.x *= 1.5f;  // Increased from 1.2f
+            }
+            
+            // Even bigger boost for very steep slopes
+            if ((angleDeg > 50.0f && angleDeg < 80.0f) || (angleDeg > 280.0f && angleDeg < 310.0f)) {
+                player->velocity.x *= 1.8f;  // Major horizontal boost
+                
+                // Force minimum horizontal movement on very steep slopes
+                float minVeryStepMovement = 1.5f;
+                if (fabsf(player->velocity.x) < minVeryStepMovement) {
+                    float sign = (player->groundSpeed > 0) ? 1.0f : -1.0f;
+                    player->velocity.x = minVeryStepMovement * sign;
+                }
+            }
+        }
     }
 
     // Move player
@@ -425,7 +493,30 @@ static void HandleGroundCollision(Player* player) {
         &sensorA, &sensorB
     );
 
-    if (ground.found && ground.distance <= 14 && ground.distance >= -14) {
+    // SPG: Extend snap distance when moving up slopes
+    float maxSnapDistance = 14.0f;
+    if (player->groundSpeed > 0 && player->velocity.x > 0) {
+        // Moving right - check if we're climbing
+        maxSnapDistance = 20.0f;  // Extended for slope climbing
+    } else if (player->groundSpeed < 0 && player->velocity.x < 0) {
+        // Moving left - check if we're climbing  
+        maxSnapDistance = 20.0f;  // Extended for slope climbing
+    }
+    
+    if (ground.found && ground.distance <= maxSnapDistance && ground.distance >= -14) {
+        // Check if this is a near-vertical slope (> 80 degrees)
+        float angleDeg = AngleByteToDegrees(ground.angle);
+        bool isSteepSlope = (angleDeg > 80.0f && angleDeg < 100.0f) || 
+                           (angleDeg > 260.0f && angleDeg < 280.0f);
+        
+        if (isSteepSlope && fabsf(player->groundSpeed) < 3.0f) {
+            // On steep slope with low speed - treat as wall, start falling
+            player->isOnGround = false;
+            player->groundAngle = 0;
+            player->collisionMode = MODE_FLOOR;
+            return;
+        }
+        
         // Snap to ground
         player->position.y += ground.distance;
         player->groundAngle = ground.angle;
@@ -550,19 +641,60 @@ static void HandleAirCollision(Player* player) {
 }
 
 static void HandleWallCollision(Player* player) {
-    if (!player->isOnGround) return;
-
-    SensorResult sensorE, sensorF;
-    CheckWallSensors(player->position, player->pushRadius, player->collisionMode, &sensorE, &sensorF);
-
-    if (sensorE.found && sensorE.distance < 0 && player->groundSpeed < 0) {
-        player->position.x -= sensorE.distance;
-        player->groundSpeed = 0;
+    // Check both sides for wall collisions using simple tile-based detection
+    float checkDistance = player->widthRadius + 2.0f; // Extra safety margin
+    
+    // Check left side
+    Vector2 leftCheck = {player->position.x - checkDistance, player->position.y};
+    bool flipH, flipV;
+    int leftTile = GetTileAtPosition((int)leftCheck.x, (int)leftCheck.y, &flipH, &flipV);
+    
+    // Check right side
+    Vector2 rightCheck = {player->position.x + checkDistance, player->position.y};
+    int rightTile = GetTileAtPosition((int)rightCheck.x, (int)rightCheck.y, &flipH, &flipV);
+    
+    // Handle left wall collision
+    if (IsTileSolid(leftTile)) {
+        int tileRightEdge = ((int)leftCheck.x / TILE_SIZE + 1) * TILE_SIZE;
+        float minDistance = player->widthRadius + 1.0f;
+        
+        if (player->position.x - tileRightEdge < minDistance) {
+            player->position.x = tileRightEdge + minDistance;
+            
+            // Stop horizontal movement toward wall only
+            if (player->isOnGround) {
+                if (player->groundSpeed < 0) {
+                    player->groundSpeed = 0;
+                }
+            } else {
+                if (player->velocity.x < 0) {
+                    player->velocity.x = 0;
+                }
+                // Don't touch velocity.y - preserve jump movement
+            }
+        }
     }
-
-    if (sensorF.found && sensorF.distance < 0 && player->groundSpeed > 0) {
-        player->position.x += sensorF.distance;
-        player->groundSpeed = 0;
+    
+    // Handle right wall collision
+    if (IsTileSolid(rightTile)) {
+        int tileLeftEdge = ((int)rightCheck.x / TILE_SIZE) * TILE_SIZE;
+        float minDistance = player->widthRadius + 1.0f;
+        
+        if (tileLeftEdge - player->position.x < minDistance) {
+            player->position.x = tileLeftEdge - minDistance;
+            
+            // Stop horizontal movement toward wall only
+            if (player->isOnGround) {
+                if (player->groundSpeed > 0) {
+                    player->groundSpeed = 0;
+                }
+            } else {
+                if (player->velocity.x > 0) {
+                    player->velocity.x = 0;
+                }
+                // Don't touch velocity.y - preserve jump movement
+            }
+        }
     }
 }
 
@@ -716,13 +848,14 @@ void UpdatePlayer(Player* player, float deltaTime) {
             UpdateGroundMovement(player);
         }
 
+        HandleWallCollision(player);  // Check walls before moving
         UpdatePosition(player);
-        HandleWallCollision(player);
         HandleGroundCollision(player);
 
     } else {
         HandleVariableJump(player);
         UpdateAirMovement(player);
+        HandleWallCollision(player);  // Check walls before moving
         UpdatePosition(player);
         ApplyGravity(player);
         HandleAirCollision(player);
