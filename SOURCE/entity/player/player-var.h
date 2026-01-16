@@ -125,15 +125,15 @@ static const uint8_t ANGLE_DOWN_LEFT = 96;
 static const uint8_t ANGLE_UP_RIGHT = 224;
 static const uint8_t ANGLE_UP_LEFT = 160;
 
-// Slope angle constants (in degrees, for comparison with converted angles)
-static const uint16_t SLIP_ANGLE_START = 46;
-static const uint16_t SLIP_ANGLE_END = 315;
+// Slope angle constants
+static const uint8_t SLIP_ANGLE_START = 46;
+static const uint8_t SLIP_ANGLE_END = 315;
 
 // Alternate slope angle ranges (Sonic 3)
-static const uint16_t SLIP_ANGLE_START_S3 = 35;
-static const uint16_t SLIP_ANGLE_END_S3 = 326;
-static const uint16_t FALL_ANGLE_START_S3 = 75;
-static const uint16_t FALL_ANGLE_END_S3 = 286;
+static const uint8_t SLIP_ANGLE_START_S3 = 35;
+static const uint8_t SLIP_ANGLE_END_S3 = 326;
+static const uint8_t FALL_ANGLE_START_S3 = 75;
+static const uint8_t FALL_ANGLE_END_S3 = 286;
 
 // Spindash constants
 #define SPINDASH_BASE_SPEED 6.0f
