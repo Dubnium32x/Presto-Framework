@@ -1,4 +1,4 @@
-// Player header file
+// Player header file - SPG-accurate Sonic physics
 #ifndef PLAYER_PLAYER_H
 #define PLAYER_PLAYER_H
 
@@ -10,7 +10,15 @@
 #include <math.h>
 #include <stdint.h>
 
-// ========== Player Structures and Enums ========== 
+// Collision mode based on ground angle (SPG)
+typedef enum CollisionMode {
+    MODE_FLOOR,      // 0-45° and 315-360° - sensors point down
+    MODE_RIGHT_WALL, // 46-134° - sensors point right
+    MODE_CEILING,    // 135-225° - sensors point up
+    MODE_LEFT_WALL   // 226-314° - sensors point left
+} CollisionMode;
+
+// ========== Player Structures and Enums ==========
 // Player State
 typedef enum {
     IDLE,
@@ -113,24 +121,28 @@ typedef enum {
     SONIC_3K
 } SlipAngleType;
 
-// Player Sensors
+// Player Structure - SPG-accurate physics
 typedef struct {
-    Vector2 left;
-    Vector2 right;
-    Vector2 topLeft;
-    Vector2 topRight;
-    Vector2 bottomLeft;
-    Vector2 bottomRight;
-} PlayerSensors;
+    // Core position and velocity
+    Vector2 position;           // Center position of player
+    Vector2 velocity;           // X and Y speed (pixels per frame)
 
-// Player Structure
-typedef struct {
-    Vector2 position;
-    Vector2 velocity;
+    // SPG ground speed (magnitude along ground surface)
+    float groundSpeed;          // Speed along the ground surface
+    uint8_t groundAngle;        // Ground angle (0-255, where 0=flat, 64=right wall, 128=ceiling, 192=left wall)
+    CollisionMode collisionMode; // Current collision mode based on angle
+
+    // Hitbox radii (SPG style)
+    float widthRadius;          // Half-width of collision box
+    float heightRadius;         // Half-height of collision box
+    float pushRadius;           // Radius for wall push sensors (usually 10)
+    float defaultWidthRadius;   // Default width (for restoring after roll)
+    float defaultHeightRadius;  // Default height (for restoring after roll)
+
+    // State flags
     bool isOnGround;
     bool isJumping;
     bool hasJumped;
-    bool jumpPressed; // Added for jump input tracking
     bool isFalling;
     bool isRolling;
     bool isCrouching;
@@ -143,47 +155,49 @@ typedef struct {
     bool isClimbing;
     bool isHurt;
     bool isDead;
-    bool isGravityApplied;
-    float groundSpeed;
-    float groundAngle; // In degrees
-    float playerRotation; // In degrees
 
-    // Input tracking fields
+    // Input state
     bool inputLeft;
     bool inputRight;
     bool inputUp;
     bool inputDown;
+    bool inputJump;
+    bool inputJumpPressed;      // True only on the frame jump was pressed
 
-    // Facing direction
-    uint8_t facing; // 1 = right, -1 = left
+    // Facing direction: 1 = right, -1 = left
+    int8_t facing;
 
-    // Player state and related info
+    // Player type and state machine
     PlayerType type;
     PlayerState state;
     PlayerIdleState idleState;
-    PlayerSensors sensors;
     PlayerGroundDirection groundDirection;
 
-    bool isImpatient;
-    float impatientTimer;
+    // Timers
+    uint8_t controlLockTimer;   // Frames to lock controls (slope slip)
+    uint8_t invincibilityTimer; // Frames of invincibility after being hurt
+    uint8_t jumpButtonHoldTimer;
+    uint8_t blinkTimer;
+    uint8_t blinkInterval;
+    uint8_t blinkDuration;
+    float idleTimer;
+    float idleLookTimer;
 
+    // Spindash
     uint8_t spindashCharge;
 
-    float idleTimer; // Time spent idle
-    float idleLookTimer; // Time spent looking in idle state
-
+    // Animation
     SpriteObject* sprite;
     PlayerAnimationState animationState;
     AnimationManager* animationManager;
 
-    uint8_t controlLockTimer; // Frames to lock controls
-    uint8_t invincibilityTimer; // Frames of invincibility after being hurt
-    uint8_t jumpButtonHoldTimer; // Timer for how long the jump button has been held (seconds)
-    uint8_t blinkTimer; // Timer for blinking effect
-    uint8_t blinkInterval; // Interval between blinks
-    uint8_t blinkDuration; // Duration of a blink
+    // Misc
+    bool isImpatient;
+    float impatientTimer;
     uint16_t slipAngleType;
 
+    // Legacy (kept for compatibility)
+    bool jumpPressed;
     Rectangle collisionBox;
 } Player;
 
@@ -192,9 +206,9 @@ void InitPlayer(Player* player, PlayerType type, Vector2 startPosition);
 void UpdatePlayer(Player* player, float deltaTime);
 void DrawPlayer(const Player* player);
 void SetPlayerAnimation(Player* player, PlayerAnimationState newState);
-void ApplyPlayerGravity(Player* player, float deltaTime);
 void HandlePlayerInput(Player* player);
 void UpdatePlayerState(Player* player);
 void UpdatePlayerAnimation(Player* player, float deltaTime);
 void ResetPlayer(Player* player, Vector2 startPosition);
+
 #endif // PLAYER_PLAYER_H
