@@ -124,7 +124,7 @@ typedef struct {
 } PlayerSensors;
 
 // Player Structure
-typedef struct {
+typedef struct Player {
     Vector2 position;
     Vector2 velocity;
     bool isOnGround;
@@ -187,6 +187,9 @@ typedef struct {
     Rectangle collisionBox;
 } Player;
 
+// Forward declaration for LevelCollision
+typedef struct LevelCollision LevelCollision;
+
 // Player Function Prototypes
 void InitPlayer(Player* player, PlayerType type, Vector2 startPosition);
 void UpdatePlayer(Player* player, float deltaTime);
@@ -197,4 +200,10 @@ void HandlePlayerInput(Player* player);
 void UpdatePlayerState(Player* player);
 void UpdatePlayerAnimation(Player* player, float deltaTime);
 void ResetPlayer(Player* player, Vector2 startPosition);
+
+// New physics-related functions
+void SetPlayerLevelCollision(LevelCollision* collision);
+void DrawPlayerDebug(const Player* player, const LevelCollision* level);
+void DrawPlayerHUD(const Player* player);
+
 #endif // PLAYER_PLAYER_H
