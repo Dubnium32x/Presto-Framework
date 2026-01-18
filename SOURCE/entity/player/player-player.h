@@ -7,6 +7,8 @@
 #include "../entity-sprite_object.h"
 #include "../../managers/managers-animation.h"
 #include "../../data/data-data.h"
+#include "player-collision.h"
+#include "player-physics.h"
 #include <math.h>
 #include <stdint.h>
 
