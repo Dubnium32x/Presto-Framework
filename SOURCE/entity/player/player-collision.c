@@ -636,24 +636,21 @@ SensorResult CheckCeilingSensors(Vector2 playerPos, float widthRadius, float hei
 // Check wall/push sensors E and F
 void CheckWallSensors(Vector2 playerPos, float pushRadius, CollisionMode mode,
                       SensorResult* outSensorE, SensorResult* outSensorF) {
-    // Push sensors are positioned at the player's edges
+    // Push sensors are always at player center height
     // E is left, F is right (in floor mode)
     Vector2 sensorEPos, sensorFPos;
-    
-    // Use pushRadius as the horizontal offset from center
-    float sensorDistance = pushRadius;
 
     switch (mode) {
         case MODE_FLOOR:
         case MODE_CEILING:
-            sensorEPos = (Vector2){playerPos.x - sensorDistance, playerPos.y};
-            sensorFPos = (Vector2){playerPos.x + sensorDistance, playerPos.y};
+            sensorEPos = (Vector2){playerPos.x - pushRadius, playerPos.y};
+            sensorFPos = (Vector2){playerPos.x + pushRadius, playerPos.y};
             break;
 
         case MODE_RIGHT_WALL:
         case MODE_LEFT_WALL:
-            sensorEPos = (Vector2){playerPos.x, playerPos.y - sensorDistance};
-            sensorFPos = (Vector2){playerPos.x, playerPos.y + sensorDistance};
+            sensorEPos = (Vector2){playerPos.x, playerPos.y - pushRadius};
+            sensorFPos = (Vector2){playerPos.x, playerPos.y + pushRadius};
             break;
     }
 
