@@ -350,6 +350,9 @@ void PlayerJump(Player* player) {
     player->isOnGround = false;
     player->isJumping = true;
     player->hasJumped = true;
+    
+    // Set rotation to 0 when jumping (maintain zero degrees during jump)
+    player->playerRotation = 0.0f;
 
     // Jump velocity is added perpendicular to current ground angle
     float jumpForce = GetJumpForce(player);
@@ -359,7 +362,7 @@ void PlayerJump(Player* player) {
     ConvertGroundSpeedToVelocity(player);
 
     // Then add jump force perpendicular to ground
-    player->velocity.x -= jumpForce * sinf(radAngle);
+    player->velocity.x += jumpForce * sinf(radAngle);  // Changed from -= to +=
     player->velocity.y += jumpForce * cosf(radAngle);  // Note: positive because jump force is negative
 }
 
@@ -601,10 +604,24 @@ void HandleWallCollision(Player* player, const LevelCollision* level) {
         if (sensorF.found && sensorF.distance < 0) {
             // Inside wall - push out
             if (player->isOnGround) {
-                // Grounded - adjust speed to stop at wall
-                player->velocity.x += sensorF.distance;
-                if (player->groundSpeed > 0) {
-                    player->groundSpeed = 0;
+                // Check if wall is too steep - should fall off
+                float wallAngle = sensorF.angle;
+                while (wallAngle < 0) wallAngle += 360.0f;
+                while (wallAngle >= 360) wallAngle -= 360.0f;
+                
+                // Right walls in range 75-285 degrees are too steep to stick to
+                bool isSteepWall = (wallAngle >= 75.0f && wallAngle <= 285.0f);
+                
+                if (isSteepWall) {
+                    // Too steep - fall off the wall
+                    player->isOnGround = false;
+                    player->position.x += sensorF.distance; // Still push out of wall
+                } else {
+                    // Normal wall - adjust speed to stop at wall
+                    player->velocity.x += sensorF.distance;
+                    if (player->groundSpeed > 0) {
+                        player->groundSpeed = 0;
+                    }
                 }
             } else {
                 // Airborne - directly adjust position
@@ -627,9 +644,24 @@ void HandleWallCollision(Player* player, const LevelCollision* level) {
         if (sensorE.found && sensorE.distance < 0) {
             // Inside wall - push out
             if (player->isOnGround) {
-                player->velocity.x -= sensorE.distance;
-                if (player->groundSpeed < 0) {
-                    player->groundSpeed = 0;
+                // Check if wall is too steep - should fall off
+                float wallAngle = sensorE.angle;
+                while (wallAngle < 0) wallAngle += 360.0f;
+                while (wallAngle >= 360) wallAngle -= 360.0f;
+                
+                // Left walls in range 75-285 degrees are too steep to stick to
+                bool isSteepWall = (wallAngle >= 75.0f && wallAngle <= 285.0f);
+                
+                if (isSteepWall) {
+                    // Too steep - fall off the wall
+                    player->isOnGround = false;
+                    player->position.x -= sensorE.distance; // Still push out of wall
+                } else {
+                    // Normal wall - adjust speed to stop at wall
+                    player->velocity.x -= sensorE.distance;
+                    if (player->groundSpeed < 0) {
+                        player->groundSpeed = 0;
+                    }
                 }
             } else {
                 player->position.x -= sensorE.distance;
@@ -703,8 +735,11 @@ void UpdatePlayerPhysics(Player* player, const LevelCollision* level) {
     }
 
     // Update player rotation for visual
-    // Smoothly interpolate towards ground angle when grounded
-    if (player->isOnGround) {
+    if (player->isJumping) {
+        // While jumping, maintain zero degree rotation
+        player->playerRotation = 0.0f;
+    } else if (player->isOnGround) {
+        // Smoothly interpolate towards ground angle when grounded
         float targetRotation = player->groundAngle;
         float diff = targetRotation - player->playerRotation;
 
@@ -715,7 +750,7 @@ void UpdatePlayerPhysics(Player* player, const LevelCollision* level) {
         // Smooth interpolation
         player->playerRotation += diff * 0.25f;
     } else {
-        // In air, slowly rotate back to 0
+        // In air but not jumping, slowly rotate back to 0
         player->playerRotation *= 0.9f;
     }
 
