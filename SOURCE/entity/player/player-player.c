@@ -8,11 +8,6 @@
 // Animation
 // ============================================================================
 
-void SetPlayerAnimation(Player* player, PlayerAnimationState newState) {
-    if (player == NULL) return;
-    player->animationState = newState;
-}
-
 // ============================================================================
 // Initialization
 // ============================================================================
@@ -652,44 +647,47 @@ void UpdatePlayerState(Player* player) {
 // Animation Update
 // ============================================================================
 
-void UpdatePlayerAnimation(Player* player, float deltaTime) {
+void UpdatePlayerAnimation(Player *player, float deltaTime) {
+    if (player == NULL) return;
+
     switch (player->state) {
         case IDLE:
             player->idleTimer += deltaTime;
-            SetPlayerAnimation(player, ANIM_IDLE);
+            player->animationState = ANIM_IDLE;
             break;
         case WALK:
         case RUN:
             player->idleTimer = 0;
-            SetPlayerAnimation(player, (fabsf(player->groundSpeed) < 4.0f) ? ANIM_WALK : ANIM_RUN);
+            player->animationState =
+                (fabsf(player->groundSpeed) < 4.0f) ? ANIM_WALK : ANIM_RUN;
             break;
         case DASH:
-            SetPlayerAnimation(player, ANIM_DASH);
+            player->animationState = ANIM_DASH;
             break;
         case CROUCH:
-            SetPlayerAnimation(player, ANIM_CROUCH);
+            player->animationState = ANIM_CROUCH;
             break;
         case LOOK_UP:
-            SetPlayerAnimation(player, ANIM_LOOK_UP);
+            player->animationState = ANIM_LOOK_UP;
             break;
         case ROLL:
-            SetPlayerAnimation(player, player->isOnGround ? ANIM_ROLL : ANIM_JUMP);
+            player->animationState = player->isOnGround ? ANIM_ROLL : ANIM_JUMP;
             break;
         case JUMP:
         case FALL:
-            SetPlayerAnimation(player, ANIM_FALL);
+            player->animationState = ANIM_FALL;
             break;
         case SPINDASH:
-            SetPlayerAnimation(player, ANIM_SPINDASH);
+            player->animationState = ANIM_SPINDASH;
             break;
         case HURT:
-            SetPlayerAnimation(player, ANIM_HURT);
+            player->animationState = ANIM_HURT;
             break;
         case DEAD:
-            SetPlayerAnimation(player, ANIM_DEAD);
+            player->animationState = ANIM_DEAD;
             break;
         default:
-            SetPlayerAnimation(player, ANIM_IDLE);
+            player->animationState = ANIM_IDLE;
             break;
     }
 }
