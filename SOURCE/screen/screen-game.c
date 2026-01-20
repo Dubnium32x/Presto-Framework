@@ -9,6 +9,8 @@
 #include "../managers/managers-screen_settings.h"
 #include "../entity/camera/camera-title_card.h"
 #include "../entity/camera/camera-hud.h"
+#include "../entity/player/player-player.h"
+#include "../entity/player/player-collision.h"
 #include "../util/util-global.h"
 
 // Game state
@@ -24,13 +26,19 @@ static int levelWidth = 0;
 static int levelHeight = 0;
 static Texture2D tilesetTexture = {0};
 
+// Player
+static Player player;
+static bool playerInitialized = false;
+
 // Camera state
 static Camera2D camera = {0};
 static float cameraSpeed = 200.0f;
+static bool debugCameraMode = false;
 
 // Forward declarations
 static void LoadTestLevel(void);
 static void DrawTileLayer(int** layer, int width, int height, Texture2D tileset);
+static void UpdateCameraFollow(void);
 static void UpdateCameraControls(float deltaTime);
 
 void GameScreen_Init(void) {
@@ -39,6 +47,7 @@ void GameScreen_Init(void) {
     fadeAlpha = 0.0f;
     fadeTimer = 0.0f;
     titleCardFinished = false;
+    debugCameraMode = false;
 
     // Initialize camera
     camera.offset = (Vector2){ VIRTUAL_SCREEN_WIDTH / 2.0f, VIRTUAL_SCREEN_HEIGHT / 2.0f };
@@ -59,13 +68,20 @@ void GameScreen_Init(void) {
         UnloadImage(img);
     }
 
+    // Initialize collision system with level data
+    InitCollisionSystem(levelData, levelWidth, levelHeight);
+
+    // Initialize player at a starting position
+    Vector2 playerStart = {100.0f, 100.0f};
+    InitPlayer(&player, SONIC, playerStart);
+    playerInitialized = true;
+
     // Initialize HUD
     InitHUD();
 
     // Initialize title card with zone name and act number
-    // TODO: Get these from level data when level system is complete
     const char* zoneName = "ATLANTIS HIGHWAY";
-    int actNumber = (int)g_currentAct + 1; // ACT_1 = 0, so add 1
+    int actNumber = (int)g_currentAct + 1;
     TitleCardCamera_Init(zoneName, actNumber);
 
     gameState = GAME_PLAYING;
@@ -74,31 +90,41 @@ void GameScreen_Init(void) {
 static void LoadTestLevel(void) {
     // Load level from LEVEL_0 folder
     const char* levelPath = "RESOURCES/data/levels/LEVEL_0/LEVEL_0.csv";
-    
+
     printf("Attempting to load level from: %s\n", levelPath);
-    
+
     // Try to load from CSV first
     levelData = LoadCSVIntWithDimensions(levelPath, &levelWidth, &levelHeight);
-    
+
     if (!levelData) {
         printf("Failed to load CSV, creating test level programmatically\n");
         // Create a simple test level programmatically
-        levelWidth = 40;
-        levelHeight = 15;
-        
+        levelWidth = 60;
+        levelHeight = 20;
+
         levelData = malloc(sizeof(int*) * levelHeight);
         for (int y = 0; y < levelHeight; y++) {
             levelData[y] = malloc(sizeof(int) * levelWidth);
             for (int x = 0; x < levelWidth; x++) {
-                // Create simple ground pattern
-                if (y >= 12) {
-                    // Ground tiles
-                    levelData[y][x] = 1 + (x % 4);
-                } else if (y >= 10 && x > 5 && x < 35 && (x % 8) < 3) {
-                    // Some platform tiles
-                    levelData[y][x] = 5;
-                } else {
-                    // Empty space
+                // Create ground at bottom
+                if (y >= 17) {
+                    levelData[y][x] = 220; // Full solid tile
+                }
+                // Create a slope ramp
+                else if (y == 16 && x >= 20 && x < 28) {
+                    levelData[y][x] = 2; // Slope tile
+                }
+                // Create some platforms
+                else if (y == 14 && x >= 5 && x < 12) {
+                    levelData[y][x] = 220;
+                }
+                else if (y == 12 && x >= 30 && x < 38) {
+                    levelData[y][x] = 220;
+                }
+                else if (y == 10 && x >= 45 && x < 52) {
+                    levelData[y][x] = 220;
+                }
+                else {
                     levelData[y][x] = 0;
                 }
             }
@@ -110,21 +136,41 @@ static void LoadTestLevel(void) {
     }
 }
 
+static void UpdateCameraFollow(void) {
+    if (!playerInitialized || debugCameraMode) return;
+
+    // Simple camera follow - center on player
+    camera.target.x = player.position.x;
+    camera.target.y = player.position.y;
+
+    // Clamp camera to level bounds
+    float halfWidth = VIRTUAL_SCREEN_WIDTH / (2.0f * camera.zoom);
+    float halfHeight = VIRTUAL_SCREEN_HEIGHT / (2.0f * camera.zoom);
+
+    float levelPixelWidth = levelWidth * TILE_SIZE;
+    float levelPixelHeight = levelHeight * TILE_SIZE;
+
+    if (camera.target.x < halfWidth) camera.target.x = halfWidth;
+    if (camera.target.y < halfHeight) camera.target.y = halfHeight;
+    if (camera.target.x > levelPixelWidth - halfWidth) camera.target.x = levelPixelWidth - halfWidth;
+    if (camera.target.y > levelPixelHeight - halfHeight) camera.target.y = levelPixelHeight - halfHeight;
+}
+
 static void UpdateCameraControls(float deltaTime) {
-    // Camera movement with arrow keys or WASD
-    if (IsInputDown(INPUT_RIGHT) || IsKeyDown(KEY_D)) {
+    // Camera movement with WASD in debug mode
+    if (IsKeyDown(KEY_D)) {
         camera.target.x += cameraSpeed * deltaTime;
     }
-    if (IsInputDown(INPUT_LEFT) || IsKeyDown(KEY_A)) {
+    if (IsKeyDown(KEY_A)) {
         camera.target.x -= cameraSpeed * deltaTime;
     }
-    if (IsInputDown(INPUT_DOWN) || IsKeyDown(KEY_S)) {
+    if (IsKeyDown(KEY_S)) {
         camera.target.y += cameraSpeed * deltaTime;
     }
-    if (IsInputDown(INPUT_UP) || IsKeyDown(KEY_W)) {
+    if (IsKeyDown(KEY_W)) {
         camera.target.y -= cameraSpeed * deltaTime;
     }
-    
+
     // Zoom controls
     if (IsKeyPressed(KEY_EQUAL) || IsKeyPressed(KEY_KP_ADD)) {
         camera.zoom *= 1.25f;
@@ -132,7 +178,7 @@ static void UpdateCameraControls(float deltaTime) {
     if (IsKeyPressed(KEY_MINUS) || IsKeyPressed(KEY_KP_SUBTRACT)) {
         camera.zoom /= 1.25f;
     }
-    
+
     // Clamp zoom
     if (camera.zoom < 0.25f) camera.zoom = 0.25f;
     if (camera.zoom > 4.0f) camera.zoom = 4.0f;
@@ -164,9 +210,26 @@ void GameScreen_Update(float deltaTime) {
             break;
 
         case GAME_PLAYING:
-            // Only allow camera controls after title card finishes
-            if (titleCardFinished) {
+            // Toggle debug camera mode with Tab
+            if (IsKeyPressed(KEY_TAB)) {
+                debugCameraMode = !debugCameraMode;
+            }
+
+            // Update player (only after title card finishes)
+            if (titleCardFinished && playerInitialized) {
+                UpdatePlayer(&player, deltaTime);
+            }
+
+            // Update camera
+            if (debugCameraMode) {
                 UpdateCameraControls(deltaTime);
+            } else {
+                UpdateCameraFollow();
+            }
+
+            // Reset player with R
+            if (IsKeyPressed(KEY_R) && playerInitialized) {
+                ResetPlayer(&player, (Vector2){100.0f, 100.0f});
             }
 
             // Handle pause
@@ -221,6 +284,11 @@ void GameScreen_Draw(void) {
         DrawTileLayer(levelData, levelWidth, levelHeight, tilesetTexture);
     }
 
+    // Draw player
+    if (playerInitialized) {
+        DrawPlayer(&player);
+    }
+
     // Draw grid for debugging (optional)
     if (IsKeyDown(KEY_G)) {
         for (int x = 0; x <= levelWidth; x++) {
@@ -246,6 +314,22 @@ void GameScreen_Draw(void) {
         TitleCardCamera_DrawFrontFade();
     }
 
+    // Draw debug info
+    if (playerInitialized && titleCardFinished) {
+        DrawText(TextFormat("Pos: %.1f, %.1f", player.position.x, player.position.y), 10, 30, 8, WHITE);
+        DrawText(TextFormat("Vel: %.2f, %.2f", player.velocity.x, player.velocity.y), 10, 40, 8, WHITE);
+        DrawText(TextFormat("GndSpd: %.2f", player.groundSpeed), 10, 50, 8, WHITE);
+        DrawText(TextFormat("Angle: %d (%.1f deg)", player.groundAngle, AngleByteToDegrees(player.groundAngle)), 10, 60, 8, WHITE);
+        DrawText(TextFormat("OnGround: %s", player.isOnGround ? "YES" : "NO"), 10, 70, 8, player.isOnGround ? GREEN : RED);
+        DrawText(TextFormat("State: %d", player.state), 10, 80, 8, WHITE);
+
+        // Controls help
+        const char* controls = debugCameraMode ?
+            "WASD: Camera  Arrows: Player  Z/Space: Jump  Down: Roll/Crouch  Tab: Player Cam  R: Reset  G: Grid" :
+            "Arrows: Move  Z/Space: Jump  Down: Roll/Crouch  Tab: Debug Cam  R: Reset  G: Grid  ESC: Pause";
+        DrawText(controls, 10, VIRTUAL_SCREEN_HEIGHT - 12, 8, WHITE);
+    }
+
     // Draw UI elements (screen space)
     if (gameState == GAME_PAUSED) {
         DrawRectangle(0, 0, VIRTUAL_SCREEN_WIDTH, VIRTUAL_SCREEN_HEIGHT,
@@ -254,12 +338,6 @@ void GameScreen_Draw(void) {
         int textWidth = MeasureText(pauseText, 20);
         DrawText(pauseText, (VIRTUAL_SCREEN_WIDTH - textWidth) / 2,
                 VIRTUAL_SCREEN_HEIGHT / 2 - 10, 20, WHITE);
-    }
-
-    // Draw controls info (only when title card is done)
-    if (titleCardFinished) {
-        DrawText("Arrow/WASD: Move Camera  +/-: Zoom  ESC: Pause  B: Back  G: Grid",
-                10, VIRTUAL_SCREEN_HEIGHT - 12, 8, WHITE);
     }
 
     // Draw fade overlay
@@ -271,60 +349,60 @@ void GameScreen_Draw(void) {
 
 static void DrawTileLayer(int** layer, int width, int height, Texture2D tileset) {
     if (!layer || tileset.id == 0) return;
-    
+
     // Calculate tiles per row in tileset (assuming 16x16 tiles in 256px wide texture)
     int tilesPerRow = tileset.width / TILE_SIZE;
-    
+
     // Tiled flip flags
     const uint32_t FLIPPED_HORIZONTALLY_FLAG = 0x80000000;
     const uint32_t FLIPPED_VERTICALLY_FLAG   = 0x40000000;
     const uint32_t FLIPPED_DIAGONALLY_FLAG   = 0x20000000;
     const uint32_t TILE_ID_MASK              = 0x1FFFFFFF;
-    
+
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             int rawTileValue = layer[y][x];
-            
+
             // Skip empty tiles (0 or exactly -1, but not other negative values which are flipped tiles)
             if (rawTileValue == 0 || rawTileValue == -1) continue;
-            
+
             uint32_t rawValue = (uint32_t)rawTileValue;
-            
+
             // Extract flip flags
             bool flipH = (rawValue & FLIPPED_HORIZONTALLY_FLAG) != 0;
             bool flipV = (rawValue & FLIPPED_VERTICALLY_FLAG) != 0;
             bool flipD = (rawValue & FLIPPED_DIAGONALLY_FLAG) != 0;
-            
+
             // Extract actual tile ID
             int tileId = (int)(rawValue & TILE_ID_MASK);
             if (tileId == 0) continue; // Skip if tile ID is 0 after masking
-            
+
             // Tile IDs in CSV are direct indices into tileset (0-based after skipping 0)
             int tileIndex = tileId;
             int srcX = (tileIndex % tilesPerRow) * TILE_SIZE;
             int srcY = (tileIndex / tilesPerRow) * TILE_SIZE;
-            
+
             // Set up source rectangle with flipping
             float srcWidth = (float)TILE_SIZE;
             float srcHeight = (float)TILE_SIZE;
-            
+
             if (flipH) srcWidth = -srcWidth;
             if (flipV) srcHeight = -srcHeight;
-            
+
             Rectangle source = {
-                (float)srcX, (float)srcY, 
+                (float)srcX, (float)srcY,
                 srcWidth, srcHeight
             };
-            
+
             Rectangle dest = {
                 (float)(x * TILE_SIZE), (float)(y * TILE_SIZE),
                 (float)TILE_SIZE, (float)TILE_SIZE
             };
-            
+
             // Handle diagonal flip (90° rotation) by rotating the destination
             float rotation = flipD ? 90.0f : 0.0f;
             Vector2 origin = flipD ? (Vector2){0, (float)TILE_SIZE} : (Vector2){0, 0};
-            
+
             DrawTexturePro(tileset, source, dest, origin, rotation, WHITE);
         }
     }
@@ -340,11 +418,16 @@ void GameScreen_Unload(void) {
         levelData = NULL;
     }
 
+    // Reset collision system
+    InitCollisionSystem(NULL, 0, 0);
+
     // Unload tileset texture
     if (tilesetTexture.id > 0) {
         UnloadTexture(tilesetTexture);
         tilesetTexture = (Texture2D){0};
     }
+
+    playerInitialized = false;
 
     // Unload title card resources
     TitleCardCamera_Unload();
