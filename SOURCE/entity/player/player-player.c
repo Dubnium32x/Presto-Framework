@@ -140,24 +140,11 @@ static float GetDeceleration(Player* player) {
     return (player->type == SONIC) ? SONIC_DECELERATION_SPEED : TAILS_DECELERATION_SPEED;
 }
 
-static float GetFriction(Player* player) {
-    return (player->type == SONIC) ? SONIC_FRICTION_SPEED : TAILS_FRICTION_SPEED;
-}
-
 static float GetTopSpeed(Player* player) {
     if (player->isSuper) {
         return (player->type == SONIC) ? SONIC_SUPER_TOP_SPEED : TAILS_SUPER_TOP_SPEED;
     }
     return (player->type == SONIC) ? (float)SONIC_TOP_SPEED : (float)TAILS_TOP_SPEED;
-}
-
-static float GetGravity(Player* player) {
-    return (player->type == SONIC) ? SONIC_GRAVITY_FORCE : TAILS_GRAVITY_FORCE;
-}
-
-static float GetJumpForce(Player* player) {
-    // SPG: Jump force is 6.5 for Sonic, 6.0 for Knuckles (Tails same as Sonic)
-    return (player->type == SONIC) ? 6.5f : -TAILS_JUMP_FORCE;
 }
 
 static float GetAirAcceleration(Player* player) {
@@ -191,10 +178,6 @@ static float GetRollingFriction(Player* player) {
     return (player->type == SONIC) ? SONIC_ROLLING_FRICTION : TAILS_ROLLING_FRICTION;
 }
 
-static float GetRollingDeceleration(Player* player) {
-    return (player->type == SONIC) ? SONIC_ROLLING_DECELERATION : TAILS_ROLLING_DECELERATION;
-}
-
 // ============================================================================
 // Ground Movement (SPG: Running)
 // ============================================================================
@@ -202,7 +185,7 @@ static float GetRollingDeceleration(Player* player) {
 static void UpdateGroundMovement(Player* player) {
     float acc = GetAcceleration(player);
     float dec = GetDeceleration(player);
-    float frc = GetFriction(player);
+    float frc = (player->type == SONIC) ? SONIC_FRICTION_SPEED : TAILS_FRICTION_SPEED;
     float top = GetTopSpeed(player);
 
     // Apply slope factor to ground speed (SPG)
@@ -273,7 +256,7 @@ static void UpdateGroundMovement(Player* player) {
 
 static void UpdateRollingMovement(Player* player) {
     float frc = GetRollingFriction(player);
-    float dec = GetRollingDeceleration(player);
+    float dec = (player->type == SONIC) ? SONIC_ROLLING_DECELERATION : TAILS_ROLLING_DECELERATION;
 
     // Apply slope factor
     float slopeFactor = GetSlopeFactor(player);
@@ -314,7 +297,7 @@ static void HandleJump(Player* player) {
     if (!player->inputJumpPressed) return;
     if (player->isJumping) return;
 
-    float jumpForce = GetJumpForce(player);
+    float jumpForce = (player->type == SONIC) ? 6.5f : -TAILS_JUMP_FORCE;
 
     // SPG: Jump velocity is applied perpendicular to ground angle
     float angleRad = AngleByteToRadians(player->groundAngle);
@@ -377,7 +360,7 @@ static void UpdateAirMovement(Player* player) {
 // ============================================================================
 
 static void ApplyGravity(Player* player) {
-    float gravity = GetGravity(player);
+    float gravity = (player->type == SONIC) ? SONIC_GRAVITY_FORCE : TAILS_GRAVITY_FORCE;
 
     player->velocity.y += gravity;
 
@@ -610,85 +593,67 @@ static void HandleCrouchAndLookUp(Player* player) {
 }
 
 // ============================================================================
-// State Management
+// State Management & Animation Update
 // ============================================================================
 
-void UpdatePlayerState(Player* player) {
+void UpdatePlayerState(Player* player, float deltaTime) {
     if (player->isDead) {
         player->state = DEAD;
-    } else if (player->isHurt) {
-        player->state = HURT;
-    } else if (!player->isOnGround) {
-        if (player->isRolling || player->isJumping) {
-            player->state = ROLL;
-        } else {
-            player->state = FALL;
-        }
-    } else if (player->isSpindashing) {
-        player->state = SPINDASH;
-    } else if (player->isRolling) {
-        player->state = ROLL;
-    } else if (player->isCrouching) {
-        player->state = CROUCH;
-    } else if (player->isLookingUp) {
-        player->state = LOOK_UP;
-    } else if (fabsf(player->groundSpeed) < 0.1f) {
-        player->state = IDLE;
-    } else if (fabsf(player->groundSpeed) < 4.0f) {
-        player->state = WALK;
-    } else if (fabsf(player->groundSpeed) < 6.0f) {
-        player->state = RUN;
-    } else {
-        player->state = DASH;
+        player->animationState = ANIM_DEAD;
     }
-}
+    else if (player->isHurt) {
+        player->state = HURT;
+        player->animationState = ANIM_HURT;
+    }
+    else if (!player->isOnGround) {
+        if (player->isRolling || player->isJumping){
+            player->state = ROLL;
+            player->animationState = ANIM_JUMP;
+        }
+        else {
+            player->state = FALL;
+            player->animationState = ANIM_FALL;
+        }
+    }
+    else if (player->isSpindashing) {
+        player->state = SPINDASH;
+        player->animationState = ANIM_SPINDASH;
+    }
+    else if (player->isRolling) {
+        player->state = ROLL;
+        player->animationState = ANIM_ROLL;
+    }
+    else if (player->isCrouching) {
+        player->state = CROUCH;
+        player->animationState = ANIM_CROUCH;
+    }
+    else if (player->isLookingUp) {
+        player->state = LOOK_UP;
+        player->animationState = ANIM_LOOK_UP;
+    }
+    else {
+        float absGroundSpeed = fabsf(player->groundSpeed);
 
-// ============================================================================
-// Animation Update
-// ============================================================================
-
-void UpdatePlayerAnimation(Player *player, float deltaTime) {
-    if (player == NULL) return;
-
-    switch (player->state) {
-        case IDLE:
+        if (absGroundSpeed < 0.1f) {
+            player->state = IDLE;
             player->idleTimer += deltaTime;
             player->animationState = ANIM_IDLE;
-            break;
-        case WALK:
-        case RUN:
+        }
+        else if (absGroundSpeed < 4.0f) {
+            player->state = WALK;
             player->idleTimer = 0;
-            player->animationState =
-                (fabsf(player->groundSpeed) < 4.0f) ? ANIM_WALK : ANIM_RUN;
-            break;
-        case DASH:
+            player->animationState = ANIM_WALK;
+        }
+        else if (absGroundSpeed < 6.0f) {
+            player->state = RUN;
+            player->idleTimer = 0;
+            player->animationState = ANIM_RUN;
+        }
+        else {
+            player->state = DASH;
             player->animationState = ANIM_DASH;
-            break;
-        case CROUCH:
-            player->animationState = ANIM_CROUCH;
-            break;
-        case LOOK_UP:
-            player->animationState = ANIM_LOOK_UP;
-            break;
-        case ROLL:
-            player->animationState = player->isOnGround ? ANIM_ROLL : ANIM_JUMP;
-            break;
-        case JUMP:
-        case FALL:
-            player->animationState = ANIM_FALL;
-            break;
-        case SPINDASH:
-            player->animationState = ANIM_SPINDASH;
-            break;
-        case HURT:
-            player->animationState = ANIM_HURT;
-            break;
-        case DEAD:
-            player->animationState = ANIM_DEAD;
-            break;
-        default:
-            player->animationState = ANIM_IDLE;
-            break;
+        }
+
     }
 }
 
@@ -726,8 +691,7 @@ void UpdatePlayer(Player* player, float deltaTime) {
         HandleAirCollision(player);
     }
 
-    UpdatePlayerState(player);
-    UpdatePlayerAnimation(player, deltaTime);
+    UpdatePlayerState(player, deltaTime);
 }
 
 // ============================================================================

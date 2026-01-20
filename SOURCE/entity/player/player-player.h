@@ -206,8 +206,7 @@ void InitPlayer(Player* player, PlayerType type, Vector2 startPosition);
 void UpdatePlayer(Player* player, float deltaTime);
 void DrawPlayer(const Player* player);
 void HandlePlayerInput(Player* player);
-void UpdatePlayerState(Player* player);
-void UpdatePlayerAnimation(Player* player, float deltaTime);
+void UpdatePlayerStateAndAnimation(Player* player, float deltaTime);
 void ResetPlayer(Player* player, Vector2 startPosition);
 
 #endif // PLAYER_PLAYER_H
