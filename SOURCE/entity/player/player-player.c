@@ -528,7 +528,6 @@ static void HandleAirCollision(Player* player) {
 }
 
 static void HandleWallCollision(Player* player) {
-    if (!player->isOnGround) return;
 
     SensorResult sensorE, sensorF;
     CheckWallSensors(player->position, player->pushRadius, player->collisionMode, &sensorE, &sensorF);
@@ -549,9 +548,7 @@ static void HandleWallCollision(Player* player) {
 // ============================================================================
 
 static void HandleRollInitiation(Player* player) {
-    if (!player->isOnGround) return;
-    if (player->isRolling) return;
-    if (player->isSpindashing) return;
+    if (!player->isOnGround || player->isRolling || player->isSpindashing) return;
 
     // SPG: Must be pressing down and have speed >= 1.0 (S3K threshold)
     if (player->inputDown && fabsf(player->groundSpeed) >= 1.0f) {
@@ -596,7 +593,7 @@ static void HandleCrouchAndLookUp(Player* player) {
 // State Management & Animation Update
 // ============================================================================
 
-void UpdatePlayerState(Player* player, float deltaTime) {
+void UpdatePlayerStateAndAnimation(Player* player, float deltaTime) {
     if (player->isDead) {
         player->state = DEAD;
         player->animationState = ANIM_DEAD;
@@ -691,7 +688,7 @@ void UpdatePlayer(Player* player, float deltaTime) {
         HandleAirCollision(player);
     }
 
-    UpdatePlayerState(player, deltaTime);
+    UpdatePlayerStateAndAnimation(player, deltaTime);
 }
 
 // ============================================================================
