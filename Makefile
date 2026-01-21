@@ -123,7 +123,7 @@ run-debug: $(DEBUG_OUT)
 
 # Clean build artifacts
 clean:
-	rm -rf $(OBJDIR) *.missing
+	rm -rf $(OBJDIR) *.missing presto-framework* presto-framework.app
 
 # Framework development targets
 framework: directories
