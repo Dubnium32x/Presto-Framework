@@ -51,7 +51,6 @@ LDFLAGS = $(RAYLIB_LDFLAGS)
 # Directories
 SRCDIR = SOURCE
 OBJDIR = obj
-BINDIR = bin
 
 # Source files
 MAIN_SRC = $(SRCDIR)/main.c
@@ -59,12 +58,11 @@ FRAMEWORK_SRCS = $(wildcard $(SRCDIR)/*/*.c) $(wildcard $(SRCDIR)/*/*/*.c) $(wil
 ALL_SRCS = $(MAIN_SRC) $(FRAMEWORK_SRCS)
 
 # Output targets
-MAIN_OUT = $(BINDIR)/presto-framework
-DEBUG_OUT = $(BINDIR)/presto-framework-debug
+MAIN_OUT = presto-framework
+DEBUG_OUT = presto-framework-debug
 
 # Windows cross-build output
-WINDOWS_OUT = $(BINDIR)/presto-framework.exe
-
+WINDOWS_OUT = presto-framework.exe
 # Check if raylib is available
 check-raylib:
 	@echo "Checking for raylib..."
@@ -101,7 +99,7 @@ all: check-raylib build
 
 # Create necessary directories
 directories:
-	@mkdir -p $(OBJDIR) $(BINDIR)
+	@mkdir -p $(OBJDIR)
 
 # Build main demo (release) - builds both Linux and Windows versions
 build: directories $(MAIN_OUT) $(WINDOWS_OUT)
@@ -125,7 +123,7 @@ run-debug: $(DEBUG_OUT)
 
 # Clean build artifacts
 clean:
-	rm -rf $(OBJDIR) $(BINDIR) *.missing
+	rm -rf $(OBJDIR) *.missing
 
 # Framework development targets
 framework: directories
@@ -219,7 +217,7 @@ MAC_EXTRA_LIBDIRS = -L/opt/homebrew/lib -L/usr/local/lib
 MAC_CFLAGS ?= -O2 -std=c2x -Wall -Wextra $(RAYLIB_CFLAGS) $(MAC_EXTRA_INCLUDES) -Isrc
 MAC_LDFLAGS ?= $(MAC_EXTRA_LIBDIRS) $(RAYLIB_LDFLAGS) -framework Cocoa -framework OpenGL -framework IOKit -framework CoreVideo -lm
 
-MAC_OUT = $(BINDIR)/presto-framework-mac
+MAC_OUT = presto-framework-mac
 
 .PHONY: mac
 mac: directories $(MAC_OUT)
@@ -238,7 +236,7 @@ $(MAC_OUT): $(ALL_SRCS)
 
 # Build a macOS .app bundle containing the executable and resources so resources
 # load correctly when double-clicking the app. Creates `bin/presto-framework.app`.
-MAC_APP = $(BINDIR)/presto-framework.app
+MAC_APP = presto-framework.app
 
 .PHONY: macapp
 macapp: mac
