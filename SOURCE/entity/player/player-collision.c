@@ -114,10 +114,9 @@ int GetTileWidthAtY(int tileId, int localY, bool flipH, bool flipV) {
 
     int width = TILESET_WIDTHMAPS[tileId][y];
 
-    // Handle horizontal flip - invert width
-    if (flipH && width > 0) {
-        width = TILE_SIZE - width;
-    }
+    // Note: flipH is handled in the surface calculation, not here
+    // This preserves full tiles (width=16) which would incorrectly become 0 if inverted
+    (void)flipH;  // Suppress unused parameter warning
 
     return width;
 }
@@ -324,10 +323,12 @@ static SensorResult CheckRightWallSensor(Vector2 sensorPos) {
         int width = GetTileWidthAtY(tileId, localY, flipH, flipV);
 
         if (width > 0) {
-            // Width is from left side of tile
-            int surfaceX = tileX * TILE_SIZE + width;
+            // For right wall check, we need the LEFT surface of the solid
+            // (where player moving right would hit)
+            int surfaceX = tileX * TILE_SIZE;
 
             if (flipH) {
+                // Flipped: solid is on right side, left surface is at (tileX+1)*16 - width
                 surfaceX = (tileX + 1) * TILE_SIZE - width;
             }
 
@@ -350,7 +351,8 @@ static SensorResult CheckRightWallSensor(Vector2 sensorPos) {
         int width = GetTileWidthAtY(tileId, localY, flipH, flipV);
 
         if (width > 0) {
-            int surfaceX = (tileX + 1) * TILE_SIZE + width;
+            // Extension tile to the right: left surface
+            int surfaceX = (tileX + 1) * TILE_SIZE;
 
             if (flipH) {
                 surfaceX = (tileX + 2) * TILE_SIZE - width;
@@ -395,10 +397,13 @@ static SensorResult CheckLeftWallSensor(Vector2 sensorPos) {
         int width = GetTileWidthAtY(tileId, localY, flipH, flipV);
 
         if (width > 0) {
-            int surfaceX = (tileX + 1) * TILE_SIZE - width;
+            // For left wall check, we need the RIGHT surface of the solid
+            // (where player moving left would hit)
+            int surfaceX = tileX * TILE_SIZE + width;
 
             if (flipH) {
-                surfaceX = tileX * TILE_SIZE + width;
+                // Flipped: solid is on right side, right surface is at tile's right edge
+                surfaceX = (tileX + 1) * TILE_SIZE;
             }
 
             result.distance = (int)sensorPos.x - surfaceX;
@@ -420,10 +425,11 @@ static SensorResult CheckLeftWallSensor(Vector2 sensorPos) {
         int width = GetTileWidthAtY(tileId, localY, flipH, flipV);
 
         if (width > 0) {
-            int surfaceX = tileX * TILE_SIZE - width;
+            // Extension tile to the left: right surface
+            int surfaceX = (tileX - 1) * TILE_SIZE + width;
 
             if (flipH) {
-                surfaceX = (tileX - 1) * TILE_SIZE + width;
+                surfaceX = tileX * TILE_SIZE;
             }
 
             result.distance = (int)sensorPos.x - surfaceX;

@@ -15,7 +15,7 @@
 
 // ==== Sonic ====
 // Player box dimensions
-static const uint8_t SONIC_PLAYER_WIDTH_RAD = 6;
+static const uint8_t SONIC_PLAYER_WIDTH_RAD = 8;
 static const uint8_t SONIC_PLAYER_HEIGHT_RAD = 17;
 
 // Physics constants - running state

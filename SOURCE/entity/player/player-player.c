@@ -555,12 +555,12 @@ static void HandleWallCollision(Player* player) {
     SensorResult sensorE, sensorF;
     CheckWallSensors(player->position, player->pushRadius, player->collisionMode, &sensorE, &sensorF);
 
-    if (sensorE.found && sensorE.distance < 0 && player->groundSpeed < 0) {
+    if (sensorE.found && sensorE.distance <= 0 && player->groundSpeed < 0) {
         player->position.x -= sensorE.distance;
         player->groundSpeed = 0;
     }
 
-    if (sensorF.found && sensorF.distance < 0 && player->groundSpeed > 0) {
+    if (sensorF.found && sensorF.distance <= 0 && player->groundSpeed > 0) {
         player->position.x += sensorF.distance;
         player->groundSpeed = 0;
     }
@@ -578,7 +578,7 @@ static void HandleRollInitiation(Player* player) {
     // SPG: Must be pressing down and have speed >= 1.0 (S3K threshold)
     if (player->inputDown && fabsf(player->groundSpeed) >= 1.0f) {
         player->isRolling = true;
-        player->widthRadius = player->defaultWidthRadius - 2;
+        player->widthRadius = player->defaultWidthRadius; // not altered
         player->heightRadius = 14;
         player->position.y += (player->defaultHeightRadius - 14);
     }
