@@ -760,6 +760,12 @@ void DrawPlayer(const Player* player) {
         YELLOW
     );
 
+    // Draw wall sensors
+    Vector2 wallSensorLeft = {player->position.x - player->pushRadius, player->position.y};
+    Vector2 wallSensorRight = {player->position.x + player->pushRadius, player->position.y};
+    DrawCircleV(wallSensorLeft, 2, ORANGE);
+    DrawCircleV(wallSensorRight, 2, ORANGE);
+
     if (player->isOnGround) {
         Vector2 sensorA = {player->position.x - player->widthRadius, player->position.y + player->heightRadius};
         Vector2 sensorB = {player->position.x + player->widthRadius, player->position.y + player->heightRadius};
